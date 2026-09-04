@@ -1,0 +1,58 @@
+const assert = require("assert");
+const fs = require("fs");
+const Module = require("module");
+const originalLoad = Module._load;
+
+Module._load = function(request, parent, isMain) {
+  if (request === "obsidian") return { TFile: class TFile {} };
+  return originalLoad.call(this, request, parent, isMain);
+};
+
+const source = fs.readFileSync(require.resolve("./main.source.js"), "utf8");
+const helper = fs.readFileSync(require.resolve("./oe-link-helper/js/plugin.js"), "utf8");
+const settings = fs.readFileSync(require.resolve("./lib/settings-tab.js"), "utf8");
+const { getStableIdentityDate } = require("./lib/asset-utils");
+Module._load = originalLoad;
+
+assert.match(source, /context\.kind !== "markdown"[\s\S]*__sourceStart/);
+assert.match(source, /const externalLocalLinks = this\.findExternalLocalAttachmentLinks\(text\)/);
+assert.match(source, /source === "eagle" \|\| source === "trash" \|\| item\.__fromNoteLink/);
+assert.match(source, /requestEagleHelperJson\("item\/open"/);
+assert.match(source, /const protocolTimer = window\.setTimeout\(openProtocol, 250\)/);
+assert.match(source, /status: protocolOpened \? "success-after-protocol" : "success"/);
+assert.match(source, /document\.body\.click\(\);\s*await descriptor\.onClick\(\);/);
+assert.match(source, /exportDesktopDiagnosticLog/);
+assert.match(source, /EAGLE_HELPER_PORTS/);
+assert.match(source, /Promise\.all\(EAGLE_HELPER_PORTS\.map/);
+assert.match(source, /eagleHelperProbeFailedAt/);
+assert.match(source, /body\.status !== "success"/);
+assert.match(source, /getImportableAttachmentAtCursor/);
+assert.match(source, /registerEditorExtension\(createLivePreviewAttachmentExtension\(this\)\)/);
+assert.doesNotMatch(source, /new MutationObserver\(records =>/);
+assert.match(source, /target\.closest\("img, audio, video, \.file-embed/);
+assert.match(source, /getRenderedAttachmentIdentity\(image\)/);
+assert.match(source, /handleEditorDragOver\(event\) \{\s*if \(this\.settings\.autoImportAttachments === false\) return;/);
+assert.match(source, /async handleEditorDrop\(event, editor\) \{\s*if \(this\.settings\.autoImportAttachments === false\) return;/);
+assert.match(source, /打开 Eagle 文件夹/);
+assert.match(source, /const submenu = menuItem\.setSubmenu\(\)/);
+assert.match(source, /currentFile instanceof TFile && typeof item\.__sourceStart === "number"\s*\? \[currentFile\]/);
+assert.doesNotMatch(source, /references\.unshift\(currentFile\)/);
+assert.match(source, /const referencedFiles = \[file\]/);
+assert.match(source, /title: "定位到引用位置",\s*icon: "map-pin",\s*children:/);
+assert.match(source, /moveToObsidianTrash[\s\S]*"trash-2"/);
+assert.match(source, /"打开文件所在位置"[\s\S]*"folder-open"/);
+assert.match(source, /const itemContainer = nativeItem && nativeItem\.parentElement \|\| menu/);
+assert.match(source, /submenu\.showAtPosition/);
+assert.match(source, /mapWithConcurrency\(sourceFiles, 8/);
+assert.doesNotMatch(source, /if \(references\.length\) \{\s*menu\.addSeparator\(\)/);
+assert.match(helper, /eagle\.item\.open\(cleanItemId\)/);
+assert.doesNotMatch(helper, /item\/open-file/);
+assert.match(source, /queryEagleItemInfo\(itemId, \{ force: true \}\)/);
+assert.match(source, /shell\.openPath\(fullPath\)/);
+assert.match(helper, /req\.url === "\/diagnostic\/status"/);
+assert.match(helper, /error\.code === "EADDRINUSE"/);
+assert.match(helper, /expectedSize > 0 && itemSize === expectedSize/);
+assert.match(settings, /settingDesktopDiagnosticButton/);
+assert.equal(getStableIdentityDate({ stat: { ctime: new Date(2026, 0, 22).getTime() } }, "20260123"), "20260123");
+
+console.log("desktop regression checks passed");

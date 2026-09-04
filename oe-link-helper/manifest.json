@@ -1,0 +1,16 @@
+{
+  "id": "oe-link-helper",
+  "version": "0.2.13",
+  "platform": "all",
+  "arch": "all",
+  "name": "OE Link Helper",
+  "fallbackLanguage": "en",
+  "languages": ["en", "zh_CN"],
+  "main": {
+    "url": "index.html",
+    "width": 420,
+    "height": 260,
+    "frame": false,
+    "serviceMode": true
+  }
+}

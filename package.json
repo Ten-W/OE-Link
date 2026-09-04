@@ -1,0 +1,9 @@
+{
+  "name": "oe-link",
+  "version": "0.5.59",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-desktop.js . && node build-platform-main.js",
+    "verify": "node verify-all.js"
+  }
+}

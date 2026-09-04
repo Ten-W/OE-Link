@@ -1,0 +1,57 @@
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+
+const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8");
+const styles = fs.readFileSync(path.join(__dirname, "styles.css"), "utf8");
+const desktop = fs.readFileSync(path.join(__dirname, "desktop.js"), "utf8");
+const built = fs.readFileSync(path.join(__dirname, "main.js"), "utf8");
+
+assert.match(source, /while \(!this\.libraryReferenceSummary\)/);
+assert.match(source, /renderItems\(context, items, \{ preserveToolbar: sameContext \}\)/);
+assert.match(source, /const preserveToolbar = this\.isLibraryMode/);
+assert.match(source, /getContentRoot\(/);
+assert.match(source, /const getActiveContext = \(\) => this\.currentContext \|\| context/);
+assert.match(source, /this\.scheduleSemanticSourceModify\(file\)/);
+assert.match(source, /if \(previous === next\) return;/);
+assert.match(source, /this\.assetRenderGeneration \+= 1;/);
+assert.match(source, /const isCurrentRender = \(\) => renderGeneration === this\.assetRenderGeneration;/);
+assert.match(source, /if \(!isCurrentRender\(\)\) return;/);
+assert.match(source, /return exact \|\| \(candidates\.length === 1 \? candidates\[0\] : null\);/);
+assert.match(source, /async waitForRenderedAsset\(view, item, generation/);
+assert.match(source, /for \(let attempt = 0; attempt < 2; attempt \+= 1\)/);
+assert.match(source, /waitForRenderedAsset\(view, item, generation, attempt === 0 \? 1600 : 3600\)/);
+assert.match(source, /Skipping unavailable Eagle item/);
+assert.match(styles, /\.eaglebridge-note-assets-content\s*\{[\s\S]*flex: 1 1 auto/);
+assert.doesNotMatch(source, /createRefreshButton/);
+assert.doesNotMatch(source, /primaryText: this\.plugin\.t\("refresh"\)/);
+assert.doesNotMatch(styles, /\.eaglebridge-toolbar-refresh-button/);
+assert.doesNotMatch(styles, /min-height: 68px/);
+assert.match(source, /count \/ total >= 0\.03 \? `\$\{count\} 1 0px` : "0 0 22px"/);
+assert.match(source, /const OE_LINK_ICON = `[\s\S]*viewBox="0 0 226 226"[\s\S]*stroke="currentColor"/);
+assert.match(source, /for \(const item of summary\.items\) \{\s*sourceCounts\[this\.getLibraryItemSource\(item\)\] \+= 1;\s*\}/);
+assert.doesNotMatch(source, /activeReferences\.has\(this\.getLibraryItemReferenceState\(item\)\)[\s\S]{0,120}sourceCounts/);
+assert.match(styles, /\.eaglebridge-library-filter-bar-section \+ \.eaglebridge-library-filter-bar-section\s*\{[\s\S]*margin-top: 4px;/);
+assert.match(styles, /\.eaglebridge-library-filter-bar\s*\{[\s\S]*height: 16px;[\s\S]*border: 0;/);
+assert.match(styles, /\.eaglebridge-library-filter-segment\.is-eagle\s*\{[\s\S]*inset 0 0 0 2px var\(--color-blue\)/);
+assert.match(styles, /\.eaglebridge-library-filter-segment\.is-enabled\s*\{[\s\S]*box-shadow: none !important;/);
+assert.match(styles, /\.eaglebridge-library-filter-segment\.is-enabled\s*\{[\s\S]*color: var\(--text-on-accent\);/);
+assert.match(styles, /\.eaglebridge-library-filter-segment:first-child\s*\{[\s\S]*border-radius: 999px 0 0 999px;/);
+assert.match(styles, /\.eaglebridge-note-assets-stat-visible\s*\{[\s\S]*color: var\(--text-normal\);[\s\S]*font-weight: 600;/);
+assert.doesNotMatch(styles, /\.eaglebridge-import-group > \.eaglebridge-compound-auto-control\s*\{/);
+assert.match(source, /addBulkAction\("导入所有附件"/);
+assert.match(source, /addBulkAction\("清理导入附件"/);
+assert.match(source, /autoTagOnRefresh: false/);
+assert.match(source, /autoFolderOnImport: false/);
+assert.match(source, /autoImportAttachments: false/);
+assert.match(source, /autoRefreshReferenceView: false/);
+
+for (const artifact of [desktop, built]) {
+  assert.doesNotMatch(artifact, /createRefreshButton/);
+  assert.doesNotMatch(artifact, /primaryText: this\.plugin\.t\("refresh"\)/);
+  assert.doesNotMatch(artifact, /if \(!this\.settings\.autoRefreshReferenceView\) return;/);
+  assert.match(artifact, /count \/ total >= 0\.03 \? `\$\{count\} 1 0px` : "0 0 22px"/);
+  assert.match(artifact, /const OE_LINK_ICON = `[\s\S]*viewBox="0 0 226 226"[\s\S]*stroke="currentColor"/);
+}
+
+console.log("Sidebar state/render checks passed.");
