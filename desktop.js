@@ -4954,7 +4954,7 @@
         const choice = await chooseInObsidianModal(
           this.app,
           "重新生成所有标签",
-          "将扫描整个库，先清理 Eagle Obsidian 根文件夹内素材的旧管理标签，再按当前命名规则统一写回。手动添加的非 Obsidian 标签会保留。大量素材时可能需要等待一会儿。",
+          "将扫描整个库，清理相关素材上所有以 Obsidian 开头的标签，再按当前命名规则统一写回；其他标签会保留。大量素材时可能需要等待一会儿。",
           [{ value: "continue", label: "开始重建", cta: true }],
           "取消"
         );
@@ -4966,7 +4966,7 @@
         const choice = await chooseInObsidianModal(
           this.app,
           "重新生成所有文件夹",
-          "将扫描整个库：已有专属文件夹会直接按当前规则重命名，再清理并重写其文件夹归属；仅对存在直接引用素材、但尚无专属文件夹的笔记或白板新建文件夹。不会删除 Eagle 素材本身。大量素材时可能需要等待一会儿。",
+          "将扫描整个库，在原有专属文件夹基础上按当前规则重命名并重建素材归属，不会删除原有文件夹或 Eagle 素材；没有专属文件夹时才会新建。大量素材时可能需要等待一会儿。",
           [{ value: "continue", label: "开始重建", cta: true }],
           "取消"
         );
@@ -9959,9 +9959,16 @@
           }
         );
     
+        const folderTreeDescription = document.createDocumentFragment();
+        folderTreeDescription.append(`${this.plugin.t("settingUseObsidianFolderTreeDesc")} `);
+        const folderTreeWarning = document.createElement("span");
+        folderTreeWarning.className = "eaglebridge-settings-inline-warning";
+        folderTreeWarning.textContent = this.plugin.t("settingUseObsidianFolderTreeWarning");
+        folderTreeDescription.appendChild(folderTreeWarning);
+    
         const folderTreeSetting = new Setting(folderColumn)
           .setName(this.plugin.t("settingUseObsidianFolderTreeName"))
-          .setDesc(this.plugin.t("settingUseObsidianFolderTreeDesc"))
+          .setDesc(folderTreeDescription)
           .addToggle(toggle => toggle
             .setValue(this.plugin.settings.useObsidianFolderTree === true)
             .onChange(async value => {
@@ -9969,7 +9976,6 @@
               await this.plugin.saveSettings();
             }));
         folderTreeSetting.settingEl.addClass("eaglebridge-settings-toggle-row");
-        folderTreeSetting.settingEl.addClass("eaglebridge-settings-warning-row");
     
         new Setting(folderColumn)
           .setName(this.plugin.t("settingFolderNameTemplateName"))
@@ -10262,7 +10268,7 @@
         settingDesktopDiagnosticButton: "Run and export",
         noticeDesktopDiagnosticFailed: "Diagnostic export failed: {error}",
         settingNormalizeAllReferencesName: "Normalize existing Eagle links",
-        settingNormalizeAllReferencesDesc: "One-time maintenance: applies the current replacement template to existing OE Link references, repairs legacy invalid text and Markdown-table image size separators, and preserves filenames and display widths. It does not reimport or change Eagle assets, tags, or folders.",
+        settingNormalizeAllReferencesDesc: "Apply the current replacement template to existing OE Link references in Markdown notes and canvases.",
         settingNormalizeAllReferencesButton: "Normalize links",
         settingApiName: "Eagle API URL",
         settingApiDesc: "Usually Eagle's local API address.",
@@ -10294,24 +10300,25 @@
         settingFolderManagementEnabledName: "Folder management",
         settingFolderManagementEnabledDesc: "Master switch for matching, creating, and renaming Eagle folders under the configured root folder.",
         settingUseObsidianFolderTreeName: "Mirror Obsidian folder tree",
-        settingUseObsidianFolderTreeDesc: "Creates matching Eagle folders from Obsidian folder paths. Existing folders cannot yet be moved or deleted automatically. Enable with caution.",
+        settingUseObsidianFolderTreeDesc: "Creates matching Eagle folders from Obsidian folder paths.",
+        settingUseObsidianFolderTreeWarning: "Existing folders cannot yet be moved or deleted automatically. Enable with caution.",
         settingFolderNameTemplateName: "Folder naming rule",
-        settingFolderNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date. Default: {{title}}-{{created}}.",
+        settingFolderNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date.",
         settingFolderIdName: "Eagle target folder ID",
         settingFolderIdDesc: "Target folder for imported assets. Leave blank to import into Eagle Unsorted. Paste either the full copied link or its ID, for example http://localhost:41595/folder?id=ABC123 or ABC123.",
         settingFolderIdPlaceholder: "Enter the target Eagle folder ID",
         settingTagPrefixesName: "Eagle tag prefixes",
         settingTagPrefixesDesc: "Default: Obsidian-. Note assets get Obsidian-{note name-date}.",
         settingNoteTagNameTemplateName: "Note tag naming rule",
-        settingNoteTagNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date. Default: Obsidian-{{title}}-{{created}}.",
+        settingNoteTagNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date.",
         settingCanvasPrefixesName: "Canvas tag prefixes",
         settingCanvasPrefixesDesc: "Default: Obsidian-cavs-. Canvas assets get Obsidian-cavs-{canvas name-date}.",
         settingCanvasTagNameTemplateName: "Canvas tag naming rule",
-        settingCanvasTagNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date. Default: Obsidian-cavs-{{title}}-{{created}}.",
+        settingCanvasTagNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date.",
         settingRebuildAllTagsName: "Rebuild all tags",
-        settingRebuildAllTagsDesc: "Remove plugin-managed tags, then rewrite them by the current rule. Manual tags are kept.",
+        settingRebuildAllTagsDesc: "Remove tags beginning with Obsidian, then rewrite them by the current rule. Other tags are kept.",
         settingRebuildAllFoldersName: "Rebuild all folders",
-        settingRebuildAllFoldersDesc: "Reuse and rename existing dedicated folders, then rebuild their current memberships. New folders are created only for notes or canvases that reference assets.",
+        settingRebuildAllFoldersDesc: "Rename existing dedicated folders and rebuild their memberships without deleting the original folders.",
         settingBridgeUrlName: "OE Link media service URL",
         settingBridgeUrlDesc: "Local URL used for Eagle asset links. Default: http://localhost:6060. Disable any other Eagle plugin using this port first.",
         settingLibraryPathsName: "Eagle Library Paths",
@@ -10469,7 +10476,7 @@
         settingDesktopDiagnosticButton: "运行并导出日志",
         noticeDesktopDiagnosticFailed: "诊断日志导出失败：{error}",
         settingNormalizeAllReferencesName: "统一修正现有 Eagle 引用链接",
-        settingNormalizeAllReferencesDesc: "一次性维护：按照当前替换模板统一 Markdown 笔记和白板中的现有 OE Link 引用，修正 undefined、重复句点和表格图片尺寸分隔符，并保留文件名与显示宽度；不会重新导入，也不会改动 Eagle 素材、标签或文件夹。",
+        settingNormalizeAllReferencesDesc: "按照当前替换模板，统一 Markdown 笔记和白板中的现有 OE Link 引用。",
         settingNormalizeAllReferencesButton: "开始修正",
         settingApiName: "Eagle API 地址",
         settingApiDesc: "通常是 Eagle 的本地 API 地址。",
@@ -10501,24 +10508,25 @@
         settingFolderManagementEnabledName: "文件夹管理",
         settingFolderManagementEnabledDesc: "总开关：匹配、创建并重命名 Eagle 文件夹。",
         settingUseObsidianFolderTreeName: "镜像 Obsidian 目录树",
-        settingUseObsidianFolderTreeDesc: "开启后根据 Obsidian 文件夹路径，在 Eagle 中生成对应文件夹；暂不支持自动移动或删除已有文件夹，请谨慎开启。",
+        settingUseObsidianFolderTreeDesc: "开启后根据 Obsidian 文件夹路径，在 Eagle 中生成对应文件夹。",
+        settingUseObsidianFolderTreeWarning: "暂不支持自动移动或删除已有文件夹，请谨慎开启。",
         settingFolderNameTemplateName: "文件夹命名规则",
-        settingFolderNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。默认：{{title}}-{{created}}。",
+        settingFolderNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。",
         settingFolderIdName: "Eagle 目标文件夹 ID",
         settingFolderIdDesc: "填写素材导入的目标文件夹；留空则导入 Eagle 未分类。可粘贴完整链接或 ID，例如 http://localhost:41595/folder?id=ABC123 或 ABC123。",
         settingFolderIdPlaceholder: "请输入 Eagle 目标文件夹 ID",
         settingTagPrefixesName: "Eagle 标签前缀",
         settingTagPrefixesDesc: "默认 Obsidian-；笔记素材会写入 Obsidian-{笔记名-日期}。",
         settingNoteTagNameTemplateName: "笔记标签命名规则",
-        settingNoteTagNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。默认：Obsidian-{{title}}-{{created}}。",
+        settingNoteTagNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。",
         settingCanvasPrefixesName: "白板标签前缀",
         settingCanvasPrefixesDesc: "默认 Obsidian-cavs-；白板素材会写入 Obsidian-cavs-{白板名-日期}。",
         settingCanvasTagNameTemplateName: "白板标签命名规则",
-        settingCanvasTagNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。默认：Obsidian-cavs-{{title}}-{{created}}。",
+        settingCanvasTagNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。",
         settingRebuildAllTagsName: "重新生成所有标签",
-        settingRebuildAllTagsDesc: "清除插件管理的旧标签，再按当前规则重新写入。手动标签会保留。",
+        settingRebuildAllTagsDesc: "清理所有以 Obsidian 开头的标签，再按当前规则重新写入；其他标签会保留。",
         settingRebuildAllFoldersName: "重新生成所有文件夹",
-        settingRebuildAllFoldersDesc: "复用并重命名已有专属文件夹，再按当前引用重建归属。只有确实引用素材、但没有专属文件夹的笔记或白板才会新建文件夹。",
+        settingRebuildAllFoldersDesc: "在原有专属文件夹基础上重命名并重建素材归属，不会删除原有文件夹。",
         settingBridgeUrlName: "OE Link 素材服务地址",
         settingBridgeUrlDesc: "Eagle 素材链接使用的本地地址，默认 http://localhost:6060。请先停用其他占用该端口的 Eagle 插件。",
         settingLibraryPathsName: "Eagle 素材库路径",

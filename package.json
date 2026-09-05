@@ -1,6 +1,6 @@
 {
   "name": "oe-link",
-  "version": "0.5.60",
+  "version": "0.5.61",
   "private": true,
   "scripts": {
     "build": "node scripts/build-desktop.js . && node build-platform-main.js",

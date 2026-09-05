@@ -402,8 +402,27 @@ audio.eaglebridge-media-embed {
   margin: 12px 0 16px;
 }
 
-.eaglebridge-settings-rule-card .eaglebridge-settings-warning-row .setting-item-description {
+.eaglebridge-settings-inline-warning {
   color: var(--text-error);
+}
+
+.eaglebridge-settings-attachment-card .setting-item {
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
+}
+
+.eaglebridge-settings-attachment-card .setting-item-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  margin-right: 16px;
+}
+
+.eaglebridge-settings-rule-card.eaglebridge-settings-attachment-card .setting-item-control {
+  flex: 0 1 52%;
+  width: min(52%, 560px);
+  margin-left: auto;
 }
 
 .eaglebridge-settings-rule-card .setting-item-control {
@@ -580,6 +599,17 @@ audio.eaglebridge-media-embed {
 @media (max-width: 760px) {
   .eaglebridge-settings-rule-grid {
     grid-template-columns: 1fr;
+  }
+
+  .eaglebridge-settings-attachment-card .setting-item:not(.eaglebridge-settings-toggle-row) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .eaglebridge-settings-attachment-card .setting-item:not(.eaglebridge-settings-toggle-row) .setting-item-info,
+  .eaglebridge-settings-attachment-card .setting-item:not(.eaglebridge-settings-toggle-row) .setting-item-control {
+    width: 100%;
+    margin-right: 0;
   }
 }
 

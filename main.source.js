@@ -4946,7 +4946,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const choice = await chooseInObsidianModal(
       this.app,
       "重新生成所有标签",
-      "将扫描整个库，先清理 Eagle Obsidian 根文件夹内素材的旧管理标签，再按当前命名规则统一写回。手动添加的非 Obsidian 标签会保留。大量素材时可能需要等待一会儿。",
+      "将扫描整个库，清理相关素材上所有以 Obsidian 开头的标签，再按当前命名规则统一写回；其他标签会保留。大量素材时可能需要等待一会儿。",
       [{ value: "continue", label: "开始重建", cta: true }],
       "取消"
     );
@@ -4958,7 +4958,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const choice = await chooseInObsidianModal(
       this.app,
       "重新生成所有文件夹",
-      "将扫描整个库：已有专属文件夹会直接按当前规则重命名，再清理并重写其文件夹归属；仅对存在直接引用素材、但尚无专属文件夹的笔记或白板新建文件夹。不会删除 Eagle 素材本身。大量素材时可能需要等待一会儿。",
+      "将扫描整个库，在原有专属文件夹基础上按当前规则重命名并重建素材归属，不会删除原有文件夹或 Eagle 素材；没有专属文件夹时才会新建。大量素材时可能需要等待一会儿。",
       [{ value: "continue", label: "开始重建", cta: true }],
       "取消"
     );
