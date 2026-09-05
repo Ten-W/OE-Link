@@ -10894,7 +10894,7 @@ module.exports = EagleBridgeMobilePlugin;
             .setButtonText(this.plugin.t("enterCloudConnectionMode"))
             .onClick(() => this.plugin.switchConnectionMode("cloud")));
     
-        addTextSetting({
+        const targetFolderSetting = addTextSetting({
           name: this.plugin.t("settingFolderIdName"),
           desc: this.plugin.t("settingFolderIdDesc"),
           placeholder: this.plugin.t("settingFolderIdPlaceholder"),
@@ -10905,7 +10905,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         });
     
-        addTextSetting({
+        const apiSetting = addTextSetting({
           name: this.plugin.t("settingApiName"),
           desc: this.plugin.t("settingApiDesc"),
           placeholder: "http://localhost:41595",
@@ -10916,7 +10916,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         });
     
-        addTextSetting({
+        const bridgeSetting = addTextSetting({
           name: this.plugin.t("settingBridgeUrlName"),
           desc: this.plugin.t("settingBridgeUrlDesc"),
           placeholder: "http://localhost:6060",
@@ -10992,6 +10992,15 @@ module.exports = EagleBridgeMobilePlugin;
             installButton.disabled = false;
           }
         });
+    
+        const attachmentCard = containerEl.createDiv({
+          cls: "eaglebridge-settings-rule-card eaglebridge-settings-attachment-card"
+        });
+        const attachmentHeader = attachmentCard.createDiv({ cls: "eaglebridge-settings-rule-header" });
+        attachmentHeader.createEl("h4", { text: this.plugin.t("attachmentManagementTitle") });
+        attachmentCard.createEl("p", { text: this.plugin.t("attachmentManagementDesc") });
+        attachmentCard.appendChild(targetFolderSetting.settingEl);
+        attachmentCard.appendChild(externalLocalImportSetting.settingEl);
     
         const rules = containerEl.createDiv({ cls: "eaglebridge-settings-rule-grid" });
         const createRuleHeader = (column, title, desc, enabled, onChange) => {
@@ -11077,6 +11086,7 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.saveSettings();
             }));
         folderTreeSetting.settingEl.addClass("eaglebridge-settings-toggle-row");
+        folderTreeSetting.settingEl.addClass("eaglebridge-settings-warning-row");
     
         new Setting(folderColumn)
           .setName(this.plugin.t("settingFolderNameTemplateName"))
@@ -11173,8 +11183,12 @@ module.exports = EagleBridgeMobilePlugin;
         languageSetting.settingEl.insertAdjacentElement("afterend", connectionModeSetting.settingEl);
         connectionModeSetting.settingEl.insertAdjacentElement("afterend", helperPluginSetting.settingEl);
         helperPluginSetting.settingEl.insertAdjacentElement("afterend", libraryPathsSetting.settingEl);
+        libraryPathsSetting.settingEl.insertAdjacentElement("afterend", apiSetting.settingEl);
+        apiSetting.settingEl.insertAdjacentElement("afterend", bridgeSetting.settingEl);
+        bridgeSetting.settingEl.insertAdjacentElement("afterend", attachmentCard);
+        attachmentCard.insertAdjacentElement("afterend", rules);
     
-        addTextSetting({
+        const templateSetting = addTextSetting({
           name: this.plugin.t("settingTemplateName"),
           desc: this.plugin.t("settingTemplateDesc"),
           placeholder: DEFAULT_SETTINGS.replacementTemplate,
@@ -11184,8 +11198,9 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.saveSettings();
           }
         });
+        attachmentCard.appendChild(templateSetting.settingEl);
     
-        new Setting(containerEl)
+        new Setting(attachmentCard)
           .setName(this.plugin.t("settingNormalizeAllReferencesName"))
           .setDesc(this.plugin.t("settingNormalizeAllReferencesDesc"))
           .addButton((button) => button
@@ -11381,6 +11396,8 @@ module.exports = EagleBridgeMobilePlugin;
         noticeHelperInstallFailed: "Failed to install OE Link Helper: {message}",
         noticeHelperAlreadyCurrent: "OE Link Helper is already current.",
         managementRulesTitle: "Management rules",
+        attachmentManagementTitle: "Attachment management",
+        attachmentManagementDesc: "Configure where attachments are imported and how OE Link references are written.",
         tagManagementTitle: "Tag management",
         tagManagementDesc: "Write and clean Eagle tags.",
         folderManagementTitle: "Folder management",
@@ -11394,11 +11411,11 @@ module.exports = EagleBridgeMobilePlugin;
         settingFolderManagementEnabledName: "Folder management",
         settingFolderManagementEnabledDesc: "Master switch for matching, creating, and renaming Eagle folders under the configured root folder.",
         settingUseObsidianFolderTreeName: "Mirror Obsidian folder tree",
-        settingUseObsidianFolderTreeDesc: "Off: create folders under the Eagle root. On: mirror the Obsidian tree; existing folders still need manual moves after source paths change.",
+        settingUseObsidianFolderTreeDesc: "Creates matching Eagle folders from Obsidian folder paths. Existing folders cannot yet be moved or deleted automatically. Enable with caution.",
         settingFolderNameTemplateName: "Folder naming rule",
         settingFolderNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date. Default: {{title}}-{{created}}.",
-        settingFolderIdName: "Eagle root folder ID",
-        settingFolderIdDesc: "Target folder for imported assets. Paste either the full copied link or its ID, for example http://localhost:41595/folder?id=ABC123 or ABC123.",
+        settingFolderIdName: "Eagle target folder ID",
+        settingFolderIdDesc: "Target folder for imported assets. Leave blank to import into Eagle Unsorted. Paste either the full copied link or its ID, for example http://localhost:41595/folder?id=ABC123 or ABC123.",
         settingFolderIdPlaceholder: "Enter the target Eagle folder ID",
         settingTagPrefixesName: "Eagle tag prefixes",
         settingTagPrefixesDesc: "Default: Obsidian-. Note assets get Obsidian-{note name-date}.",
@@ -11586,6 +11603,8 @@ module.exports = EagleBridgeMobilePlugin;
         noticeHelperInstallFailed: "安装 OE Link 辅助插件失败：{message}",
         noticeHelperAlreadyCurrent: "OE Link 辅助插件已经是最新版本。",
         managementRulesTitle: "管理规则",
+        attachmentManagementTitle: "附件管理",
+        attachmentManagementDesc: "设置附件导入位置与 OE Link 引用方式。",
         tagManagementTitle: "标签管理",
         tagManagementDesc: "写入与清理 Eagle 标签。",
         folderManagementTitle: "文件夹管理",
@@ -11599,11 +11618,11 @@ module.exports = EagleBridgeMobilePlugin;
         settingFolderManagementEnabledName: "文件夹管理",
         settingFolderManagementEnabledDesc: "总开关：匹配、创建并重命名 Eagle 文件夹。",
         settingUseObsidianFolderTreeName: "镜像 Obsidian 目录树",
-        settingUseObsidianFolderTreeDesc: "关闭：建在 Eagle 根文件夹下。开启：镜像 Obsidian 目录树；源路径移动后，旧文件夹仍需在 Eagle 中手动移动。",
+        settingUseObsidianFolderTreeDesc: "开启后根据 Obsidian 文件夹路径，在 Eagle 中生成对应文件夹；暂不支持自动移动或删除已有文件夹，请谨慎开启。",
         settingFolderNameTemplateName: "文件夹命名规则",
         settingFolderNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。默认：{{title}}-{{created}}。",
-        settingFolderIdName: "Eagle 根文件夹 ID",
-        settingFolderIdDesc: "填写素材导入的目标文件夹。可粘贴完整链接或 ID，例如 http://localhost:41595/folder?id=ABC123 或 ABC123。",
+        settingFolderIdName: "Eagle 目标文件夹 ID",
+        settingFolderIdDesc: "填写素材导入的目标文件夹；留空则导入 Eagle 未分类。可粘贴完整链接或 ID，例如 http://localhost:41595/folder?id=ABC123 或 ABC123。",
         settingFolderIdPlaceholder: "请输入 Eagle 目标文件夹 ID",
         settingTagPrefixesName: "Eagle 标签前缀",
         settingTagPrefixesDesc: "默认 Obsidian-；笔记素材会写入 Obsidian-{笔记名-日期}。",

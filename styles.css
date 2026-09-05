@@ -398,6 +398,14 @@ audio.eaglebridge-media-embed {
   line-height: 1.45;
 }
 
+.eaglebridge-settings-attachment-card {
+  margin: 12px 0 16px;
+}
+
+.eaglebridge-settings-rule-card .eaglebridge-settings-warning-row .setting-item-description {
+  color: var(--text-error);
+}
+
 .eaglebridge-settings-rule-card .setting-item-control {
   width: 100%;
   justify-content: flex-end;

@@ -1,5 +1,7 @@
 # OE Link
 
+0.5.60 - Groups attachment options, clarifies the default Eagle destination, and warns about folder-tree mirroring limitations.
+
 0.5.58 - Adds cloud attachment download and desktop default-app actions.
 
 0.5.48 - Renders imported non-image Eagle assets as file cards or native media controls, applies note tags during manual imports, and unifies attachment-import menu wording.
