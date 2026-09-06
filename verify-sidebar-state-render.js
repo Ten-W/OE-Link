@@ -41,6 +41,14 @@ assert.match(styles, /\.eaglebridge-note-assets-stat-visible\s*\{[\s\S]*color: v
 assert.doesNotMatch(styles, /\.eaglebridge-import-group > \.eaglebridge-compound-auto-control\s*\{/);
 assert.match(source, /addBulkAction\("导入所有附件"/);
 assert.match(source, /addBulkAction\("清理导入附件"/);
+assert.match(source, /this\.selectedAssetItems = new Map\(\)/);
+assert.match(source, /role: "checkbox"/);
+assert.match(source, /if \(event\.target === scrollArea \|\| event\.target === grid\) this\.clearAssetSelection\(\)/);
+assert.match(source, /async importSelectedAssets\(\)/);
+assert.match(source, /\{ silent: true \}/);
+assert.match(styles, /\.eaglebridge-asset-select-checkbox\s*\{[\s\S]*width: 16px;[\s\S]*height: 16px;/);
+assert.match(styles, /\.eaglebridge-note-assets-card\.is-selected/);
+assert.match(styles, /\.eaglebridge-asset-selection-bar\.is-visible/);
 assert.match(source, /autoTagOnRefresh: false/);
 assert.match(source, /autoFolderOnImport: false/);
 assert.match(source, /autoImportAttachments: false/);

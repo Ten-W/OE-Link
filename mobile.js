@@ -321,13 +321,13 @@ class MobileSettingTab extends PluginSettingTab {
       const fields = webdavSetting.controlEl.createDiv({ cls: "eaglebridge-mobile-webdav-fields" });
       const addField = (label, placeholder, value, type, onChange) => {
         const field = fields.createDiv({ cls: "eaglebridge-mobile-webdav-field" });
-        field.createEl("label", { text: label });
         const input = field.createEl("input", { type });
+        input.setAttr("aria-label", label);
         input.value = value;
         input.placeholder = placeholder;
         input.addEventListener("input", () => onChange(input.value));
       };
-      addField("WebDAV 地址", "https://example.com/dav/files/user", mobile.webdavUrl, "text", async value => {
+      addField("WebDAV 地址", "WebDAV 地址，例如：https://example.com/dav/files/user", mobile.webdavUrl, "text", async value => {
         mobile.webdavUrl = value.trim();
         await this.plugin.saveMobile();
       });
@@ -335,7 +335,7 @@ class MobileSettingTab extends PluginSettingTab {
         mobile.webdavUsername = value;
         await this.plugin.saveMobile();
       });
-      addField("密码", "未修改则保持原密码", "", "password", value => this.plugin.setWebdavPassword(value));
+      addField("密码", "密码，未修改则保持原密码", "", "password", value => this.plugin.setWebdavPassword(value));
       new Setting(containerEl).setName("Eagle 素材库路径").setDesc("相对于 WebDAV 根地址的 .library 文件夹路径。")
         .addText(text => text.setPlaceholder("Eagle素材库.library").setValue(mobile.webdavLibraryPath).onChange(async value => {
           mobile.webdavLibraryPath = value.trim().replace(/^\/+|\/+$/g, "");

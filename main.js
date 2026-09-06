@@ -329,13 +329,13 @@ class MobileSettingTab extends PluginSettingTab {
       const fields = webdavSetting.controlEl.createDiv({ cls: "eaglebridge-mobile-webdav-fields" });
       const addField = (label, placeholder, value, type, onChange) => {
         const field = fields.createDiv({ cls: "eaglebridge-mobile-webdav-field" });
-        field.createEl("label", { text: label });
         const input = field.createEl("input", { type });
+        input.setAttr("aria-label", label);
         input.value = value;
         input.placeholder = placeholder;
         input.addEventListener("input", () => onChange(input.value));
       };
-      addField("WebDAV 地址", "https://example.com/dav/files/user", mobile.webdavUrl, "text", async value => {
+      addField("WebDAV 地址", "WebDAV 地址，例如：https://example.com/dav/files/user", mobile.webdavUrl, "text", async value => {
         mobile.webdavUrl = value.trim();
         await this.plugin.saveMobile();
       });
@@ -343,7 +343,7 @@ class MobileSettingTab extends PluginSettingTab {
         mobile.webdavUsername = value;
         await this.plugin.saveMobile();
       });
-      addField("密码", "未修改则保持原密码", "", "password", value => this.plugin.setWebdavPassword(value));
+      addField("密码", "密码，未修改则保持原密码", "", "password", value => this.plugin.setWebdavPassword(value));
       new Setting(containerEl).setName("Eagle 素材库路径").setDesc("相对于 WebDAV 根地址的 .library 文件夹路径。")
         .addText(text => text.setPlaceholder("Eagle素材库.library").setValue(mobile.webdavLibraryPath).onChange(async value => {
           mobile.webdavLibraryPath = value.trim().replace(/^\/+|\/+$/g, "");
@@ -3465,7 +3465,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
       }
     
-      async importLocalAttachmentItemFromPanel(filePath, item) {
+      async importLocalAttachmentItemFromPanel(filePath, item, options = {}) {
         const sourceFile = this.app.vault.getAbstractFileByPath(filePath || "");
         if (!(sourceFile instanceof TFile) || !isSupportedSourceFile(sourceFile)) {
           new Notice(this.t("noticeOpenNoteOrCanvas"));
@@ -3481,10 +3481,9 @@ module.exports = EagleBridgeMobilePlugin;
         const context = await this.getAssetContext(sourceFile, true);
         if (!context) return;
     
-        await this.runWithReferenceViewRefreshPaused(async () => {
+        return this.runWithReferenceViewRefreshPaused(async () => {
           if (context.kind === "canvas") {
-            await this.importCanvasAttachments(context, localFile.path);
-            return;
+            return this.importCanvasAttachments(context, localFile.path, { silent: options.silent });
           }
     
           const text = await this.app.vault.read(sourceFile);
@@ -3501,11 +3500,11 @@ module.exports = EagleBridgeMobilePlugin;
             new Notice(this.t("noticeNoAttachmentAtCursor"));
             return;
           }
-          await this.importAttachmentLinks(context, [link]);
+          return this.importAttachmentLinks(context, [link], [], { silent: options.silent });
         }, sourceFile);
       }
     
-      async importLocalAttachmentItemFromLibrary(item, sourceFiles = []) {
+      async importLocalAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
         const localFile = item && item.__localFile;
         if (!(localFile instanceof TFile)) {
           new Notice(this.t("noticeNoAttachmentAtCursor"));
@@ -3520,10 +3519,10 @@ module.exports = EagleBridgeMobilePlugin;
         // A library card can be referenced by several documents. Import through a
         // known owner instead of depending on whichever editor happens to be active.
         const sourceFile = files[0];
-        await this.importLocalAttachmentItemFromPanel(sourceFile.path, item);
+        return this.importLocalAttachmentItemFromPanel(sourceFile.path, item, options);
       }
     
-      async importExternalLocalAttachmentItemFromPanel(filePath, item) {
+      async importExternalLocalAttachmentItemFromPanel(filePath, item, options = {}) {
         if (this.settings.importExternalLocalAttachments !== true) return;
         const sourceFile = this.app.vault.getAbstractFileByPath(filePath || "");
         if (!(sourceFile instanceof TFile) || !isSupportedSourceFile(sourceFile)) {
@@ -3535,10 +3534,9 @@ module.exports = EagleBridgeMobilePlugin;
         const context = await this.getAssetContext(sourceFile, true);
         if (!context) return;
     
-        await this.runWithReferenceViewRefreshPaused(async () => {
+        return this.runWithReferenceViewRefreshPaused(async () => {
           if (context.kind === "canvas") {
-            await this.importCanvasAttachments(context, localPath);
-            return;
+            return this.importCanvasAttachments(context, localPath, { silent: options.silent });
           }
           const text = await this.app.vault.read(sourceFile);
           const links = this.findExternalLocalAttachmentLinks(text).filter(link => link.localPath === localPath);
@@ -3547,18 +3545,18 @@ module.exports = EagleBridgeMobilePlugin;
             && link.start === item.__sourceStart && link.end === item.__sourceEnd
           ));
           const link = exact || links[0];
-          if (link) await this.importAttachmentLinks(context, [link]);
+          if (link) return this.importAttachmentLinks(context, [link], [], { silent: options.silent });
         }, sourceFile);
       }
     
-      async importExternalLocalAttachmentItemFromLibrary(item, sourceFiles = []) {
+      async importExternalLocalAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
         const sourceFile = (Array.isArray(sourceFiles) ? sourceFiles : [])
           .find(file => file instanceof TFile && isSupportedSourceFile(file));
         if (!sourceFile) return;
-        await this.importExternalLocalAttachmentItemFromPanel(sourceFile.path, item);
+        return this.importExternalLocalAttachmentItemFromPanel(sourceFile.path, item, options);
       }
     
-      async importInternetAttachmentItemFromPanel(filePath, item) {
+      async importInternetAttachmentItemFromPanel(filePath, item, options = {}) {
         const sourceFile = this.app.vault.getAbstractFileByPath(filePath || "");
         if (!(sourceFile instanceof TFile) || sourceFile.extension !== "md") {
           new Notice(this.t("noticeOpenNoteOrCanvas"));
@@ -3574,7 +3572,7 @@ module.exports = EagleBridgeMobilePlugin;
         const context = await this.getAssetContext(sourceFile, true);
         if (!context) return;
     
-        await this.runWithReferenceViewRefreshPaused(async () => {
+        return this.runWithReferenceViewRefreshPaused(async () => {
           const text = await this.app.vault.read(sourceFile);
           const links = this.findInternetAttachmentLinks(text)
             .filter(link => link.url === sourceUrl);
@@ -3589,11 +3587,11 @@ module.exports = EagleBridgeMobilePlugin;
             new Notice(this.t("noticeNoAttachmentAtCursor"));
             return;
           }
-          await this.importAttachmentLinks(context, [], [link]);
+          return this.importAttachmentLinks(context, [], [link], { silent: options.silent });
         }, sourceFile);
       }
     
-      async importInternetAttachmentItemFromLibrary(item, sourceFiles = []) {
+      async importInternetAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
         const files = (Array.isArray(sourceFiles) ? sourceFiles : [])
           .filter(file => file instanceof TFile && file.extension === "md");
         if (!files.length) {
@@ -3602,7 +3600,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         // A library URL can be used by several notes. Import through a known owner
         // so the resulting Eagle item receives that note's tags and folder mapping.
-        await this.importInternetAttachmentItemFromPanel(files[0].path, item);
+        return this.importInternetAttachmentItemFromPanel(files[0].path, item, options);
       }
     
       async importCanvasAttachments(context, targetFilePath = "", options = {}) {
@@ -7408,6 +7406,10 @@ module.exports = EagleBridgeMobilePlugin;
         this.backgroundSyncScheduler = new KeyedTaskScheduler();
         this.assetRenderGeneration = 0;
         this.pendingAssetCardClick = 0;
+        this.selectedAssetItems = new Map();
+        this.assetSelectionBar = null;
+        this.assetSelectionCountEl = null;
+        this.assetSelectionImportButton = null;
       }
     
       getViewType() {
@@ -7730,6 +7732,128 @@ module.exports = EagleBridgeMobilePlugin;
         return this.plugin.getLibraryAssetKey(item);
       }
     
+      getAssetSelectionKey(item) {
+        if (!item) return "";
+        const base = this.getLibraryAssetKey(item) || String(item.id || "");
+        if (!base) return "";
+        if (!this.isLibraryMode && typeof item.__sourceStart === "number") {
+          return `${this.currentFilePath}:${item.__sourceStart}:${item.__sourceEnd}:${base}`;
+        }
+        return base;
+      }
+      isAssetImportable(item) {
+        const source = String(item && item.__assetSource || "eagle");
+        if (source === "external-local" && this.plugin.settings.importExternalLocalAttachments !== true) return false;
+        if (source !== "local" && source !== "external-local" && source !== "internet") return false;
+        return !this.isLibraryMode || this.getReferencedFilesForLibraryItem(item).length > 0;
+      }
+      updateAssetSelectionUi() {
+        for (const card of this.containerEl.querySelectorAll(".eaglebridge-note-assets-card[data-asset-selection-key]")) {
+          const checked = this.selectedAssetItems.has(card.dataset.assetSelectionKey || "");
+          card.toggleClass("is-selected", checked);
+          const checkbox = card.querySelector(".eaglebridge-asset-select-checkbox");
+          if (checkbox) checkbox.setAttr("aria-checked", String(checked));
+        }
+        const count = this.selectedAssetItems.size;
+        this.assetSelectionBar?.toggleClass("is-visible", count > 0);
+        this.assetSelectionCountEl?.setText(this.plugin.t("selectedAssetsCount", { count }));
+        if (this.assetSelectionImportButton) {
+          this.assetSelectionImportButton.disabled = !Array.from(this.selectedAssetItems.values())
+            .some(item => this.isAssetImportable(item));
+        }
+      }
+      clearAssetSelection() {
+        if (!this.selectedAssetItems.size) return;
+        this.selectedAssetItems.clear();
+        this.updateAssetSelectionUi();
+      }
+      toggleAssetSelection(item, selected) {
+        const key = this.getAssetSelectionKey(item);
+        if (!key) return;
+        if (selected) this.selectedAssetItems.set(key, item);
+        else this.selectedAssetItems.delete(key);
+        this.updateAssetSelectionUi();
+      }
+      selectAssetForContextMenu(item) {
+        const key = this.getAssetSelectionKey(item);
+        if (!key || this.selectedAssetItems.has(key)) return;
+        this.selectedAssetItems.clear();
+        this.selectedAssetItems.set(key, item);
+        this.updateAssetSelectionUi();
+      }
+      renderAssetSelectionBar(root) {
+        const bar = root.createDiv({ cls: "eaglebridge-asset-selection-bar" });
+        this.assetSelectionBar = bar;
+        this.assetSelectionCountEl = bar.createSpan({ cls: "eaglebridge-asset-selection-count" });
+        this.assetSelectionImportButton = bar.createEl("button", {
+          text: this.plugin.t("importSelectedAttachments"),
+          cls: "eaglebridge-asset-selection-import"
+        });
+        this.assetSelectionImportButton.addEventListener("click", async event => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.assetSelectionImportButton.disabled = true;
+          try {
+            await this.importSelectedAssets();
+          } finally {
+            if (this.assetSelectionImportButton) this.updateAssetSelectionUi();
+          }
+        });
+        const clearButton = bar.createEl("button", {
+          text: this.plugin.t("clearSelection"),
+          cls: "eaglebridge-asset-selection-clear"
+        });
+        clearButton.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.clearAssetSelection();
+        });
+        this.updateAssetSelectionUi();
+      }
+      async importSelectedAssets() {
+        const items = Array.from(this.selectedAssetItems.values())
+          .filter(item => this.isAssetImportable(item))
+          .sort((a, b) => Number(b.__sourceStart || 0) - Number(a.__sourceStart || 0));
+        if (!items.length) {
+          new Notice(this.plugin.t("noImportableSelectedAssets"));
+          return;
+        }
+        const total = { success: 0, reused: 0, failed: 0 };
+        const addResult = result => {
+          if (!result) {
+            total.failed += 1;
+            return;
+          }
+          total.success += Number(result.success) || 0;
+          total.reused += Number(result.reused) || 0;
+          total.failed += Number(result.failed) || 0;
+        };
+        const importOne = async item => {
+          const source = String(item && item.__assetSource || "eagle");
+          if (this.isLibraryMode) {
+            const files = this.getReferencedFilesForLibraryItem(item);
+            if (source === "local") return this.plugin.importLocalAttachmentItemFromLibrary(item, files, { silent: true });
+            if (source === "external-local") return this.plugin.importExternalLocalAttachmentItemFromLibrary(item, files, { silent: true });
+            return this.plugin.importInternetAttachmentItemFromLibrary(item, files, { silent: true });
+          }
+          if (source === "local") return this.plugin.importLocalAttachmentItemFromPanel(this.currentFilePath, item, { silent: true });
+          if (source === "external-local") return this.plugin.importExternalLocalAttachmentItemFromPanel(this.currentFilePath, item, { silent: true });
+          return this.plugin.importInternetAttachmentItemFromPanel(this.currentFilePath, item, { silent: true });
+        };
+        await this.plugin.runWithReferenceViewRefreshPaused(async () => {
+          for (const item of items) {
+            try {
+              addResult(await importOne(item));
+            } catch (error) {
+              console.warn("Failed to import selected attachment:", item, error);
+              total.failed += 1;
+            }
+          }
+        }, this.currentContext && this.currentContext.file);
+        new Notice(this.plugin.t("noticeProcessedAttachments", total));
+        this.clearAssetSelection();
+        await this.reloadDisplayedContext(false);
+      }
       isLibraryAssetReferenced(item) {
         const summary = this.libraryReferenceSummary;
         const refs = summary && summary.assetReferenceFilesByKey && summary.assetReferenceFilesByKey.get(this.getLibraryAssetKey(item));
@@ -8095,6 +8219,10 @@ module.exports = EagleBridgeMobilePlugin;
     
       getContentRoot(root = this.containerEl.children[1]) {
         this.disposeAssetRendering();
+        this.selectedAssetItems.clear();
+        this.assetSelectionBar = null;
+        this.assetSelectionCountEl = null;
+        this.assetSelectionImportButton = null;
         let content = root.querySelector(".eaglebridge-note-assets-content");
         if (!content) content = root.createDiv({ cls: "eaglebridge-note-assets-content" });
         content.empty();
@@ -8600,6 +8728,7 @@ module.exports = EagleBridgeMobilePlugin;
       async showAssetCardContextMenu(event, item) {
         event.preventDefault();
         event.stopPropagation();
+        this.selectAssetForContextMenu(item);
     
         const menu = new Menu();
         const source = String(item && item.__assetSource || "eagle");
@@ -8624,6 +8753,11 @@ module.exports = EagleBridgeMobilePlugin;
           });
         };
     
+        if (this.selectedAssetItems.size > 1
+          && Array.from(this.selectedAssetItems.values()).some(selected => this.isAssetImportable(selected))) {
+          run(`${this.plugin.t("importSelectedAttachments")} (${this.selectedAssetItems.size})`, () => this.importSelectedAssets(), "eagle-outline");
+          menu.addSeparator();
+        }
         run("\u590d\u5236\u9644\u4ef6", () => this.copyAssetImageToClipboard(item), "eagle-outline");
         run("\u590d\u5236\u9644\u4ef6\u5f15\u7528\u94fe\u63a5", async () => {
           await this.copyAssetReferenceLink(item);
@@ -8864,12 +8998,16 @@ module.exports = EagleBridgeMobilePlugin;
           return;
         }
     
+        this.renderAssetSelectionBar(root);
         const restoreState = this.pendingAssetViewportState;
         this.pendingAssetViewportState = null;
         const scrollArea = root.createDiv({ cls: "eaglebridge-note-assets-scroll-area" });
         const viewMode = normalizeAssetViewMode(this.plugin.settings.assetViewMode);
         const usesHoverOverlay = viewMode === "waterfall" || viewMode === "normal";
         const grid = scrollArea.createDiv({ cls: `eaglebridge-note-assets-grid eaglebridge-note-assets-grid-${viewMode}` });
+        scrollArea.addEventListener("click", event => {
+          if (event.target === scrollArea || event.target === grid) this.clearAssetSelection();
+        });
         this.applyAssetCardSize(grid, viewMode);
         this.registerAssetZoomHandler(grid, viewMode);
         const batchSize = 24;
@@ -8896,6 +9034,26 @@ module.exports = EagleBridgeMobilePlugin;
           if (eagleItemId) card.dataset.eagleItemId = eagleItemId;
           card.dataset.assetKey = String(item.id || "");
           const isNoteItem = item.__assetSource === "note";
+          if (!isNoteItem) {
+            const selectionKey = this.getAssetSelectionKey(item);
+            if (selectionKey) {
+              card.dataset.assetSelectionKey = selectionKey;
+              const checkbox = card.createEl("button", {
+                cls: "eaglebridge-asset-select-checkbox",
+                attr: {
+                  type: "button",
+                  role: "checkbox",
+                  "aria-label": this.plugin.t("selectAttachment"),
+                  "aria-checked": String(this.selectedAssetItems.has(selectionKey))
+                }
+              });
+              checkbox.addEventListener("click", event => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.toggleAssetSelection(item, !this.selectedAssetItems.has(selectionKey));
+              });
+            }
+          }
           const cancelPendingCardClick = () => {
             if (!this.pendingAssetCardClick) return;
             window.clearTimeout(this.pendingAssetCardClick);
@@ -11413,7 +11571,12 @@ module.exports = EagleBridgeMobilePlugin;
         managementRulesTitle: "Management rules",
         attachmentManagementTitle: "Attachment management",
         attachmentManagementDesc: "Configure where attachments are imported and how OE Link references are written.",
-        attachmentManagementWarning: "Imported attachment references are replaced with OE Link links and cannot currently be restored in one click.",
+        attachmentManagementWarning: "Imported attachment references are replaced with OE Link links and cannot be restored to their original references.",
+        selectAttachment: "Select attachment",
+        selectedAssetsCount: "{count} selected",
+        importSelectedAttachments: "Import selected",
+        clearSelection: "Clear",
+        noImportableSelectedAssets: "The selected items do not contain attachments that can be imported.",
         tagManagementTitle: "Tag management",
         tagManagementDesc: "Write and clean Eagle tags.",
         folderManagementTitle: "Folder management",
@@ -11623,7 +11786,12 @@ module.exports = EagleBridgeMobilePlugin;
         managementRulesTitle: "管理规则",
         attachmentManagementTitle: "附件管理",
         attachmentManagementDesc: "设置附件导入位置与 OE Link 引用方式。",
-        attachmentManagementWarning: "导入后会将原附件引用替换为 OE Link 链接，暂不支持一键恢复原引用。",
+        attachmentManagementWarning: "导入后将会将原附件引用链接替换为 OE Link 链接，不支持恢复原引用。",
+        selectAttachment: "选择附件",
+        selectedAssetsCount: "已选择 {count} 项",
+        importSelectedAttachments: "导入所选",
+        clearSelection: "取消选择",
+        noImportableSelectedAssets: "所选素材中没有可导入的附件。",
         tagManagementTitle: "标签管理",
         tagManagementDesc: "写入与清理 Eagle 标签。",
         folderManagementTitle: "文件夹管理",

@@ -58,7 +58,9 @@ try {
   assert.doesNotMatch(source, /loadLog|recordLoad|exportLoadLog/);
   assert.doesNotMatch(source, /stopViewerClick|originalLoading/);
   assert.match(source, /setName\("WebDAV 设置"\)/);
-  assert.match(source, /addField\("WebDAV 地址", "https:\/\/example\.com\/dav\/files\/user"/);
+  assert.match(source, /addField\("WebDAV 地址", "WebDAV 地址，例如：https:\/\/example\.com\/dav\/files\/user"/);
+  assert.match(source, /addField\("密码", "密码，未修改则保持原密码"/);
+  assert.doesNotMatch(source, /field\.createEl\("label"/);
   assert.doesNotMatch(source, /setName\("WebDAV (?:地址|用户名|密码)"\)/);
   assert.doesNotMatch(source, /\/content`, true/);
   assert.match(source, /\?select=id,@microsoft\.graph\.downloadUrl/);
