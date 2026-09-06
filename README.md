@@ -1,5 +1,7 @@
 # OE Link
 
+0.5.62 - Compacts rebuild actions, clarifies link replacement, and updates plugin authorship.
+
 0.5.61 - Compacts attachment settings and clarifies rebuild scope and folder-tree limitations.
 
 0.5.60 - Groups attachment options, clarifies the default Eagle destination, and warns about folder-tree mirroring limitations.

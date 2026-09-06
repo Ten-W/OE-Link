@@ -451,6 +451,24 @@ audio.eaglebridge-media-embed {
   margin-left: 14px;
 }
 
+.eaglebridge-settings-rule-card .eaglebridge-settings-action-row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.eaglebridge-settings-rule-card .eaglebridge-settings-action-row .setting-item-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  margin-right: 16px;
+}
+
+.eaglebridge-settings-rule-card .eaglebridge-settings-action-row .setting-item-control {
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: auto;
+}
+
 .eaglebridge-library-paths-setting {
   display: block;
   position: relative;

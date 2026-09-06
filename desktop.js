@@ -9881,7 +9881,13 @@
         });
         const attachmentHeader = attachmentCard.createDiv({ cls: "eaglebridge-settings-rule-header" });
         attachmentHeader.createEl("h4", { text: this.plugin.t("attachmentManagementTitle") });
-        attachmentCard.createEl("p", { text: this.plugin.t("attachmentManagementDesc") });
+        const attachmentDescription = attachmentCard.createEl("p", {
+          text: `${this.plugin.t("attachmentManagementDesc")} `
+        });
+        attachmentDescription.createSpan({
+          cls: "eaglebridge-settings-inline-warning",
+          text: this.plugin.t("attachmentManagementWarning")
+        });
         attachmentCard.appendChild(targetFolderSetting.settingEl);
         attachmentCard.appendChild(externalLocalImportSetting.settingEl);
     
@@ -9935,15 +9941,16 @@
               await this.plugin.saveSettings();
             }));
     
-        new Setting(tagColumn)
+        const rebuildTagsSetting = new Setting(tagColumn)
           .setName(this.plugin.t("settingRebuildAllTagsName"))
           .setDesc(this.plugin.t("settingRebuildAllTagsDesc"))
           .addButton(button => button
-            .setButtonText(this.plugin.t("settingRebuildAllTagsName"))
+            .setButtonText(this.plugin.t("settingRebuildButton"))
             .setWarning()
             .onClick(async () => {
               await this.plugin.confirmAndRebuildAllTags();
             }));
+        rebuildTagsSetting.settingEl.addClass("eaglebridge-settings-action-row");
     
         const folderColumn = rules.createDiv({ cls: "eaglebridge-settings-rule-card" });
         createRuleHeader(
@@ -9988,15 +9995,16 @@
               await this.plugin.saveSettings();
             }));
     
-        new Setting(folderColumn)
+        const rebuildFoldersSetting = new Setting(folderColumn)
           .setName(this.plugin.t("settingRebuildAllFoldersName"))
           .setDesc(this.plugin.t("settingRebuildAllFoldersDesc"))
           .addButton(button => button
-            .setButtonText(this.plugin.t("settingRebuildAllFoldersName"))
+            .setButtonText(this.plugin.t("settingRebuildButton"))
             .setWarning()
             .onClick(async () => {
               await this.plugin.confirmAndRebuildAllFolders();
             }));
+        rebuildFoldersSetting.settingEl.addClass("eaglebridge-settings-action-row");
     
         const libraryPathsSetting = new Setting(containerEl)
           .setName(this.plugin.t("settingLibraryPathsName"))
@@ -10089,7 +10097,7 @@
         });
         attachmentCard.appendChild(templateSetting.settingEl);
     
-        new Setting(attachmentCard)
+        const normalizeReferencesSetting = new Setting(attachmentCard)
           .setName(this.plugin.t("settingNormalizeAllReferencesName"))
           .setDesc(this.plugin.t("settingNormalizeAllReferencesDesc"))
           .addButton((button) => button
@@ -10097,6 +10105,7 @@
             .onClick(async () => {
               await this.plugin.confirmAndNormalizeAllEagleReferenceLabels();
             }));
+        normalizeReferencesSetting.settingEl.addClass("eaglebridge-settings-action-row");
     
         new Setting(containerEl)
           .setName(this.plugin.t("settingBuildName"))
@@ -10287,6 +10296,7 @@
         managementRulesTitle: "Management rules",
         attachmentManagementTitle: "Attachment management",
         attachmentManagementDesc: "Configure where attachments are imported and how OE Link references are written.",
+        attachmentManagementWarning: "Imported attachment references are replaced with OE Link links and cannot currently be restored in one click.",
         tagManagementTitle: "Tag management",
         tagManagementDesc: "Write and clean Eagle tags.",
         folderManagementTitle: "Folder management",
@@ -10316,9 +10326,10 @@
         settingCanvasTagNameTemplateName: "Canvas tag naming rule",
         settingCanvasTagNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date.",
         settingRebuildAllTagsName: "Rebuild all tags",
-        settingRebuildAllTagsDesc: "Remove tags beginning with Obsidian, then rewrite them by the current rule. Other tags are kept.",
+        settingRebuildAllTagsDesc: "Remove tags beginning with Obsidian, then rewrite them using the current rule.",
         settingRebuildAllFoldersName: "Rebuild all folders",
         settingRebuildAllFoldersDesc: "Rename existing dedicated folders and rebuild their memberships without deleting the original folders.",
+        settingRebuildButton: "Rebuild",
         settingBridgeUrlName: "OE Link media service URL",
         settingBridgeUrlDesc: "Local URL used for Eagle asset links. Default: http://localhost:6060. Disable any other Eagle plugin using this port first.",
         settingLibraryPathsName: "Eagle Library Paths",
@@ -10331,7 +10342,7 @@
         settingImportExternalLocalName: "Import attachments outside the Obsidian vault",
         settingImportExternalLocalDesc: "Off by default. When enabled, explicit local file paths in notes can be imported into Eagle; OE Link never scans other folders automatically.",
         settingTemplateName: "Replacement template",
-        settingTemplateDesc: "Used for newly imported attachments and when normalizing existing OE Link references below. Available variables: {name}, {filename}, {itemId}, {bridgeUrl}, {url}. Existing filenames and display widths are preserved automatically.",
+        settingTemplateDesc: "Used for newly imported attachments and when normalizing existing OE Link references below. Available variables: {name}, {filename}, {itemId}, {bridgeUrl}, {url}.",
         cleanLabelFallback: "Eagle image"
       },
       zh: {
@@ -10495,6 +10506,7 @@
         managementRulesTitle: "管理规则",
         attachmentManagementTitle: "附件管理",
         attachmentManagementDesc: "设置附件导入位置与 OE Link 引用方式。",
+        attachmentManagementWarning: "导入后会将原附件引用替换为 OE Link 链接，暂不支持一键恢复原引用。",
         tagManagementTitle: "标签管理",
         tagManagementDesc: "写入与清理 Eagle 标签。",
         folderManagementTitle: "文件夹管理",
@@ -10524,9 +10536,10 @@
         settingCanvasTagNameTemplateName: "白板标签命名规则",
         settingCanvasTagNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。",
         settingRebuildAllTagsName: "重新生成所有标签",
-        settingRebuildAllTagsDesc: "清理所有以 Obsidian 开头的标签，再按当前规则重新写入；其他标签会保留。",
+        settingRebuildAllTagsDesc: "清理所有以 Obsidian 开头的标签，再按当前规则重新写入。",
         settingRebuildAllFoldersName: "重新生成所有文件夹",
         settingRebuildAllFoldersDesc: "在原有专属文件夹基础上重命名并重建素材归属，不会删除原有文件夹。",
+        settingRebuildButton: "重新生成",
         settingBridgeUrlName: "OE Link 素材服务地址",
         settingBridgeUrlDesc: "Eagle 素材链接使用的本地地址，默认 http://localhost:6060。请先停用其他占用该端口的 Eagle 插件。",
         settingLibraryPathsName: "Eagle 素材库路径",
@@ -10539,7 +10552,7 @@
         settingImportExternalLocalName: "导入 Obsidian 库外附件",
         settingImportExternalLocalDesc: "默认关闭。开启后可导入笔记中明确引用的库外本地文件；不会扫描电脑中的其他文件夹。",
         settingTemplateName: "替换模板",
-        settingTemplateDesc: "新导入附件及下方统一修正现有 OE Link 引用时使用。可用变量：{name}、{filename}、{itemId}、{bridgeUrl}、{url}。原有文件名与显示宽度会自动保留。",
+        settingTemplateDesc: "新导入附件及下方统一修正现有 OE Link 引用时使用。可用变量：{name}、{filename}、{itemId}、{bridgeUrl}、{url}。",
         cleanLabelFallback: "Eagle 图片"
       }
     };

@@ -1,9 +1,9 @@
 {
   "id": "oe-link",
   "name": "OE Link",
-  "version": "0.5.61",
+  "version": "0.5.62",
   "minAppVersion": "1.11.4",
   "description": "Connect Eagle assets with Obsidian notes and canvases.",
-  "author": "Codex",
+  "author": "TenW",
   "isDesktopOnly": false
 }
