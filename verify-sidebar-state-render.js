@@ -47,8 +47,16 @@ assert.match(source, /if \(event\.target === scrollArea \|\| event\.target === g
 assert.match(source, /async importSelectedAssets\(\)/);
 assert.match(source, /\{ silent: true \}/);
 assert.match(styles, /\.eaglebridge-asset-select-checkbox\s*\{[\s\S]*width: 16px;[\s\S]*height: 16px;/);
-assert.match(styles, /\.eaglebridge-note-assets-card\.is-selected/);
-assert.match(styles, /\.eaglebridge-asset-selection-bar\.is-visible/);
+assert.match(styles, /\.eaglebridge-asset-select-checkbox\[aria-checked="true"\]\s*\{[\s\S]*65%/);
+assert.doesNotMatch(styles, /\.eaglebridge-asset-select-checkbox\[aria-checked="true"\]::after/);
+assert.doesNotMatch(styles, /\.eaglebridge-note-assets-card\.is-selected/);
+assert.doesNotMatch(styles, /\.eaglebridge-asset-selection-bar/);
+assert.match(source, /\.eaglebridge-note-assets-grid, \.menu, \.modal-container, \.suggestion-container/);
+assert.match(source, /selectedItems\.every\(selected => this\.isAssetImportable\(selected\)\)/);
+assert.match(source, /const allLocalTrashable = this\.isLibraryMode && selectedItems\.every/);
+assert.match(source, /const allEagleTrashable = this\.isLibraryMode && selectedItems\.every/);
+assert.match(source, /this\.plugin\.t\("noCommonSelectedActions"\)/);
+assert.match(source, /eaglebridge-note-assets-stat-selected/);
 assert.match(source, /autoTagOnRefresh: false/);
 assert.match(source, /autoFolderOnImport: false/);
 assert.match(source, /autoImportAttachments: false/);

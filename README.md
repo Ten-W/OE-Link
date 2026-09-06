@@ -1,5 +1,7 @@
 # OE Link
 
+0.5.64 - Simplifies attachment selection and limits multi-select menus to shared batch actions.
+
 0.5.63 - Adds sidebar attachment selection and selected import actions, and compacts WebDAV fields.
 
 0.5.62 - Compacts rebuild actions, clarifies link replacement, and updates plugin authorship.

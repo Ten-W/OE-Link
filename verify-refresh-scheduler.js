@@ -7,7 +7,7 @@ const desktop = fs.readFileSync(require("path").join(__dirname, "desktop.js"), "
 
 assert.doesNotMatch(source, /file\.path === this\.lastReferenceViewActiveFilePath\) return;/);
 assert.match(source, /if \(file instanceof TFile && activePath !== file\.path\) return;/);
-assert.match(source, /async onOpen\(\)\s*\{\s*await this\.loadForCurrentNote\(false\);/);
+assert.match(source, /async onOpen\(\)[\s\S]{0,500}await this\.loadForCurrentNote\(false\);/);
 assert.match(source, /this\.scheduleReferenceViewRefresh\(null, 0\);/);
 assert.match(source, /const force = options\.force === true;/);
 assert.match(desktop, /const force = options\.force === true;/);
