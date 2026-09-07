@@ -6783,7 +6783,7 @@ class EagleAssetsView extends ItemView {
     });
   }
 
-  renderAssetStatusMarkers(card, item, isTrashed) {
+  getAssetStatusMarkerEntries(item, isTrashed) {
     const source = this.getLibraryItemSource(item);
     const sourceLabels = {
       eagle: this.plugin.t("inEagle"),
@@ -6792,24 +6792,25 @@ class EagleAssetsView extends ItemView {
       internet: this.plugin.t("internetAsset")
     };
     const sourceLabel = sourceLabels[source] || source;
-    const statusGroup = card.createDiv({ cls: "eaglebridge-asset-status-markers" });
-    const sourceMarker = statusGroup.createSpan({
-      cls: `eaglebridge-asset-status-marker is-${source}`,
-      attr: { role: "img", "aria-label": sourceLabel }
-    });
-    setTooltip(sourceMarker, sourceLabel);
-    const isReferenced = this.isLibraryMode ? this.isLibraryAssetReferenced(item) : true;
-    const referenceMarker = statusGroup.createSpan({
-      cls: `eaglebridge-asset-status-marker ${isReferenced ? "is-referenced" : "is-unreferenced"}`,
-      attr: { role: "img", "aria-label": this.plugin.t(isReferenced ? "libraryReferenced" : "libraryUnreferenced") }
-    });
-    setTooltip(referenceMarker, this.plugin.t(isReferenced ? "libraryReferenced" : "libraryUnreferenced"));
-    if (isTrashed) {
-      const trashMarker = statusGroup.createSpan({
-        cls: "eaglebridge-asset-status-marker is-trash",
-        attr: { role: "img", "aria-label": this.plugin.t("trashLabel") }
+    const entries = [{ className: `is-${source}`, label: sourceLabel }];
+    if (this.isLibraryMode) {
+      const isReferenced = this.isLibraryAssetReferenced(item);
+      entries.push({
+        className: isReferenced ? "is-referenced" : "is-unreferenced",
+        label: this.plugin.t(isReferenced ? "libraryReferenced" : "libraryUnreferenced")
       });
-      setTooltip(trashMarker, this.plugin.t("trashLabel"));
+      if (isTrashed) entries.push({ className: "is-trash", label: this.plugin.t("trashLabel") });
+    }
+    return entries;
+  }
+  renderAssetStatusMarkers(card, entries) {
+    const statusGroup = card.createDiv({ cls: "eaglebridge-asset-status-markers" });
+    for (const entry of entries) {
+      const marker = statusGroup.createSpan({
+        cls: `eaglebridge-asset-status-marker ${entry.className}`,
+        attr: { role: "img", "aria-label": entry.label }
+      });
+      setTooltip(marker, entry.label);
     }
   }
 
@@ -8090,7 +8091,11 @@ class EagleAssetsView extends ItemView {
             : isTrashedItem
               ? "eaglebridge-trash-text"
               : "eaglebridge-eagle-text";
-      setTooltip(card, [displayName || item.id || this.plugin.t("untitledAsset"), statusText, getEagleItemId(item)].filter(Boolean).join("\n"));
+      const statusMarkerEntries = !isNoteItem && !isMissingItem
+        ? this.getAssetStatusMarkerEntries(item, isTrashedItem)
+        : [];
+      const tooltipStatus = statusMarkerEntries.map(entry => entry.label).join(" | ") || statusText;
+      setTooltip(card, [displayName || item.id || this.plugin.t("untitledAsset"), tooltipStatus, getEagleItemId(item)].filter(Boolean).join("\n"));
       if (isNoteItem) {
         card.addClass("eaglebridge-card-note");
       } else if (isObsidianTrashedLocal) {
@@ -8114,7 +8119,7 @@ class EagleAssetsView extends ItemView {
         if (libraryKey) card.dataset.libraryAssetKey = libraryKey;
         card.addClass("eaglebridge-note-assets-card-clickable");
       }
-      if (!isNoteItem && !isMissingItem) this.renderAssetStatusMarkers(card, item, isTrashedItem);
+      if (statusMarkerEntries.length) this.renderAssetStatusMarkers(card, statusMarkerEntries);
       if (!isNoteItem && this.isPreviewableAssetItem(item)) {
         card.addEventListener("dblclick", event => {
           if (event.target.closest("button")) return;

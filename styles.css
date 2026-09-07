@@ -1412,6 +1412,10 @@ audio.eaglebridge-media-embed {
   color: var(--text-muted);
 }
 
+.eaglebridge-file-placeholder:not(.eaglebridge-note-placeholder) {
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+}
+
 .eaglebridge-file-placeholder-icon {
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
