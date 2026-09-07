@@ -1,6 +1,6 @@
 # OE Link
 
-0.5.69 - Adds useful shared actions for multi-selected assets and original-link copying.
+0.5.70 - Unifies asset panel spacing and adds a privacy-safe standard diagnostic report.
 
 0.5.65 - Adds native range selection, compact source/status markers, and an independent trash filter.
 

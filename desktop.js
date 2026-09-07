@@ -537,6 +537,34 @@
         });
         return payload.data || {};
       }
+      diagnosticHash(value) {
+        const text = String(value || "");
+        return text ? nodeCrypto.createHash("sha256").update(text).digest("hex").slice(0, 12) : "";
+      }
+      sanitizeDiagnosticText(value) {
+        let text = String(value || "");
+        const libraryPaths = Array.isArray(this.settings.eagleBridgeLibraryPaths) ? this.settings.eagleBridgeLibraryPaths : [];
+        const paths = [nodeOs.homedir(), ...libraryPaths].filter(Boolean);
+        for (const path of paths) {
+          text = text.split(path).join("<redacted-path>");
+          text = text.split(String(path).replace(/\\/g, "/")).join("<redacted-path>");
+        }
+        return text
+          .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/-]+=*/gi, "$1 <redacted>")
+          .replace(/(https?:\/\/)[^@\s/]+@/gi, "$1<redacted>@");
+      }
+      sanitizeDiagnosticUrl(value) {
+        try {
+          const parsed = new URL(String(value || ""));
+          parsed.username = "";
+          parsed.password = "";
+          parsed.search = "";
+          parsed.hash = "";
+          return this.sanitizeDiagnosticText(parsed.toString());
+        } catch (_) {
+          return this.sanitizeDiagnosticText(value);
+        }
+      }
     
       recordDesktopDiagnosticEvent(type, data = {}) {
         if (!Array.isArray(this.desktopDiagnosticEvents)) this.desktopDiagnosticEvents = [];
@@ -565,7 +593,8 @@
         const source = activeFile instanceof TFile && isSupportedSourceFile(activeFile)
           ? await this.app.vault.read(activeFile)
           : "";
-        const itemIds = Array.from(new Set(this.extractEagleBridgeItemIds(source).map(stripInfoSuffix).filter(Boolean))).slice(0, 20);
+        const detectedItemIds = Array.from(new Set(this.extractEagleBridgeItemIds(source).map(stripInfoSuffix).filter(Boolean)));
+        const itemIds = detectedItemIds.slice(0, 20);
         const mediaBase = this.getCompanionMediaUrl();
         let ipv4MediaBase = mediaBase;
         try {
@@ -584,6 +613,39 @@
           this.probeDesktopDiagnosticUrl(`${mediaBase}/health`),
           this.probeDesktopDiagnosticUrl(`${ipv4MediaBase}/health`)
         ]);
+        let eagleApplication;
+        try {
+          const response = await this.requestEagleApiJson({
+            url: `${this.getEagleApiUrl("").replace(/\/$/, "")}/api/application/info`,
+            method: "GET"
+          });
+          const data = response && response.data || {};
+          eagleApplication = {
+            status: "ok",
+            version: String(data.version || ""),
+            buildVersion: String(data.buildVersion || ""),
+            platform: String(data.platform || "")
+          };
+        } catch (error) {
+          eagleApplication = { status: "error", error: this.sanitizeDiagnosticText(error && error.message ? error.message : error) };
+        }
+        let helperStatus;
+        try {
+          const response = await this.requestEagleHelperJson("diagnostic/status");
+          const data = response && response.data || {};
+          const libraryPaths = Array.isArray(data.libraryPaths) ? data.libraryPaths : [];
+          helperStatus = {
+            status: "ok",
+            helperVersion: String(data.helperVersion || ""),
+            mediaHost: String(data.mediaHost || ""),
+            mediaPort: Number(data.mediaPort) || 0,
+            mediaListening: !!data.mediaListening,
+            libraryPathCount: libraryPaths.length,
+            existingLibraryPathCount: libraryPaths.filter(entry => entry && entry.exists).length
+          };
+        } catch (error) {
+          helperStatus = { status: "error", error: this.sanitizeDiagnosticText(error && error.message ? error.message : error) };
+        }
         const items = [];
         for (const itemId of itemIds) {
           let helper = null;
@@ -598,36 +660,120 @@
           } catch (error) {
             helperError = error && error.message ? error.message : String(error);
           }
-          items.push({
-            itemId,
-            helper,
-            helperError,
-            media: await Promise.all([
+          const media = await Promise.all([
               this.probeDesktopDiagnosticUrl(`${mediaBase}/images/${encodeURIComponent(itemId)}.info`, "HEAD"),
               this.probeDesktopDiagnosticUrl(`${ipv4MediaBase}/images/${encodeURIComponent(itemId)}.info`, "HEAD")
-            ])
+            ]);
+          const helperItem = helper && helper.item || {};
+          const resolvedFile = helper && helper.resolvedFile;
+          items.push({
+            itemKey: this.diagnosticHash(itemId),
+            helper: helper ? {
+              extension: String(helperItem.extension || helperItem.ext || ""),
+              width: Number(helperItem.width) || 0,
+              height: Number(helperItem.height) || 0,
+              size: Number(helperItem.size) || 0,
+              folderCount: Array.isArray(helperItem.folders) ? helperItem.folders.length : 0,
+              isDeleted: !!helperItem.isDeleted,
+              resolvedFile: resolvedFile ? {
+                exists: !!resolvedFile.exists,
+                size: Number(resolvedFile.size) || 0,
+                extension: nodePath.extname(String(resolvedFile.path || ""))
+              } : null,
+              resolveError: this.sanitizeDiagnosticText(helper.resolveError).split(itemId).join("<item>")
+            } : null,
+            helperError: this.sanitizeDiagnosticText(helperError).split(itemId).join("<item>"),
+            media: media.map(probe => ({
+              ...probe,
+              url: this.sanitizeDiagnosticUrl(String(probe.url || "").replace(encodeURIComponent(itemId), "<item>")),
+              error: this.sanitizeDiagnosticText(probe.error).split(itemId).join("<item>")
+            }))
           });
         }
-    
+        const panel = this.app.workspace.getLeavesOfType(VIEW_TYPE).map(leaf => leaf.view).find(Boolean);
+        const librarySummary = panel && panel.libraryReferenceSummary;
+        const configuredLibraryPaths = Array.isArray(this.settings.eagleBridgeLibraryPaths) ? this.settings.eagleBridgeLibraryPaths : [];
+        const events = (this.desktopDiagnosticEvents || []).map(event => {
+          const itemId = event.itemId || extractEagleBridgeItemIdFromText(event.src || "");
+          return {
+            time: event.time,
+            type: event.type,
+            status: event.status || "",
+            itemKey: this.diagnosticHash(itemId),
+            endpoint: event.src ? this.sanitizeDiagnosticUrl(String(event.src).replace(itemId || "<none>", "<item>")) : "",
+            error: this.sanitizeDiagnosticText(event.error).split(itemId || "<none>").join("<item>")
+          };
+        });
         const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const path = `oe-link-desktop-diagnostic-${stamp}.log`;
+        const path = `oe-link-diagnostic-report-${stamp}.json`;
         await this.app.vault.adapter.write(path, JSON.stringify({
+          schemaVersion: 1,
+          diagnosticLevel: "standard",
           exportedAt: new Date().toISOString(),
-          pluginVersion: this.manifest.version,
-          helperRequiredVersion: EAGLE_HELPER_PLUGIN_VERSION,
-          platform: process.platform,
-          activeFile: activeFile ? activeFile.path : "",
-          configured: {
-            eagleApiBaseUrl: this.settings.eagleApiBaseUrl,
-            eagleBridgeBaseUrl: this.settings.eagleBridgeBaseUrl,
-            eagleHelperBaseUrl: helperBase,
-            libraryPaths: this.settings.eagleBridgeLibraryPaths || []
+          privacy: {
+            redacted: true,
+            excludes: ["passwords", "tokens", "cookies", "note contents", "absolute paths", "raw item IDs"]
           },
-          probes,
+          environment: {
+            pluginVersion: this.manifest.version,
+            obsidianVersion: typeof this.app.getVersion === "function" ? this.app.getVersion() : "",
+            helperRequiredVersion: EAGLE_HELPER_PLUGIN_VERSION,
+            platform: process.platform,
+            architecture: process.arch,
+            osRelease: nodeOs.release(),
+            nodeVersion: process.versions && process.versions.node || "",
+            electronVersion: process.versions && process.versions.electron || "",
+            locale: globalThis.navigator && navigator.language || ""
+          },
+          activeContext: {
+            fileKey: activeFile ? this.diagnosticHash(activeFile.path) : "",
+            extension: activeFile ? activeFile.extension : "",
+            sourceBytes: Buffer.byteLength(source, "utf8"),
+            detectedItemCount: detectedItemIds.length,
+            sampledItemCount: itemIds.length,
+            panelMode: panel ? (panel.isLibraryMode ? "library" : "current-note") : "closed",
+            contextKind: panel && panel.currentContext ? String(panel.currentContext.kind || "") : "",
+            selectedCount: panel && panel.selectedAssetItems ? panel.selectedAssetItems.size : 0,
+            viewMode: normalizeAssetViewMode(this.settings.assetViewMode)
+          },
+          configured: {
+            connectionMode: "local",
+            eagleApiUrl: this.sanitizeDiagnosticUrl(this.settings.eagleApiBaseUrl),
+            mediaUrl: this.sanitizeDiagnosticUrl(this.settings.eagleBridgeBaseUrl),
+            helperUrl: this.sanitizeDiagnosticUrl(helperBase),
+            targetFolderConfigured: !!String(this.settings.eagleFolderId || "").trim(),
+            libraryPaths: configuredLibraryPaths.map(pathValue => ({
+              key: this.diagnosticHash(pathValue),
+              exists: nodeFs.existsSync(pathValue)
+            })),
+            features: {
+              tagManagement: this.settings.tagManagementEnabled !== false,
+              folderManagement: this.settings.folderManagementEnabled !== false,
+              autoTagOnRefresh: this.settings.autoTagOnRefresh !== false,
+              autoFolderOnImport: this.settings.autoFolderOnImport !== false,
+              autoImportAttachments: this.settings.autoImportAttachments !== false,
+              importExternalLocalAttachments: this.settings.importExternalLocalAttachments === true,
+              mirrorObsidianFolderTree: this.settings.useObsidianFolderTree === true,
+              trashAfterImport: this.settings.trashAfterImport === true,
+              autoRefreshReferenceView: this.settings.autoRefreshReferenceView !== false
+            }
+          },
+          serviceStatus: { eagleApplication, helperStatus },
+          panelSummary: librarySummary ? {
+            total: librarySummary.total,
+            referenced: librarySummary.referenced,
+            unreferenced: librarySummary.unreferenced,
+            sourceCounts: librarySummary.sourceCounts
+          } : null,
+          probes: probes.map(probe => ({
+            ...probe,
+            url: this.sanitizeDiagnosticUrl(probe.url),
+            error: this.sanitizeDiagnosticText(probe.error)
+          })),
           items,
-          events: this.desktopDiagnosticEvents || []
+          events
         }, null, 2));
-        new Notice(`诊断日志已导出到仓库根目录：${path}`);
+        new Notice(this.t("noticeDiagnosticExported", { path }));
         return path;
       }
     
@@ -10571,10 +10717,11 @@
         enterCloudConnectionMode: "Enter cloud connection mode",
         settingBuildName: "Plugin build",
         settingBuildDesc: "Version: {version}",
-        settingDesktopDiagnosticName: "Desktop diagnostics",
-        settingDesktopDiagnosticDesc: "Checks local image loading and Eagle item opening, then exports a log to the vault root. Passwords and tokens are never included.",
-        settingDesktopDiagnosticButton: "Run and export",
-        noticeDesktopDiagnosticFailed: "Diagnostic export failed: {error}",
+        settingDesktopDiagnosticName: "Standard diagnostic report",
+        settingDesktopDiagnosticDesc: "Runs read-only environment, service, asset, and recent-event checks, then exports a redacted report to the vault root.",
+        settingDesktopDiagnosticButton: "Run diagnostics and export",
+        noticeDesktopDiagnosticFailed: "Diagnostic report export failed: {error}",
+        noticeDiagnosticExported: "Diagnostic report exported to the vault root: {path}",
         settingNormalizeAllReferencesName: "Normalize existing Eagle links",
         settingNormalizeAllReferencesDesc: "Apply the current replacement template to existing OE Link references in Markdown notes and canvases.",
         settingNormalizeAllReferencesButton: "Normalize links",
@@ -10794,10 +10941,11 @@
         enterCloudConnectionMode: "进入云端连接模式",
         settingBuildName: "插件版本",
         settingBuildDesc: "版本：{version}",
-        settingDesktopDiagnosticName: "本地连接诊断日志",
-        settingDesktopDiagnosticDesc: "检查本地图片加载和 Eagle 素材定位，并将日志导出到仓库根目录。不会记录密码或令牌。",
-        settingDesktopDiagnosticButton: "运行并导出日志",
-        noticeDesktopDiagnosticFailed: "诊断日志导出失败：{error}",
+        settingDesktopDiagnosticName: "普通诊断报告",
+        settingDesktopDiagnosticDesc: "以只读方式检查运行环境、服务、素材和最近事件，并将脱敏报告导出到仓库根目录。",
+        settingDesktopDiagnosticButton: "运行诊断并导出报告",
+        noticeDesktopDiagnosticFailed: "诊断报告导出失败：{error}",
+        noticeDiagnosticExported: "诊断报告已导出到仓库根目录：{path}",
         settingNormalizeAllReferencesName: "统一修正现有 Eagle 引用链接",
         settingNormalizeAllReferencesDesc: "按照当前替换模板，统一 Markdown 笔记和白板中的现有 OE Link 引用。",
         settingNormalizeAllReferencesButton: "开始修正",

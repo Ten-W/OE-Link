@@ -22,6 +22,16 @@ assert.match(source, /const protocolTimer = window\.setTimeout\(openProtocol, 25
 assert.match(source, /status: protocolOpened \? "success-after-protocol" : "success"/);
 assert.match(source, /document\.body\.click\(\);\s*await descriptor\.onClick\(\);/);
 assert.match(source, /exportDesktopDiagnosticLog/);
+assert.match(source, /schemaVersion: 1/);
+assert.match(source, /diagnosticLevel: "standard"/);
+assert.match(source, /oe-link-diagnostic-report-\$\{stamp\}\.json/);
+assert.match(source, /absolute paths/);
+assert.match(source, /raw item IDs/);
+assert.match(source, /fileKey: activeFile \? this\.diagnosticHash\(activeFile\.path\)/);
+assert.match(source, /libraryPaths: configuredLibraryPaths\.map/);
+assert.match(source, /serviceStatus: \{ eagleApplication, helperStatus \}/);
+assert.doesNotMatch(source, /activeFile: activeFile \? activeFile\.path/);
+assert.doesNotMatch(source, /libraryPaths: this\.settings\.eagleBridgeLibraryPaths \|\| \[\]/);
 assert.match(source, /EAGLE_HELPER_PORTS/);
 assert.match(source, /Promise\.all\(EAGLE_HELPER_PORTS\.map/);
 assert.match(source, /eagleHelperProbeFailedAt/);
