@@ -6573,7 +6573,7 @@
         });
         stats.createEl("span", {
           cls: `eaglebridge-note-assets-stat eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`,
-          text: `${this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })}  ${this.plugin.t("selectionInlineHint")}`
+          text: `${this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })} · ${this.plugin.t("selectionInlineHint")}`
         });
     
         const renderBar = (kind, entries, selected, selectedValues, counts) => {
@@ -6667,7 +6667,7 @@
         }
         const count = this.selectedAssetItems.size;
         for (const stat of this.containerEl.querySelectorAll(".eaglebridge-note-assets-stat-selected")) {
-          stat.setText(`${this.plugin.t("selectedAssetsStat", { count })}  ${this.plugin.t("selectionInlineHint")}`);
+          stat.setText(`${this.plugin.t("selectedAssetsStat", { count })} · ${this.plugin.t("selectionInlineHint")}`);
           stat.toggleClass("is-hidden", count === 0);
         }
       }
@@ -7923,7 +7923,7 @@
         addStat(this.plugin.t("totalAssets", { count: summary.total }), "eaglebridge-note-assets-stat-total");
         addStat(`当前显示: ${visibleSummary.total}`, "eaglebridge-note-assets-stat-visible");
         addStat(
-          `${this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })}  ${this.plugin.t("selectionInlineHint")}`,
+          `${this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })} · ${this.plugin.t("selectionInlineHint")}`,
           `eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`
         );
         this.renderContextSourceBar(root, summary, context, items);
@@ -10544,7 +10544,7 @@
         attachmentManagementWarning: "Imported attachment references are replaced with OE Link links and cannot be restored to their original references.",
         selectAttachment: "Select attachment",
         selectedAssetsStat: "Selected: {count}",
-        selectionInlineHint: "Ctrl toggles · Shift selects a range",
+        selectionInlineHint: "Ctrl single · Shift range",
         importSelectedToEagle: "Import selected to Eagle",
         noCommonSelectedActions: "No common actions available",
         noImportableSelectedAssets: "The selected items do not contain attachments that can be imported.",
@@ -10764,7 +10764,7 @@
         attachmentManagementWarning: "导入后将会将原附件引用链接替换为 OE Link 链接，不支持恢复原引用。",
         selectAttachment: "选择附件",
         selectedAssetsStat: "已选择: {count}",
-        selectionInlineHint: "Ctrl 加减选择 · Shift 连续选择",
+        selectionInlineHint: "Ctrl 单选 · Shift 连选",
         importSelectedToEagle: "导入所选到 Eagle",
         noCommonSelectedActions: "没有可用的共同操作",
         noImportableSelectedAssets: "所选素材中没有可导入的附件。",

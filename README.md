@@ -1,6 +1,6 @@
 # OE Link
 
-0.5.66 - Refines selection outlines, status dots, and native asset tooltips.
+0.5.67 - Restores visible asset selection and compacts the multi-select hint.
 
 0.5.65 - Adds native range selection, compact source/status markers, and an independent trash filter.
 

@@ -47,7 +47,7 @@ assert.match(source, /if \(event\.target === scrollArea \|\| event\.target === g
 assert.match(source, /async importSelectedAssets\(\)/);
 assert.match(source, /\{ silent: true \}/);
 assert.doesNotMatch(styles, /\.eaglebridge-asset-select-checkbox/);
-assert.match(styles, /\.eaglebridge-note-assets-card\.is-selected\s*\{[\s\S]*inset 0 0 0 2px #fff/);
+assert.match(styles, /\.eaglebridge-note-assets-card\.is-selected::before\s*\{[\s\S]*z-index: 8;[\s\S]*border: 2px solid #fff/);
 assert.match(styles, /\.eaglebridge-note-assets-card\s*\{[\s\S]*border: 0;/);
 assert.match(source, /event\.shiftKey && this\.assetSelectionAnchorKey/);
 assert.match(source, /event\.ctrlKey \|\| event\.metaKey/);
@@ -59,6 +59,7 @@ assert.match(styles, /\.eaglebridge-asset-status-marker\.is-trash/);
 assert.doesNotMatch(source, /card\.title =/);
 assert.match(source, /setTooltip\(card, \[displayName/);
 assert.match(source, /this\.plugin\.t\("selectionInlineHint"\)/);
+assert.match(source, /\}\)\} · \$\{this\.plugin\.t\("selectionInlineHint"\)\}/);
 assert.doesNotMatch(source, /setTooltip\(selectedStat/);
 assert.match(source, /setTooltip\(trashMarker, this\.plugin\.t\("trashLabel"\)\)/);
 assert.match(source, /const includeTrash = this\.libraryReferenceFilters\.has\("trash"\)/);
