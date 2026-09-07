@@ -1,5 +1,6 @@
 ﻿const { Plugin, ItemView, Menu, Notice, addIcon, requestUrl: nativeRequestUrl, TFile } = require("obsidian");
 const nodePath = require("path");
+const { setTooltip } = require("obsidian");
 const nodeFs = require("fs");
 const nodeOs = require("os");
 const nodeCrypto = require("crypto");
@@ -6282,6 +6283,7 @@ class EagleAssetsView extends ItemView {
     this.assetRenderGeneration = 0;
     this.pendingAssetCardClick = 0;
     this.selectedAssetItems = new Map();
+    this.assetSelectionAnchorKey = "";
   }
 
   getViewType() {
@@ -6541,14 +6543,15 @@ class EagleAssetsView extends ItemView {
     ];
     const referenceItems = [
       ["referenced", this.plugin.t("libraryReferenced"), "is-referenced"],
-      ["unreferenced", this.plugin.t("libraryUnreferenced"), "is-unreferenced"],
-      ["trash", "回收站", "is-trash"]
+      ["unreferenced", this.plugin.t("libraryUnreferenced"), "is-unreferenced"]
     ];
     const activeSources = this.getEffectiveLibraryFilterSet(this.librarySourceFilters, sourceItems.map(([key]) => key));
     const activeReferences = this.getEffectiveLibraryFilterSet(this.libraryReferenceFilters, referenceItems.map(([key]) => key));
+    const includeTrash = this.libraryReferenceFilters.has("trash");
     const itemMatches = (item, sources, references) => {
       return sources.has(this.getLibraryItemSource(item))
-        && references.has(this.getLibraryItemReferenceState(item));
+        && references.has(this.getLibraryItemReferenceState(item))
+        && (includeTrash || !this.isLibraryItemTrashed(item));
     };
     const visibleCount = summary.items.filter(item => itemMatches(item, activeSources, activeReferences)).length;
     const stats = target.createDiv({ cls: "eaglebridge-library-filter-summary" });
@@ -6561,9 +6564,10 @@ class EagleAssetsView extends ItemView {
       text: `当前显示: ${visibleCount}`
     });
     stats.createEl("span", {
-      cls: "eaglebridge-note-assets-stat eaglebridge-note-assets-stat-selected",
+      cls: `eaglebridge-note-assets-stat eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`,
       text: this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })
     });
+    setTooltip(stats.querySelector(".eaglebridge-note-assets-stat-selected"), this.plugin.t("selectionShortcutHint"));
 
     const renderBar = (kind, entries, selected, selectedValues, counts) => {
       const section = target.createDiv({ cls: `eaglebridge-library-filter-bar-section is-${kind}` });
@@ -6593,6 +6597,7 @@ class EagleAssetsView extends ItemView {
           await this.loadObsidianLibrary();
         });
       }
+      return section;
     };
 
     const sourceCounts = Object.fromEntries(sourceItems.map(([key]) => [key, 0]));
@@ -6607,7 +6612,25 @@ class EagleAssetsView extends ItemView {
         referenceCounts[this.getLibraryItemReferenceState(item)] += 1;
       }
     }
-    renderBar("reference", referenceItems, this.libraryReferenceFilters, activeReferences, referenceCounts);
+    const referenceSection = renderBar("reference", referenceItems, this.libraryReferenceFilters, activeReferences, referenceCounts);
+    const trashCount = summary.items.filter(item => activeSources.has(this.getLibraryItemSource(item))
+      && activeReferences.has(this.getLibraryItemReferenceState(item))
+      && this.isLibraryItemTrashed(item)).length;
+    const sourceCount = summary.items.filter(item => activeSources.has(this.getLibraryItemSource(item))).length;
+    const trashButton = referenceSection.createEl("button", {
+      cls: `eaglebridge-library-trash-filter${includeTrash ? " is-enabled" : ""}`,
+      text: String(trashCount),
+      attr: { type: "button", "aria-label": this.plugin.t("trashLabel"), "aria-pressed": String(includeTrash) }
+    });
+    trashButton.style.flexBasis = `clamp(28px, ${sourceCount ? Math.round(trashCount / sourceCount * 100) : 0}%, 40%)`;
+    setTooltip(trashButton, this.plugin.t("trashLabel"));
+    trashButton.addEventListener("click", async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (includeTrash) this.libraryReferenceFilters.delete("trash");
+      else this.libraryReferenceFilters.add("trash");
+      await this.loadObsidianLibrary();
+    });
   }
 
   getLibraryAssetKey(item) {
@@ -6632,31 +6655,53 @@ class EagleAssetsView extends ItemView {
   updateAssetSelectionUi() {
     for (const card of this.containerEl.querySelectorAll(".eaglebridge-note-assets-card[data-asset-selection-key]")) {
       const checked = this.selectedAssetItems.has(card.dataset.assetSelectionKey || "");
-      const checkbox = card.querySelector(".eaglebridge-asset-select-checkbox");
-      if (checkbox) checkbox.setAttr("aria-checked", String(checked));
+      card.toggleClass("is-selected", checked);
+      card.setAttr("aria-selected", String(checked));
     }
     const count = this.selectedAssetItems.size;
     for (const stat of this.containerEl.querySelectorAll(".eaglebridge-note-assets-stat-selected")) {
       stat.setText(this.plugin.t("selectedAssetsStat", { count }));
+      stat.toggleClass("is-hidden", count === 0);
     }
   }
   clearAssetSelection() {
     if (!this.selectedAssetItems.size) return;
     this.selectedAssetItems.clear();
+    this.assetSelectionAnchorKey = "";
     this.updateAssetSelectionUi();
   }
-  toggleAssetSelection(item, selected) {
+  selectAssetFromClick(item, event, items) {
     const key = this.getAssetSelectionKey(item);
-    if (!key) return;
-    if (selected) this.selectedAssetItems.set(key, item);
-    else this.selectedAssetItems.delete(key);
+    if (!key) return false;
+    if (event.shiftKey && this.assetSelectionAnchorKey) {
+      const anchorIndex = items.findIndex(candidate => this.getAssetSelectionKey(candidate) === this.assetSelectionAnchorKey);
+      const itemIndex = items.findIndex(candidate => this.getAssetSelectionKey(candidate) === key);
+      if (anchorIndex >= 0 && itemIndex >= 0) {
+        if (!event.ctrlKey && !event.metaKey) this.selectedAssetItems.clear();
+        const [start, end] = anchorIndex < itemIndex ? [anchorIndex, itemIndex] : [itemIndex, anchorIndex];
+        for (const candidate of items.slice(start, end + 1)) {
+          const candidateKey = this.getAssetSelectionKey(candidate);
+          if (candidateKey) this.selectedAssetItems.set(candidateKey, candidate);
+        }
+      }
+    } else if (event.ctrlKey || event.metaKey) {
+      if (this.selectedAssetItems.has(key)) this.selectedAssetItems.delete(key);
+      else this.selectedAssetItems.set(key, item);
+      this.assetSelectionAnchorKey = key;
+    } else {
+      this.selectedAssetItems.clear();
+      this.selectedAssetItems.set(key, item);
+      this.assetSelectionAnchorKey = key;
+    }
     this.updateAssetSelectionUi();
+    return event.shiftKey || event.ctrlKey || event.metaKey;
   }
   selectAssetForContextMenu(item) {
     const key = this.getAssetSelectionKey(item);
     if (!key || this.selectedAssetItems.has(key)) return;
     this.selectedAssetItems.clear();
     this.selectedAssetItems.set(key, item);
+    this.assetSelectionAnchorKey = key;
     this.updateAssetSelectionUi();
   }
   async importSelectedAssets() {
@@ -6715,11 +6760,14 @@ class EagleAssetsView extends ItemView {
   }
 
   getLibraryItemReferenceState(item) {
-    if (item && item.__inObsidianTrash) return "trash";
-    if (String(item && item.__assetSource || "eagle") === "trash") return "trash";
     return this.isLibraryAssetReferenced(item) ? "referenced" : "unreferenced";
   }
 
+  isLibraryItemTrashed(item) {
+    return !!(item && item.__inObsidianTrash)
+      || String(item && item.__assetSource || "eagle") === "trash"
+      || isEagleItemTrashed(item);
+  }
   getEffectiveLibraryFilterSet(filters, allValues) {
     return filters instanceof Set ? filters : new Set(allValues);
   }
@@ -6727,24 +6775,43 @@ class EagleAssetsView extends ItemView {
   getFilteredLibraryItems(summary) {
     if (!summary || !Array.isArray(summary.items)) return [];
     const sources = this.getEffectiveLibraryFilterSet(this.librarySourceFilters, ["eagle", "local", "external-local", "internet"]);
-    const references = this.getEffectiveLibraryFilterSet(this.libraryReferenceFilters, ["referenced", "unreferenced", "trash"]);
+    const references = this.getEffectiveLibraryFilterSet(this.libraryReferenceFilters, ["referenced", "unreferenced"]);
+    const includeTrash = this.libraryReferenceFilters.has("trash");
     return summary.items.filter(item => {
       return sources.has(this.getLibraryItemSource(item))
-        && references.has(this.getLibraryItemReferenceState(item));
+        && references.has(this.getLibraryItemReferenceState(item))
+        && (includeTrash || !this.isLibraryItemTrashed(item));
     });
   }
 
-  renderLibraryReferenceBadge(card, itemOrKey) {
-    const summary = this.libraryReferenceSummary;
-    const key = typeof itemOrKey === "string" ? itemOrKey : this.getLibraryAssetKey(itemOrKey);
-    if (!summary || !key || card.querySelector(".eaglebridge-library-reference-badge")) return;
-    const isReferenced = !!(summary.assetReferenceFilesByKey && summary.assetReferenceFilesByKey.get(key)?.size);
-    card.createEl("span", {
-      cls: isReferenced
-        ? "eaglebridge-library-reference-badge is-referenced"
-        : "eaglebridge-library-reference-badge is-unreferenced",
-      text: this.plugin.t(isReferenced ? "referencedBadge" : "unreferencedBadge")
+  renderAssetStatusMarkers(card, item, isTrashed) {
+    const source = this.getLibraryItemSource(item);
+    const sourceLabels = {
+      eagle: this.plugin.t("inEagle"),
+      local: this.plugin.t("obsidianLocal"),
+      "external-local": this.plugin.t("obsidianExternalLocal"),
+      internet: this.plugin.t("internetAsset")
+    };
+    const sourceLabel = sourceLabels[source] || source;
+    const sourceMarker = card.createSpan({
+      cls: `eaglebridge-asset-source-marker is-${source}`,
+      attr: { role: "img", "aria-label": sourceLabel }
     });
+    setTooltip(sourceMarker, sourceLabel);
+    const statusGroup = card.createDiv({ cls: "eaglebridge-asset-status-markers" });
+    const isReferenced = this.isLibraryMode ? this.isLibraryAssetReferenced(item) : true;
+    const referenceMarker = statusGroup.createSpan({
+      cls: `eaglebridge-asset-status-marker ${isReferenced ? "is-referenced" : "is-unreferenced"}`,
+      attr: { role: "img", "aria-label": this.plugin.t(isReferenced ? "libraryReferenced" : "libraryUnreferenced") }
+    });
+    setTooltip(referenceMarker, this.plugin.t(isReferenced ? "libraryReferenced" : "libraryUnreferenced"));
+    if (isTrashed) {
+      const trashMarker = statusGroup.createSpan({
+        cls: "eaglebridge-asset-status-marker is-trash",
+        attr: { role: "img", "aria-label": this.plugin.t("trashLabel") }
+      });
+      setTooltip(trashMarker, this.plugin.t("trashLabel"));
+    }
   }
 
   async trashLibraryAssets(itemIds, successMessageKey, logMessage) {
@@ -7069,6 +7136,7 @@ class EagleAssetsView extends ItemView {
   getContentRoot(root = this.containerEl.children[1]) {
     this.disposeAssetRendering();
     this.selectedAssetItems.clear();
+    this.assetSelectionAnchorKey = "";
     let content = root.querySelector(".eaglebridge-note-assets-content");
     if (!content) content = root.createDiv({ cls: "eaglebridge-note-assets-content" });
     content.empty();
@@ -7847,7 +7915,11 @@ class EagleAssetsView extends ItemView {
     const addStat = (text, cls = "") => stats.createEl("div", { cls: `eaglebridge-note-assets-stat ${cls}`.trim(), text });
     addStat(this.plugin.t("totalAssets", { count: summary.total }), "eaglebridge-note-assets-stat-total");
     addStat(`当前显示: ${visibleSummary.total}`, "eaglebridge-note-assets-stat-visible");
-    addStat(this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size }), "eaglebridge-note-assets-stat-selected");
+    const selectedStat = addStat(
+      this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size }),
+      `eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`
+    );
+    setTooltip(selectedStat, this.plugin.t("selectionShortcutHint"));
     this.renderContextSourceBar(root, summary, context, items);
   }
 
@@ -7936,20 +8008,9 @@ class EagleAssetsView extends ItemView {
         const selectionKey = this.getAssetSelectionKey(item);
         if (selectionKey) {
           card.dataset.assetSelectionKey = selectionKey;
-          const checkbox = card.createEl("button", {
-            cls: "eaglebridge-asset-select-checkbox",
-            attr: {
-              type: "button",
-              role: "checkbox",
-              "aria-label": this.plugin.t("selectAttachment"),
-              "aria-checked": String(this.selectedAssetItems.has(selectionKey))
-            }
-          });
-          checkbox.addEventListener("click", event => {
-            event.preventDefault();
-            event.stopPropagation();
-            this.toggleAssetSelection(item, !this.selectedAssetItems.has(selectionKey));
-          });
+          const selected = this.selectedAssetItems.has(selectionKey);
+          card.setAttr("aria-selected", String(selected));
+          card.toggleClass("is-selected", selected);
         }
       }
       const cancelPendingCardClick = () => {
@@ -7972,12 +8033,16 @@ class EagleAssetsView extends ItemView {
           event.stopPropagation();
           await this.drillIntoCanvasNote(item);
         });
-      } else if (!this.isLibraryMode && typeof item.__sourceStart === "number") {
-        card.dataset.sourceStart = String(item.__sourceStart);
-        card.dataset.sourceEnd = String(typeof item.__sourceEnd === "number" ? item.__sourceEnd : item.__sourceStart);
+      } else {
+        if (!this.isLibraryMode && typeof item.__sourceStart === "number") {
+          card.dataset.sourceStart = String(item.__sourceStart);
+          card.dataset.sourceEnd = String(typeof item.__sourceEnd === "number" ? item.__sourceEnd : item.__sourceStart);
+        }
         card.addClass("eaglebridge-note-assets-card-clickable");
         card.addEventListener("click", event => {
           if (event.detail > 1 || event.target.closest("button")) return;
+          const modifiedSelection = this.selectAssetFromClick(item, event, items);
+          if (modifiedSelection || this.isLibraryMode || typeof item.__sourceStart !== "number") return;
           deferCardClick(async () => {
             const scrollRoot = this.containerEl.children[1]?.querySelector(".eaglebridge-note-assets-scroll-area");
             const scrollTop = scrollRoot ? scrollRoot.scrollTop : 0;
@@ -8000,7 +8065,7 @@ class EagleAssetsView extends ItemView {
       const statusText = isNoteItem
         ? this.plugin.t("embeddedNote")
         : isObsidianTrashedLocal
-        ? "Obsidian 回收站"
+        ? this.plugin.t("inEagleTrash")
         : isLocalItem
         ? this.plugin.t("obsidianLocal")
         : isExternalLocalItem
@@ -8049,9 +8114,9 @@ class EagleAssetsView extends ItemView {
       if (isLibraryAssetCard) {
         const libraryKey = this.getLibraryAssetKey(item);
         if (libraryKey) card.dataset.libraryAssetKey = libraryKey;
-        this.renderLibraryReferenceBadge(card, libraryKey);
         card.addClass("eaglebridge-note-assets-card-clickable");
       }
+      if (!isNoteItem && !isMissingItem) this.renderAssetStatusMarkers(card, item, isTrashedItem);
       if (!isNoteItem && this.isPreviewableAssetItem(item)) {
         card.addEventListener("dblclick", event => {
           if (event.target.closest("button")) return;
@@ -8177,7 +8242,7 @@ class EagleAssetsView extends ItemView {
       } else if (isObsidianTrashedLocal) {
         card.createEl("div", {
           cls: "eaglebridge-note-assets-title eaglebridge-trash-text",
-          text: "Obsidian 回收站"
+          text: this.plugin.t("inEagleTrash")
         });
       } else if (isLocalItem) {
         const localRow = card.createEl("div", {

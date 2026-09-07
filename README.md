@@ -1,5 +1,7 @@
 # OE Link
 
+0.5.65 - Adds native range selection, compact source/status markers, and an independent trash filter.
+
 0.5.64 - Simplifies attachment selection and limits multi-select menus to shared batch actions.
 
 0.5.63 - Adds sidebar attachment selection and selected import actions, and compacts WebDAV fields.
