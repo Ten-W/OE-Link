@@ -1,6 +1,6 @@
 # OE Link
 
-0.5.68 - Separates note and library status markers and restores attachment borders.
+0.5.69 - Adds useful shared actions for multi-selected assets and original-link copying.
 
 0.5.65 - Adds native range selection, compact source/status markers, and an independent trash filter.
 

@@ -73,7 +73,14 @@ assert.match(source, /\.eaglebridge-note-assets-grid, \.menu, \.modal-container,
 assert.match(source, /selectedItems\.every\(selected => this\.isAssetImportable\(selected\)\)/);
 assert.match(source, /const allLocalTrashable = this\.isLibraryMode && selectedItems\.every/);
 assert.match(source, /const allEagleTrashable = this\.isLibraryMode && selectedItems\.every/);
-assert.match(source, /this\.plugin\.t\("noCommonSelectedActions"\)/);
+assert.match(source, /copyAssetsToClipboard\(selectedItems\)/);
+assert.match(source, /copyAssetReferenceLinks\(selectedItems\)/);
+assert.match(source, /links\.join\("\\n"\)/);
+assert.match(source, /const commonFolderIds = folderGroups\[0\]\.filter/);
+assert.match(source, /const commonReferences = referenceGroups\[0\]\.filter/);
+assert.match(source, /this\.plugin\.t\("copyOriginalLink"\)/);
+assert.match(source, /System\.Windows\.Forms[\s\S]*SetFileDropList/);
+assert.doesNotMatch(source, /noCommonSelectedActions/);
 assert.match(source, /eaglebridge-note-assets-stat-selected/);
 assert.match(source, /autoTagOnRefresh: false/);
 assert.match(source, /autoFolderOnImport: false/);

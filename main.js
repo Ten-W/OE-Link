@@ -7994,17 +7994,15 @@ module.exports = EagleBridgeMobilePlugin;
         const leaf = this.plugin.app.workspace.getLeaf("tab");
         await leaf.openFile(file, { active: true });
       }
-    
-      async openLibraryAssetWithDefaultApp(item) {
+      async getAssetOriginalPath(item) {
         const localFile = item && item.__localFile;
-        let fullPath = "";
-        if (localFile instanceof TFile) {
-          fullPath = this.plugin.getFullPath(localFile);
-        } else if (item && item.__assetSource === "external-local") {
-          fullPath = String(item.__externalLocalPath || "");
-        } else if (item && item.__assetSource !== "internet") {
-          fullPath = await this.plugin.getOriginalPathForEagleItem(item);
-        }
+        if (localFile instanceof TFile) return this.plugin.getFullPath(localFile);
+        if (item && item.__assetSource === "external-local") return String(item.__externalLocalPath || "");
+        if (item && item.__assetSource !== "internet") return await this.plugin.getOriginalPathForEagleItem(item) || "";
+        return "";
+      }
+      async openLibraryAssetWithDefaultApp(item) {
+        const fullPath = await this.getAssetOriginalPath(item);
         if (!fullPath) throw new Error("无法找到该附件的原始文件。");
         const electron = require("electron");
         const result = await electron.shell.openPath(fullPath);
@@ -8046,6 +8044,21 @@ module.exports = EagleBridgeMobilePlugin;
           return;
         }
         throw new Error("\u65e0\u6cd5\u8bfb\u53d6\u6b64\u56fe\u7247\u7684\u539f\u59cb\u6570\u636e\u3002");
+      }
+      async copyAssetsToClipboard(items) {
+        const selected = Array.from(items || []).filter(Boolean);
+        if (selected.length === 1) return this.copyAssetImageToClipboard(selected[0]);
+        const paths = await Promise.all(selected.map(item => this.getAssetOriginalPath(item)));
+        if (!paths.length || paths.some(filePath => !filePath)) throw new Error(this.plugin.t("bulkCopyLocalFilesOnly"));
+        if (process.platform !== "win32") throw new Error(this.plugin.t("bulkCopyWindowsOnly"));
+        const payload = Buffer.from(JSON.stringify(paths), "utf8").toString("base64");
+        const script = `$paths=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}'))|ConvertFrom-Json; Add-Type -AssemblyName System.Windows.Forms; $files=New-Object Collections.Specialized.StringCollection; foreach($path in $paths){[void]$files.Add($path)}; [Windows.Forms.Clipboard]::SetFileDropList($files)`;
+        await new Promise((resolve, reject) => require("child_process").execFile(
+          "powershell.exe",
+          ["-NoProfile", "-STA", "-Command", script],
+          { windowsHide: true },
+          error => error ? reject(error) : resolve()
+        ));
       }
     
       isPreviewableAssetItem(item) {
@@ -8177,7 +8190,7 @@ module.exports = EagleBridgeMobilePlugin;
         new Notice("Obsidian 当前无法为这个附件调用原生放大预览。");
       }
     
-      async copyAssetReferenceLink(item) {
+      async getAssetReferenceLink(item) {
         let link = "";
         if (item && item.__localFile instanceof TFile) {
           link = `![[${item.__localFile.path}]]`;
@@ -8202,12 +8215,20 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }
         if (!link) throw new Error("\u65e0\u6cd5\u751f\u6210\u6b64\u9644\u4ef6\u7684\u5f15\u7528\u94fe\u63a5\u3002");
-        try {
-          await navigator.clipboard.writeText(link);
-        } catch (_) {
-          require("electron").clipboard.writeText(link);
-        }
         return link;
+      }
+      async copyAssetReferenceLinks(items) {
+        const links = await Promise.all(Array.from(items || []).map(item => this.getAssetReferenceLink(item)));
+        const text = links.join("\n");
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (_) {
+          require("electron").clipboard.writeText(text);
+        }
+        return text;
+      }
+      async copyAssetReferenceLink(item) {
+        return this.copyAssetReferenceLinks([item]);
       }
     
       async trashSingleUnreferencedLibraryAsset(itemId) {
@@ -8816,9 +8837,44 @@ module.exports = EagleBridgeMobilePlugin;
             });
           });
         };
+        const addEagleFolderMenu = async folderIds => {
+          if (!folderIds.length) return;
+          const folders = await this.plugin.queryEagleFolders().catch(() => []);
+          menu.addItem(menuItem => {
+            menuItem.setTitle("打开 Eagle 文件夹").setIcon("folder-open");
+            const submenu = menuItem.setSubmenu();
+            for (const folderId of folderIds) {
+              const folder = findEagleFolderById(folders, folderId);
+              submenu.addItem(folderItem => folderItem
+                .setTitle(String(folder && folder.name || folderId))
+                .setIcon("folder")
+                .onClick(() => this.plugin.openExternalUrl(buildEagleFolderUrl(this.plugin.settings.eagleProtocolUrl, folderId))));
+            }
+          });
+        };
+        const addReferenceMenu = (references, targetItem) => {
+          if (!references.length) return;
+          menu.addItem(menuItem => {
+            menuItem.setTitle("\u5b9a\u4f4d\u5230\u5f15\u7528\u4f4d\u7f6e").setIcon("map-pin");
+            const submenu = menuItem.setSubmenu();
+            for (const file of references) {
+              submenu.addItem(referenceItem => referenceItem
+                .setTitle(file.basename || file.path)
+                .setIcon(file.extension === "canvas" ? "layout-dashboard" : "file-text")
+                .onClick(() => file.path === this.currentFilePath && typeof targetItem.__sourceStart === "number"
+                  ? this.plugin.revealAssetInSource(file.path, targetItem, this.sourceLeaf)
+                  : this.openSourceFileInNewTab(file)));
+            }
+          });
+        };
     
         const selectedItems = Array.from(this.selectedAssetItems.values());
         if (selectedItems.length > 1) {
+          run(this.plugin.t("copyAttachment"), () => this.copyAssetsToClipboard(selectedItems), "copy");
+          run(this.plugin.t("copyAttachmentReference"), async () => {
+            await this.copyAssetReferenceLinks(selectedItems);
+            new Notice(this.plugin.t("copiedAttachmentReferences", { count: selectedItems.length }));
+          }, "copy");
           if (selectedItems.every(selected => this.isAssetImportable(selected))) {
             run(this.plugin.t("importSelectedToEagle"), () => this.importSelectedAssets(), "eagle-outline");
           }
@@ -8843,17 +8899,27 @@ module.exports = EagleBridgeMobilePlugin;
               "Failed to move selected Eagle assets to trash"
             ), "trash-2");
           }
-          if (!menu.items.length) {
-            menu.addItem(menuItem => menuItem.setTitle(this.plugin.t("noCommonSelectedActions")).setDisabled(true));
-          }
+          const folderGroups = selectedItems.map(selected => getEagleItemFolderIds(selected).map(String));
+          const commonFolderIds = folderGroups[0].filter(folderId => folderGroups.slice(1).every(ids => ids.includes(folderId)));
+          await addEagleFolderMenu(Array.from(new Set(commonFolderIds)));
+          const currentFile = !this.isLibraryMode && this.currentFilePath
+            ? this.plugin.app.vault.getAbstractFileByPath(this.currentFilePath)
+            : null;
+          const referenceGroups = await Promise.all(selectedItems.map(selected =>
+            currentFile instanceof TFile && typeof selected.__sourceStart === "number"
+              ? [currentFile]
+              : this.getReferencedFilesForPreview(selected)));
+          const commonReferences = referenceGroups[0].filter(file =>
+            referenceGroups.slice(1).every(files => files.some(candidate => candidate.path === file.path)));
+          addReferenceMenu(commonReferences, item);
           menu.showAtMouseEvent(event);
           return;
         }
-        run("\u590d\u5236\u9644\u4ef6", () => this.copyAssetImageToClipboard(item), "eagle-outline");
-        run("\u590d\u5236\u9644\u4ef6\u5f15\u7528\u94fe\u63a5", async () => {
+        run(this.plugin.t("copyAttachment"), () => this.copyAssetImageToClipboard(item), "copy");
+        run(this.plugin.t("copyAttachmentReference"), async () => {
           await this.copyAssetReferenceLink(item);
-          new Notice("\u5df2\u590d\u5236\u9644\u4ef6\u5f15\u7528\u94fe\u63a5\u3002");
-        }, "eagle-outline");
+          new Notice(this.plugin.t("copiedAttachmentReferences", { count: 1 }));
+        }, "copy");
     
         if (isMissingItem) {
           run("尝试修复", () => this.handleMissingItemRepair(item, displayName), "wrench");
@@ -8908,24 +8974,20 @@ module.exports = EagleBridgeMobilePlugin;
           run("打开文件所在位置", () => require("electron").shell.showItemInFolder(item.__externalLocalPath), "folder-open");
         } else if (isInternetItem) {
           const url = item.resourceURL || item.fileURL || item.url;
-          if (url) run("在浏览器中打开原始链接", () => this.plugin.openExternalUrl(url), "external-link");
+          if (url) {
+            run("在浏览器中打开原始链接", () => this.plugin.openExternalUrl(url), "external-link");
+            run(this.plugin.t("copyOriginalLink"), async () => {
+              try {
+                await navigator.clipboard.writeText(url);
+              } catch (_) {
+                require("electron").clipboard.writeText(url);
+              }
+              new Notice(this.plugin.t("noticeCopied", { value: url }));
+            }, "copy");
+          }
         } else if (isEagleItem) {
           run("在 Eagle 中打开", () => this.plugin.openEagleItem(itemId), "eagle-outline");
-          const folderIds = getEagleItemFolderIds(item);
-          if (folderIds.length) {
-            const folders = await this.plugin.queryEagleFolders().catch(() => []);
-            menu.addItem(menuItem => {
-              menuItem.setTitle("打开 Eagle 文件夹").setIcon("folder-open");
-              const submenu = menuItem.setSubmenu();
-              for (const folderId of folderIds) {
-                const folder = findEagleFolderById(folders, folderId);
-                submenu.addItem(folderItem => folderItem
-                  .setTitle(String(folder && folder.name || folderId))
-                  .setIcon("folder")
-                  .onClick(() => this.plugin.openExternalUrl(buildEagleFolderUrl(this.plugin.settings.eagleProtocolUrl, folderId))));
-              }
-            });
-          }
+          await addEagleFolderMenu(getEagleItemFolderIds(item));
         }
     
         const currentFile = !this.isLibraryMode && this.currentFilePath
@@ -8934,20 +8996,7 @@ module.exports = EagleBridgeMobilePlugin;
         const references = currentFile instanceof TFile && typeof item.__sourceStart === "number"
           ? [currentFile]
           : await this.getReferencedFilesForPreview(item);
-        if (references.length) {
-          menu.addItem(menuItem => {
-            menuItem.setTitle("\u5b9a\u4f4d\u5230\u5f15\u7528\u4f4d\u7f6e").setIcon("map-pin");
-            const submenu = menuItem.setSubmenu();
-            for (const file of references) {
-              submenu.addItem(referenceItem => referenceItem
-                .setTitle(file.basename || file.path)
-                .setIcon(file.extension === "canvas" ? "layout-dashboard" : "file-text")
-                .onClick(() => file.path === this.currentFilePath && typeof item.__sourceStart === "number"
-                  ? this.plugin.revealAssetInSource(file.path, item, this.sourceLeaf)
-                  : this.openSourceFileInNewTab(file)));
-            }
-          });
-        }
+        addReferenceMenu(references, item);
     
         if (menu.items.length) {
           menu.showAtMouseEvent(event);
@@ -11668,7 +11717,10 @@ module.exports = EagleBridgeMobilePlugin;
         selectedAssetsStat: "Selected: {count}",
         selectionInlineHint: "Ctrl single · Shift range",
         importSelectedToEagle: "Import selected to Eagle",
-        noCommonSelectedActions: "No common actions available",
+        copiedAttachmentReferences: "Copied {count} attachment references.",
+        bulkCopyLocalFilesOnly: "Multiple attachments can only be copied together when all selected items have local files.",
+        bulkCopyWindowsOnly: "Copying multiple attachments is currently supported on Windows only.",
+        copyOriginalLink: "Copy original link",
         noImportableSelectedAssets: "The selected items do not contain attachments that can be imported.",
         trashSelectedLocalAttachmentsConfirm: "Move {count} selected attachments to the Obsidian trash? They can be restored from Obsidian's trash.",
         trashedSelectedLocalAttachments: "Moved {count} selected attachments to the Obsidian trash.",
@@ -11888,7 +11940,10 @@ module.exports = EagleBridgeMobilePlugin;
         selectedAssetsStat: "已选择: {count}",
         selectionInlineHint: "Ctrl 单选 · Shift 连选",
         importSelectedToEagle: "导入所选到 Eagle",
-        noCommonSelectedActions: "没有可用的共同操作",
+        copiedAttachmentReferences: "已复制 {count} 条附件引用链接。",
+        bulkCopyLocalFilesOnly: "只有全部选中项都具有本地文件时，才能一次复制多个附件。",
+        bulkCopyWindowsOnly: "当前仅支持在 Windows 中一次复制多个附件。",
+        copyOriginalLink: "复制原始链接",
         noImportableSelectedAssets: "所选素材中没有可导入的附件。",
         trashSelectedLocalAttachmentsConfirm: "确认将选中的 {count} 个附件移入 Obsidian 回收站吗？可在 Obsidian 回收站中还原。",
         trashedSelectedLocalAttachments: "已将选中的 {count} 个附件移入 Obsidian 回收站。",
