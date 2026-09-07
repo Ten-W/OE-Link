@@ -7690,9 +7690,8 @@ module.exports = EagleBridgeMobilePlugin;
         });
         stats.createEl("span", {
           cls: `eaglebridge-note-assets-stat eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`,
-          text: this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })
+          text: `${this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })}  ${this.plugin.t("selectionInlineHint")}`
         });
-        setTooltip(stats.querySelector(".eaglebridge-note-assets-stat-selected"), this.plugin.t("selectionShortcutHint"));
     
         const renderBar = (kind, entries, selected, selectedValues, counts) => {
           const section = target.createDiv({ cls: `eaglebridge-library-filter-bar-section is-${kind}` });
@@ -7785,7 +7784,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         const count = this.selectedAssetItems.size;
         for (const stat of this.containerEl.querySelectorAll(".eaglebridge-note-assets-stat-selected")) {
-          stat.setText(this.plugin.t("selectedAssetsStat", { count }));
+          stat.setText(`${this.plugin.t("selectedAssetsStat", { count })}  ${this.plugin.t("selectionInlineHint")}`);
           stat.toggleClass("is-hidden", count === 0);
         }
       }
@@ -7918,12 +7917,12 @@ module.exports = EagleBridgeMobilePlugin;
           internet: this.plugin.t("internetAsset")
         };
         const sourceLabel = sourceLabels[source] || source;
-        const sourceMarker = card.createSpan({
-          cls: `eaglebridge-asset-source-marker is-${source}`,
+        const statusGroup = card.createDiv({ cls: "eaglebridge-asset-status-markers" });
+        const sourceMarker = statusGroup.createSpan({
+          cls: `eaglebridge-asset-status-marker is-${source}`,
           attr: { role: "img", "aria-label": sourceLabel }
         });
         setTooltip(sourceMarker, sourceLabel);
-        const statusGroup = card.createDiv({ cls: "eaglebridge-asset-status-markers" });
         const isReferenced = this.isLibraryMode ? this.isLibraryAssetReferenced(item) : true;
         const referenceMarker = statusGroup.createSpan({
           cls: `eaglebridge-asset-status-marker ${isReferenced ? "is-referenced" : "is-unreferenced"}`,
@@ -9040,11 +9039,10 @@ module.exports = EagleBridgeMobilePlugin;
         const addStat = (text, cls = "") => stats.createEl("div", { cls: `eaglebridge-note-assets-stat ${cls}`.trim(), text });
         addStat(this.plugin.t("totalAssets", { count: summary.total }), "eaglebridge-note-assets-stat-total");
         addStat(`当前显示: ${visibleSummary.total}`, "eaglebridge-note-assets-stat-visible");
-        const selectedStat = addStat(
-          this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size }),
+        addStat(
+          `${this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })}  ${this.plugin.t("selectionInlineHint")}`,
           `eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`
         );
-        setTooltip(selectedStat, this.plugin.t("selectionShortcutHint"));
         this.renderContextSourceBar(root, summary, context, items);
       }
     
@@ -9217,7 +9215,7 @@ module.exports = EagleBridgeMobilePlugin;
                 : isTrashedItem
                   ? "eaglebridge-trash-text"
                   : "eaglebridge-eagle-text";
-          card.title = [displayName || item.id || this.plugin.t("untitledAsset"), statusText, getEagleItemId(item)].filter(Boolean).join("\n");
+          setTooltip(card, [displayName || item.id || this.plugin.t("untitledAsset"), statusText, getEagleItemId(item)].filter(Boolean).join("\n"));
           if (isNoteItem) {
             card.addClass("eaglebridge-card-note");
           } else if (isObsidianTrashedLocal) {
@@ -11663,7 +11661,7 @@ module.exports = EagleBridgeMobilePlugin;
         attachmentManagementWarning: "Imported attachment references are replaced with OE Link links and cannot be restored to their original references.",
         selectAttachment: "Select attachment",
         selectedAssetsStat: "Selected: {count}",
-        selectionShortcutHint: "Click to locate and select; Ctrl toggles items; Shift selects a range",
+        selectionInlineHint: "Ctrl toggles · Shift selects a range",
         importSelectedToEagle: "Import selected to Eagle",
         noCommonSelectedActions: "No common actions available",
         noImportableSelectedAssets: "The selected items do not contain attachments that can be imported.",
@@ -11883,7 +11881,7 @@ module.exports = EagleBridgeMobilePlugin;
         attachmentManagementWarning: "导入后将会将原附件引用链接替换为 OE Link 链接，不支持恢复原引用。",
         selectAttachment: "选择附件",
         selectedAssetsStat: "已选择: {count}",
-        selectionShortcutHint: "单击定位并单选；Ctrl 加减选择；Shift 连续选择",
+        selectionInlineHint: "Ctrl 加减选择 · Shift 连续选择",
         importSelectedToEagle: "导入所选到 Eagle",
         noCommonSelectedActions: "没有可用的共同操作",
         noImportableSelectedAssets: "所选素材中没有可导入的附件。",
