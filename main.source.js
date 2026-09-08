@@ -4695,9 +4695,9 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   }
 
   async clearObsidianFoldersForCurrentContext(context, scope = "all") {
-    if (!context || !context.file) return { updated: 0, deletedCurrentFolder: false };
+    if (!context || !context.file) return { updated: 0 };
     const rootId = String(this.settings.eagleFolderId || "").trim();
-    if (!rootId) return { updated: 0, deletedCurrentFolder: false };
+    if (!rootId) return { updated: 0 };
 
     const text = await this.app.vault.read(context.file);
     const itemIds = this.extractEagleBridgeItemIds(text);
@@ -4716,12 +4716,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       }
     }
 
-    // The current context folder is safe to remove only after all direct
-    // references were detached and Eagle confirms no other item still uses it.
-    const deletedCurrentFolder = currentFolderId && currentFolderId !== rootId
-      ? await this.deleteEagleFolderIfEmptyViaHelper(currentFolderId)
-      : false;
-    return { updated, deletedCurrentFolder };
+    return { updated };
   }
 
   async collectVaultEagleBridgePlan(onProgress = null) {
@@ -7582,10 +7577,7 @@ class EagleAssetsView extends ItemView {
       if (!scope) return;
       try {
         const result = await this.plugin.clearObsidianFoldersForCurrentContext(activeContext, scope);
-        const noticeKey = result.deletedCurrentFolder
-          ? "noticeClearedObsidianFoldersAndDeleted"
-          : "noticeClearedObsidianFolders";
-        new Notice(this.plugin.t(noticeKey, { count: result.updated }));
+        new Notice(this.plugin.t("noticeClearedObsidianFolders", { count: result.updated }));
       } catch (error) {
         console.warn("Failed to clear Obsidian-managed Eagle folders:", error);
         new Notice(this.plugin.t("noticeClearObsidianFoldersNeedsHelper"));
@@ -8048,6 +8040,7 @@ class EagleAssetsView extends ItemView {
     if (viewMode === "list") {
       const rowHeight = clampNumber(this.plugin.settings.assetListRowHeight, 40, 120, DEFAULT_SETTINGS.assetListRowHeight);
       grid.style.setProperty("--eaglebridge-asset-list-row-height", `${rowHeight}px`);
+      grid.style.setProperty("--eaglebridge-asset-list-column-width", `${rowHeight * 5}px`);
       return;
     }
     const size = clampNumber(this.plugin.settings.assetCardSize, 64, 260, DEFAULT_SETTINGS.assetCardSize);
@@ -8067,10 +8060,11 @@ class EagleAssetsView extends ItemView {
       const fallback = isList ? DEFAULT_SETTINGS.assetListRowHeight : DEFAULT_SETTINGS.assetCardSize;
       const cssProperty = isList ? "--eaglebridge-asset-list-row-height" : "--eaglebridge-asset-card-size";
       const current = clampNumber(this.plugin.settings[settingKey], minimum, maximum, fallback);
-      const next = clampNumber(current + (event.deltaY < 0 ? 3 : -3), minimum, maximum, fallback);
+      const next = clampNumber(current + (event.deltaY < 0 ? 8 : -8), minimum, maximum, fallback);
       if (next === current) return;
       this.plugin.settings[settingKey] = next;
       grid.style.setProperty(cssProperty, `${next}px`);
+      if (isList) grid.style.setProperty("--eaglebridge-asset-list-column-width", `${next * 5}px`);
       if (this.assetZoomSaveTimer) window.clearTimeout(this.assetZoomSaveTimer);
       this.assetZoomSaveTimer = window.setTimeout(() => {
         this.plugin.saveSettings().catch(error => console.warn("Failed to save asset view zoom:", error));

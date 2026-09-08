@@ -5820,9 +5820,9 @@ module.exports = EagleBridgeMobilePlugin;
       }
     
       async clearObsidianFoldersForCurrentContext(context, scope = "all") {
-        if (!context || !context.file) return { updated: 0, deletedCurrentFolder: false };
+        if (!context || !context.file) return { updated: 0 };
         const rootId = String(this.settings.eagleFolderId || "").trim();
-        if (!rootId) return { updated: 0, deletedCurrentFolder: false };
+        if (!rootId) return { updated: 0 };
     
         const text = await this.app.vault.read(context.file);
         const itemIds = this.extractEagleBridgeItemIds(text);
@@ -5841,12 +5841,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }
     
-        // The current context folder is safe to remove only after all direct
-        // references were detached and Eagle confirms no other item still uses it.
-        const deletedCurrentFolder = currentFolderId && currentFolderId !== rootId
-          ? await this.deleteEagleFolderIfEmptyViaHelper(currentFolderId)
-          : false;
-        return { updated, deletedCurrentFolder };
+        return { updated };
       }
     
       async collectVaultEagleBridgePlan(onProgress = null) {
@@ -8707,10 +8702,7 @@ module.exports = EagleBridgeMobilePlugin;
           if (!scope) return;
           try {
             const result = await this.plugin.clearObsidianFoldersForCurrentContext(activeContext, scope);
-            const noticeKey = result.deletedCurrentFolder
-              ? "noticeClearedObsidianFoldersAndDeleted"
-              : "noticeClearedObsidianFolders";
-            new Notice(this.plugin.t(noticeKey, { count: result.updated }));
+            new Notice(this.plugin.t("noticeClearedObsidianFolders", { count: result.updated }));
           } catch (error) {
             console.warn("Failed to clear Obsidian-managed Eagle folders:", error);
             new Notice(this.plugin.t("noticeClearObsidianFoldersNeedsHelper"));
@@ -9173,6 +9165,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (viewMode === "list") {
           const rowHeight = clampNumber(this.plugin.settings.assetListRowHeight, 40, 120, DEFAULT_SETTINGS.assetListRowHeight);
           grid.style.setProperty("--eaglebridge-asset-list-row-height", `${rowHeight}px`);
+          grid.style.setProperty("--eaglebridge-asset-list-column-width", `${rowHeight * 5}px`);
           return;
         }
         const size = clampNumber(this.plugin.settings.assetCardSize, 64, 260, DEFAULT_SETTINGS.assetCardSize);
@@ -9192,10 +9185,11 @@ module.exports = EagleBridgeMobilePlugin;
           const fallback = isList ? DEFAULT_SETTINGS.assetListRowHeight : DEFAULT_SETTINGS.assetCardSize;
           const cssProperty = isList ? "--eaglebridge-asset-list-row-height" : "--eaglebridge-asset-card-size";
           const current = clampNumber(this.plugin.settings[settingKey], minimum, maximum, fallback);
-          const next = clampNumber(current + (event.deltaY < 0 ? 3 : -3), minimum, maximum, fallback);
+          const next = clampNumber(current + (event.deltaY < 0 ? 8 : -8), minimum, maximum, fallback);
           if (next === current) return;
           this.plugin.settings[settingKey] = next;
           grid.style.setProperty(cssProperty, `${next}px`);
+          if (isList) grid.style.setProperty("--eaglebridge-asset-list-column-width", `${next * 5}px`);
           if (this.assetZoomSaveTimer) window.clearTimeout(this.assetZoomSaveTimer);
           this.assetZoomSaveTimer = window.setTimeout(() => {
             this.plugin.saveSettings().catch(error => console.warn("Failed to save asset view zoom:", error));
@@ -11735,16 +11729,15 @@ module.exports = EagleBridgeMobilePlugin;
         noticeRemovedStaleTags: "Removed stale current-file tag from {count} Eagle asset(s).",
         noticeOrganizedEagleFolder: "Moved {count} Eagle asset(s) into the current file folder.",
         clearObsidianTagsTitle: "Clear attachment tags",
-        noticeConfirmClearObsidianTags: "Clear all Obsidian-prefixed tags from assets referenced by this note or Canvas?",
+        noticeConfirmClearObsidianTags: "Only Obsidian-prefixed tags will be removed from referenced assets; all other tags are preserved. Choose a scope.",
         clearCurrentFileTagsOption: "Current note/Canvas",
         clearAllAttachmentTagsOption: "All attachment tags",
-        noticeClearedObsidianTags: "Cleared Obsidian tags from {count} Eagle asset(s).",
+        noticeClearedObsidianTags: "Removed Obsidian-prefixed tags from {count} Eagle asset(s).",
         clearObsidianFoldersTitle: "Clear attachment folders",
-        noticeConfirmClearObsidianFolders: "Clear all Obsidian-managed Eagle folders from assets referenced by this note or Canvas?",
+        noticeConfirmClearObsidianFolders: "Only Obsidian-managed folder assignments will be removed. Assets, empty folders, and other Eagle folders are preserved. Choose a scope.",
         clearCurrentFileFoldersOption: "Current note/Canvas folder",
         clearAllAttachmentFoldersOption: "All attachment folders",
-        noticeClearedObsidianFolders: "Cleared Obsidian-managed folders from {count} Eagle asset(s).",
-        noticeClearedObsidianFoldersAndDeleted: "Cleared Obsidian-managed folders from {count} Eagle asset(s) and removed the empty current folder.",
+        noticeClearedObsidianFolders: "Removed Obsidian-managed folder assignments from {count} Eagle asset(s); no folders were deleted.",
         noticeClearObsidianFoldersNeedsHelper: "Please install/update the Eagle helper plugin first, then restart Eagle.",
         noticeAddedTags: "Added current tag to {count} Eagle asset(s).",
         noticeJoinedFolder: "Added {count} Eagle asset(s) to the current folder.",
@@ -11881,7 +11874,7 @@ module.exports = EagleBridgeMobilePlugin;
         settingShowClearObsidianTagsName: "Clear attachment tags button",
         settingShowClearObsidianTagsDesc: "Show the Clear attachment tags button in the sidebar. It clears all Obsidian-prefixed tags from assets referenced by the current note or Canvas.",
         settingShowClearObsidianFoldersName: "Clear attachment folders button",
-        settingShowClearObsidianFoldersDesc: "Show the Clear attachment folders button in the sidebar. It clears Obsidian-managed Eagle folders from assets referenced by the current note or Canvas.",
+        settingShowClearObsidianFoldersDesc: "Show the Clear attachment folders button in the sidebar. It removes Obsidian-managed folder assignments without deleting folders.",
         settingFolderManagementEnabledName: "Folder management",
         settingFolderManagementEnabledDesc: "Master switch for matching, creating, and renaming Eagle folders under the configured root folder.",
         settingUseObsidianFolderTreeName: "Mirror Obsidian folder tree",
@@ -11959,16 +11952,15 @@ module.exports = EagleBridgeMobilePlugin;
         noticeRemovedStaleTags: "已从 {count} 个 Eagle 素材移除当前文件的旧标签。",
         noticeOrganizedEagleFolder: "已将 {count} 个 Eagle 素材整理到当前文件夹。",
         clearObsidianTagsTitle: "清除附件所有标签",
-        noticeConfirmClearObsidianTags: "请选择要清除该笔记或白板内引用素材上的哪一类标签。",
+        noticeConfirmClearObsidianTags: "仅清除引用素材上以 Obsidian 开头的标签，其他标签会保留。请选择清除范围。",
         clearCurrentFileTagsOption: "本笔记/白板标签",
         clearAllAttachmentTagsOption: "全部附件标签",
-        noticeClearedObsidianTags: "已清除 {count} 个 Eagle 素材上的 OB 标签。",
+        noticeClearedObsidianTags: "已从 {count} 个 Eagle 素材清除 Obsidian 开头的标签。",
         clearObsidianFoldersTitle: "清除附件所有文件夹",
-        noticeConfirmClearObsidianFolders: "请选择要清除该笔记或白板内引用素材上的哪一类文件夹归属。",
+        noticeConfirmClearObsidianFolders: "仅移除引用素材的 Obsidian 文件夹归属，不会删除素材或遗留的空文件夹；其他 Eagle 文件夹会保留。请选择清除范围。",
         clearCurrentFileFoldersOption: "本笔记/白板文件夹",
         clearAllAttachmentFoldersOption: "全部附件文件夹",
-        noticeClearedObsidianFolders: "已清除 {count} 个 Eagle 素材上的 Ob 文件夹。",
-        noticeClearedObsidianFoldersAndDeleted: "已清除 {count} 个 Eagle 素材上的 Ob 文件夹，并删除空的当前专属文件夹。",
+        noticeClearedObsidianFolders: "已从 {count} 个 Eagle 素材移除 Obsidian 文件夹归属，未删除文件夹。",
         noticeClearObsidianFoldersNeedsHelper: "请先安装/更新 OE Link 辅助插件，然后重启 Eagle。",
         noticeAddedTags: "已给 {count} 个 Eagle 素材添加当前标签。",
         noticeJoinedFolder: "已将 {count} 个 Eagle 素材加入当前文件夹。",
@@ -12105,7 +12097,7 @@ module.exports = EagleBridgeMobilePlugin;
         settingShowClearObsidianTagsName: "清除附件所有标签按钮",
         settingShowClearObsidianTagsDesc: "开启后，侧边栏会显示“清除附件所有标签”按钮，用来清除当前笔记/白板引用素材上的所有 Obsidian 开头标签。",
         settingShowClearObsidianFoldersName: "清除附件所有文件夹按钮",
-        settingShowClearObsidianFoldersDesc: "开启后，侧边栏会显示“清除附件所有文件夹”按钮，用来清除当前笔记/白板引用素材上的 Obsidian 管理文件夹。",
+        settingShowClearObsidianFoldersDesc: "开启后，侧边栏会显示“清除附件所有文件夹”按钮，仅移除引用素材的 Obsidian 文件夹归属，不删除文件夹。",
         settingFolderManagementEnabledName: "文件夹管理",
         settingFolderManagementEnabledDesc: "总开关：匹配、创建并重命名 Eagle 文件夹。",
         settingUseObsidianFolderTreeName: "镜像 Obsidian 目录树",

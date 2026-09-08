@@ -6,6 +6,7 @@ const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8");
 const styles = fs.readFileSync(path.join(__dirname, "styles.css"), "utf8");
 const desktop = fs.readFileSync(path.join(__dirname, "desktop.js"), "utf8");
 const built = fs.readFileSync(path.join(__dirname, "main.js"), "utf8");
+const translations = fs.readFileSync(path.join(__dirname, "lib", "translations.js"), "utf8");
 
 assert.match(source, /while \(!this\.libraryReferenceSummary\)/);
 assert.match(source, /renderItems\(context, items, \{ preserveToolbar: sameContext \}\)/);
@@ -57,6 +58,14 @@ assert.match(source, /if \(this\.isLibraryMode\) \{[\s\S]*is-referenced[\s\S]*is
 assert.match(source, /map\(entry => entry\.label\)\.join\(" \| "\)/);
 assert.match(source, /renderAssetStatusMarkers\(card, statusMarkerEntries\)/);
 assert.match(styles, /\.eaglebridge-note-assets-card > \.eaglebridge-file-placeholder:not\(\.eaglebridge-note-placeholder\)\s*\{[\s\S]*border-radius: inherit;[\s\S]*inset 0 0 0 1px var\(--background-modifier-border\)/);
+assert.match(styles, /\.eaglebridge-note-assets-grid-list\s*\{[\s\S]*display: grid;[\s\S]*repeat\(auto-fill, minmax\(min\(var\(--eaglebridge-asset-list-column-width/);
+assert.match(styles, /\.eaglebridge-note-assets-card-list img,[\s\S]*border-radius: inherit;/);
+assert.match(source, /--eaglebridge-asset-list-column-width", `\$\{rowHeight \* 5\}px`/);
+assert.match(source, /event\.deltaY < 0 \? 8 : -8/);
+const clearFoldersBlock = source.slice(source.indexOf("async clearObsidianFoldersForCurrentContext"), source.indexOf("async collectVaultEagleBridgePlan"));
+assert.doesNotMatch(clearFoldersBlock, /deleteEagleFolderIfEmptyViaHelper/);
+assert.match(translations, /仅清除引用素材上以 Obsidian 开头的标签，其他标签会保留/);
+assert.match(translations, /不会删除素材或遗留的空文件夹；其他 Eagle 文件夹会保留/);
 assert.match(styles, /\.eaglebridge-context-asset-stats\s*\{[\s\S]*margin: 0 0 3px;/);
 assert.match(styles, /\.eaglebridge-context-source-bar\s*\{[\s\S]*margin: 2px 0 4px;/);
 assert.doesNotMatch(styles, /\.eaglebridge-asset-summary-header \.eaglebridge-library-view-switcher/);
