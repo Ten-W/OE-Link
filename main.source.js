@@ -6702,11 +6702,11 @@ class EagleAssetsView extends ItemView {
     });
     stats.createEl("span", {
       cls: "eaglebridge-note-assets-stat eaglebridge-note-assets-stat-visible",
-      text: `当前显示: ${visibleCount}`
+      text: this.plugin.t("visibleAssetsStat", { count: visibleCount })
     });
     stats.createEl("span", {
       cls: `eaglebridge-note-assets-stat eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`,
-      text: `${this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })} · ${this.plugin.t("selectionInlineHint")}`
+      text: this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })
     });
 
     const renderBar = (kind, entries, selected, selectedValues, counts) => {
@@ -6800,7 +6800,7 @@ class EagleAssetsView extends ItemView {
     }
     const count = this.selectedAssetItems.size;
     for (const stat of this.containerEl.querySelectorAll(".eaglebridge-note-assets-stat-selected")) {
-      stat.setText(`${this.plugin.t("selectedAssetsStat", { count })} · ${this.plugin.t("selectionInlineHint")}`);
+      stat.setText(this.plugin.t("selectedAssetsStat", { count }));
       stat.toggleClass("is-hidden", count === 0);
     }
   }
@@ -8103,9 +8103,9 @@ class EagleAssetsView extends ItemView {
     const stats = root.createDiv({ cls: "eaglebridge-note-assets-stats eaglebridge-context-asset-stats" });
     const addStat = (text, cls = "") => stats.createEl("div", { cls: `eaglebridge-note-assets-stat ${cls}`.trim(), text });
     addStat(this.plugin.t("totalAssets", { count: summary.total }), "eaglebridge-note-assets-stat-total");
-    addStat(`当前显示: ${visibleSummary.total}`, "eaglebridge-note-assets-stat-visible");
+    addStat(this.plugin.t("visibleAssetsStat", { count: visibleSummary.total }), "eaglebridge-note-assets-stat-visible");
     addStat(
-      `${this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })} · ${this.plugin.t("selectionInlineHint")}`,
+      this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size }),
       `eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`
     );
     this.renderContextSourceBar(root, summary, context, items);
