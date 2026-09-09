@@ -40,8 +40,12 @@ assert.match(styles, /\.eaglebridge-library-filter-segment\.is-enabled\s*\{[\s\S
 assert.match(styles, /\.eaglebridge-library-filter-segment:first-child\s*\{[\s\S]*border-radius: 999px 0 0 999px;/);
 assert.match(styles, /\.eaglebridge-note-assets-stat-visible\s*\{[\s\S]*color: var\(--text-normal\);[\s\S]*font-weight: 600;/);
 assert.doesNotMatch(styles, /\.eaglebridge-import-group > \.eaglebridge-compound-auto-control\s*\{/);
-assert.match(source, /addBulkAction\("导入所有附件"/);
-assert.match(source, /addBulkAction\("清理导入附件"/);
+assert.doesNotMatch(source, /addBulkAction\("导入所有附件"/);
+assert.doesNotMatch(source, /addBulkAction\("清理导入附件"/);
+assert.match(source, /allMatches: true/);
+assert.match(source, /for \(const file of files\)[\s\S]*await importer\(file\.path, item, sharedOptions\)/);
+assert.match(source, /context\.kind === "canvas"[\s\S]*importCanvasAttachments\(context, sourceUrl/);
+assert.match(source, /trashImported: false[\s\S]*if \(!total\.failed\)[\s\S]*trashImportedFiles/);
 assert.match(source, /this\.selectedAssetItems = new Map\(\)/);
 assert.doesNotMatch(source, /role: "checkbox"/);
 assert.match(source, /if \(event\.target === scrollArea \|\| event\.target === grid\) this\.clearAssetSelection\(\)/);

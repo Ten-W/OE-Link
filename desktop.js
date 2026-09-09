@@ -2513,7 +2513,10 @@
     
         return this.runWithReferenceViewRefreshPaused(async () => {
           if (context.kind === "canvas") {
-            return this.importCanvasAttachments(context, localFile.path, { silent: options.silent });
+            return this.importCanvasAttachments(context, localFile.path, {
+              silent: options.silent,
+              importedByPath: options.importedByPath
+            });
           }
     
           const text = await this.app.vault.read(sourceFile);
@@ -2525,31 +2528,61 @@
             link.start === item.__sourceStart &&
             link.end === item.__sourceEnd
           ));
-          const link = exact || links[0];
-          if (!link) {
+          const selectedLinks = options.allMatches ? links : [exact || links[0]].filter(Boolean);
+          if (!selectedLinks.length) {
             new Notice(this.t("noticeNoAttachmentAtCursor"));
             return;
           }
-          return this.importAttachmentLinks(context, [link], [], { silent: options.silent });
+          return this.importAttachmentLinks(context, selectedLinks, [], {
+            silent: options.silent,
+            importedByPath: options.importedByPath,
+            sourceText: text
+          });
         }, sourceFile);
       }
     
-      async importLocalAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
-        const localFile = item && item.__localFile;
-        if (!(localFile instanceof TFile)) {
-          new Notice(this.t("noticeNoAttachmentAtCursor"));
-          return;
-        }
+      async importAttachmentItemFromLibraryReferences(item, sourceFiles, options, importer) {
         const files = (Array.isArray(sourceFiles) ? sourceFiles : [])
           .filter(file => file instanceof TFile && isSupportedSourceFile(file));
         if (!files.length) {
           new Notice(this.t("noticeOpenNoteOrCanvas"));
           return;
         }
-        // A library card can be referenced by several documents. Import through a
-        // known owner instead of depending on whichever editor happens to be active.
-        const sourceFile = files[0];
-        return this.importLocalAttachmentItemFromPanel(sourceFile.path, item, options);
+        const sharedOptions = {
+          ...options,
+          silent: true,
+          allMatches: true,
+          trashImported: false,
+          importedByPath: new Map(),
+          importedByUrl: new Map()
+        };
+        const total = { success: 0, reused: 0, failed: 0 };
+        for (const file of files) {
+          const result = await importer(file.path, item, sharedOptions);
+          if (!result) continue;
+          total.success += Number(result.success) || 0;
+          total.reused += Number(result.reused) || 0;
+          total.failed += Number(result.failed) || 0;
+        }
+        if (!total.failed) {
+          await this.trashImportedFiles(Array.from(sharedOptions.importedByPath.values())
+            .filter(imported => imported && imported.sourceFile instanceof TFile));
+        }
+        if (!options.silent) new Notice(this.t("noticeProcessedAttachments", total));
+        return total;
+      }
+      async importLocalAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
+        const localFile = item && item.__localFile;
+        if (!(localFile instanceof TFile)) {
+          new Notice(this.t("noticeNoAttachmentAtCursor"));
+          return;
+        }
+        return this.importAttachmentItemFromLibraryReferences(
+          item,
+          sourceFiles,
+          options,
+          (filePath, selectedItem, sharedOptions) => this.importLocalAttachmentItemFromPanel(filePath, selectedItem, sharedOptions)
+        );
       }
     
       async importExternalLocalAttachmentItemFromPanel(filePath, item, options = {}) {
@@ -2566,7 +2599,10 @@
     
         return this.runWithReferenceViewRefreshPaused(async () => {
           if (context.kind === "canvas") {
-            return this.importCanvasAttachments(context, localPath, { silent: options.silent });
+            return this.importCanvasAttachments(context, localPath, {
+              silent: options.silent,
+              importedByPath: options.importedByPath
+            });
           }
           const text = await this.app.vault.read(sourceFile);
           const links = this.findExternalLocalAttachmentLinks(text).filter(link => link.localPath === localPath);
@@ -2574,21 +2610,29 @@
             typeof item.__sourceStart === "number" && typeof item.__sourceEnd === "number"
             && link.start === item.__sourceStart && link.end === item.__sourceEnd
           ));
-          const link = exact || links[0];
-          if (link) return this.importAttachmentLinks(context, [link], [], { silent: options.silent });
+          const selectedLinks = options.allMatches ? links : [exact || links[0]].filter(Boolean);
+          if (selectedLinks.length) {
+            return this.importAttachmentLinks(context, selectedLinks, [], {
+              silent: options.silent,
+              importedByPath: options.importedByPath,
+              sourceText: text
+            });
+          }
         }, sourceFile);
       }
     
       async importExternalLocalAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
-        const sourceFile = (Array.isArray(sourceFiles) ? sourceFiles : [])
-          .find(file => file instanceof TFile && isSupportedSourceFile(file));
-        if (!sourceFile) return;
-        return this.importExternalLocalAttachmentItemFromPanel(sourceFile.path, item, options);
+        return this.importAttachmentItemFromLibraryReferences(
+          item,
+          sourceFiles,
+          options,
+          (filePath, selectedItem, sharedOptions) => this.importExternalLocalAttachmentItemFromPanel(filePath, selectedItem, sharedOptions)
+        );
       }
     
       async importInternetAttachmentItemFromPanel(filePath, item, options = {}) {
         const sourceFile = this.app.vault.getAbstractFileByPath(filePath || "");
-        if (!(sourceFile instanceof TFile) || sourceFile.extension !== "md") {
+        if (!(sourceFile instanceof TFile) || !isSupportedSourceFile(sourceFile)) {
           new Notice(this.t("noticeOpenNoteOrCanvas"));
           return;
         }
@@ -2603,6 +2647,12 @@
         if (!context) return;
     
         return this.runWithReferenceViewRefreshPaused(async () => {
+          if (context.kind === "canvas") {
+            return this.importCanvasAttachments(context, sourceUrl, {
+              silent: options.silent,
+              importedByUrl: options.importedByUrl
+            });
+          }
           const text = await this.app.vault.read(sourceFile);
           const links = this.findInternetAttachmentLinks(text)
             .filter(link => link.url === sourceUrl);
@@ -2612,25 +2662,26 @@
             link.start === item.__sourceStart &&
             link.end === item.__sourceEnd
           ));
-          const link = exact || links[0];
-          if (!link) {
+          const selectedLinks = options.allMatches ? links : [exact || links[0]].filter(Boolean);
+          if (!selectedLinks.length) {
             new Notice(this.t("noticeNoAttachmentAtCursor"));
             return;
           }
-          return this.importAttachmentLinks(context, [], [link], { silent: options.silent });
+          return this.importAttachmentLinks(context, [], selectedLinks, {
+            silent: options.silent,
+            importedByUrl: options.importedByUrl,
+            sourceText: text
+          });
         }, sourceFile);
       }
     
       async importInternetAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
-        const files = (Array.isArray(sourceFiles) ? sourceFiles : [])
-          .filter(file => file instanceof TFile && file.extension === "md");
-        if (!files.length) {
-          new Notice(this.t("noticeOpenNoteOrCanvas"));
-          return;
-        }
-        // A library URL can be used by several notes. Import through a known owner
-        // so the resulting Eagle item receives that note's tags and folder mapping.
-        return this.importInternetAttachmentItemFromPanel(files[0].path, item, options);
+        return this.importAttachmentItemFromLibraryReferences(
+          item,
+          sourceFiles,
+          options,
+          (filePath, selectedItem, sharedOptions) => this.importInternetAttachmentItemFromPanel(filePath, selectedItem, sharedOptions)
+        );
       }
     
       async importCanvasAttachments(context, targetFilePath = "", options = {}) {
@@ -2650,6 +2701,9 @@
         const importedByPath = options.importedByPath instanceof Map
           ? options.importedByPath
           : new Map();
+        const importedByUrl = options.importedByUrl instanceof Map
+          ? options.importedByUrl
+          : new Map();
         const importedFiles = [];
         let success = 0;
         let failed = 0;
@@ -2660,6 +2714,7 @@
           if (!node || typeof node !== "object") continue;
           const rawTarget = typeof node.file === "string" ? node.file : typeof node.url === "string" ? node.url : "";
           if (!rawTarget) continue;
+          const internetUrl = /^https?:\/\//i.test(rawTarget) ? cleanExternalAttachmentUrl(rawTarget) : "";
           const externalPath = this.settings.importExternalLocalAttachments === true
             ? externalLocalPathFromTarget(rawTarget)
             : "";
@@ -2667,7 +2722,18 @@
           let file = null;
           let importKey = "";
           let importLink = null;
-          if (externalPath) {
+          if (internetUrl && !this.isEagleBridgeAssetUrl(internetUrl)) {
+            importKey = internetUrl;
+            importLink = {
+              kind: "internet",
+              original: rawTarget,
+              target: internetUrl,
+              url: internetUrl,
+              name: getInternetAttachmentDisplayName("", internetUrl),
+              start: 0,
+              end: 0
+            };
+          } else if (externalPath) {
             try {
               if (!isSupportedCanvasAttachment(externalPath) || !nodeFs.statSync(externalPath).isFile()) continue;
             } catch (_) {
@@ -2692,16 +2758,19 @@
           if (targetFilePath && importKey !== targetFilePath) continue;
     
           try {
-            let imported = importedByPath.get(importKey);
+            const importedItems = internetUrl ? importedByUrl : importedByPath;
+            let imported = importedItems.get(importKey);
             if (imported) {
               reused += 1;
               const item = await this.ensureImportedEagleItemTags(context, imported.item);
               imported = { ...imported, item };
-              importedByPath.set(importKey, imported);
+              importedItems.set(importKey, imported);
             } else {
-              imported = await this.importOneAttachment(context, importLink);
+              imported = internetUrl
+                ? await this.importOneInternetAttachment(context, importLink)
+                : await this.importOneAttachment(context, importLink);
               if (imported) {
-                importedByPath.set(importKey, imported);
+                importedItems.set(importKey, imported);
                 if (imported.sourceFile instanceof TFile) importedFiles.push(imported);
               }
             }
@@ -2755,7 +2824,7 @@
     
         if (changed) {
           await this.app.vault.modify(context.file, `${JSON.stringify(canvas, null, 2)}\n`);
-          await this.trashImportedFiles(importedFiles);
+          if (options.trashImported !== false) await this.trashImportedFiles(importedFiles);
           if (options.scheduleRefresh !== false) this.scheduleReferenceViewRefresh(context.file);
         }
     
@@ -3767,7 +3836,7 @@
           }
           const normalizedText = await this.normalizeEagleBridgeReferenceLabels(context, text);
           await this.app.vault.modify(context.file, normalizedText);
-          await this.trashImportedFiles(importedFiles);
+          if (options.trashImported !== false) await this.trashImportedFiles(importedFiles);
         } else {
           // A prior URL import may already be an Eagle link with a stale network
           // label. "Import attachments" is also the safe manual way to update it.
@@ -4050,6 +4119,7 @@
     
         return {
           item,
+          sourceFile: { name: fileName },
           replacement: this.buildReplacement({ basename: name, name: link.name || name }, {
             displayName: this.getCanonicalEagleFileName(item, fileName || link.name || name),
             itemId,
@@ -7449,30 +7519,6 @@
         if (options.libraryMode) {
           createLibraryModeToggle();
           this.libraryControls = null;
-          const actionsRow = toolbar.createDiv({ cls: "eaglebridge-toolbar-row eaglebridge-library-actions-row" });
-          const actionsGroup = actionsRow.createDiv({ cls: "eaglebridge-segmented-group eaglebridge-library-actions-group" });
-          const addBulkAction = (label, handler) => {
-            const button = actionsGroup.createEl("button", {
-              text: label,
-              cls: "eaglebridge-segmented-button eaglebridge-library-bulk-action"
-            });
-            button.addEventListener("click", async event => {
-              event.preventDefault();
-              event.stopPropagation();
-              button.disabled = true;
-              try {
-                const result = await handler();
-                if (result) {
-                  this.invalidateLibraryReferenceSummary();
-                  await this.loadObsidianLibrary();
-                }
-              } finally {
-                button.disabled = false;
-              }
-            });
-          };
-          addBulkAction("导入所有附件", () => this.plugin.confirmAndImportAllUnimportedAttachments());
-          addBulkAction("清理导入附件", () => this.plugin.confirmAndCleanupAllImportedLocalCopies());
           return toolbar;
         }
     
