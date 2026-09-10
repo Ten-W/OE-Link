@@ -76,6 +76,7 @@ assert.match(styles, /\.eaglebridge-note-assets-stats \.eaglebridge-library-view
 assert.match(styles, /\.eaglebridge-library-mode-toggle\s*\{[\s\S]*display: grid;[\s\S]*place-items: center;[\s\S]*border-radius: 50%;/);
 assert.match(styles, /\.eaglebridge-note-assets-toolbar\.is-library-mode\s*\{[\s\S]*position: absolute;[\s\S]*top: 12px;[\s\S]*right: 12px;[\s\S]*margin: 0;/);
 assert.match(styles, /\.eaglebridge-library-header\s*\{[\s\S]*align-items: center;[\s\S]*min-height: 34px;[\s\S]*margin: 0 0 2px;[\s\S]*padding-right: 38px;/);
+assert.doesNotMatch(styles, /\.eaglebridge-library-title\s*\{[^}]*mask-image:/);
 assert.doesNotMatch(source, /this\.plugin\.t\("triedTags"/);
 assert.match(source, /const summaryTask = this\.getLibraryReferenceSummary\(\)[\s\S]*createObsidianLibraryPager\(\)[\s\S]*renderAssetGrid\(content, preview\.items/);
 assert.match(styles, /\.eaglebridge-asset-status-marker\s*\{[\s\S]*width: 10px;[\s\S]*height: 10px;[\s\S]*border: 0;/);

@@ -243,8 +243,6 @@ audio.eaglebridge-media-embed {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: clip;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%);
 }
 
 .eaglebridge-library-view-switcher {

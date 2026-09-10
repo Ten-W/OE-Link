@@ -1,6 +1,6 @@
 # OE Link
 
-0.5.77 - Gives the Obsidian library header enough height to keep its controls from overlapping.
+0.5.78 - Removes the obsolete fade mask from the Obsidian library title.
 
 0.5.65 - Adds native range selection, compact source/status markers, and an independent trash filter.
 
