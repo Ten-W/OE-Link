@@ -6720,9 +6720,36 @@
           let summary = this.libraryReferenceSummary;
           if (!summary) {
             progress.setText(this.plugin.t("obsidianLibraryLoading"));
-            summary = await this.getLibraryReferenceSummary();
+            const summaryTask = this.getLibraryReferenceSummary();
+            void (async () => {
+              try {
+                if (!this.librarySourceFilters.has("eagle")) return;
+                const previewPager = await this.plugin.createObsidianLibraryPager();
+                const normalizePreviewPage = async limit => {
+                  const page = await previewPager.nextPage(limit);
+                  return {
+                    items: page.items.map(item => Object.assign({}, item, {
+                      __assetSource: "eagle",
+                      __libraryKey: `eagle:${stripInfoSuffix(getEagleItemId(item))}`
+                    })),
+                    hasMore: page.hasMore
+                  };
+                };
+                const preview = await normalizePreviewPage(24);
+                if (!preview.items.length || this.libraryReferenceSummary || !this.isCurrentLoad(requestId) || !this.isLibraryMode) return;
+                this.renderAssetGrid(content, preview.items, {
+                  loadMore: () => normalizePreviewPage(24),
+                  onRendered: count => progress.setText(`${this.plugin.t("obsidianLibraryLoading")} ${count}`)
+                });
+              } catch (error) {
+                console.warn("Failed to render the initial Eagle library preview:", error);
+              }
+            })();
+            summary = await summaryTask;
           }
           if (!this.isCurrentLoad(requestId) || !this.isLibraryMode) return;
+          this.disposeAssetRendering();
+          content.querySelector(".eaglebridge-note-assets-scroll-area")?.remove();
           const visibleItems = this.getFilteredLibraryItems(summary);
           const pager = this.plugin.createArrayPager(visibleItems);
           const initialCount = Math.max(24, Number(this.pendingAssetViewportState?.renderedCount) || 0);
@@ -6785,6 +6812,9 @@
         stats.createEl("span", {
           cls: `eaglebridge-note-assets-stat eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`,
           text: this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size })
+        });
+        this.renderInlineViewSwitcher(stats, async () => {
+          await this.loadObsidianLibrary();
         });
     
         const renderBar = (kind, entries, selected, selectedValues, counts) => {
@@ -7012,7 +7042,7 @@
         };
         const sourceLabel = sourceLabels[source] || source;
         const entries = [{ className: `is-${source}`, label: sourceLabel }];
-        if (this.isLibraryMode) {
+        if (this.isLibraryMode && this.libraryReferenceSummary) {
           const isReferenced = this.isLibraryAssetReferenced(item);
           entries.push({
             className: isReferenced ? "is-referenced" : "is-unreferenced",
@@ -7418,9 +7448,6 @@
           cls: "eaglebridge-note-assets-meta eaglebridge-library-title",
           text: this.plugin.t("obsidianLibrary")
         });
-        this.renderInlineViewSwitcher(header, async () => {
-          await this.loadObsidianLibrary();
-        });
         return header;
       }
     
@@ -7517,6 +7544,7 @@
         };
     
         if (options.libraryMode) {
+          toolbar.addClass("is-library-mode");
           createLibraryModeToggle();
           this.libraryControls = null;
           return toolbar;
@@ -8145,15 +8173,6 @@
       renderAssetSummary(root, items, context = null, visibleItems = items) {
         const summary = getAssetSummary(items);
         const visibleSummary = getAssetSummary(visibleItems);
-        const header = root.createDiv({ cls: "eaglebridge-library-header eaglebridge-asset-summary-header" });
-        if (context && context.tags && context.tags.length) {
-          const meta = header.createDiv({ cls: "eaglebridge-note-assets-meta eaglebridge-library-title" });
-          meta.createEl("div", { text: this.plugin.t("triedTags", { tags: context.tags.join(" | ") }) });
-        }
-        this.renderInlineViewSwitcher(header, async () => {
-          if (context) await this.loadForContext(context, { parentContext: this.parentContext });
-        });
-    
         const stats = root.createDiv({ cls: "eaglebridge-note-assets-stats eaglebridge-context-asset-stats" });
         const addStat = (text, cls = "") => stats.createEl("div", { cls: `eaglebridge-note-assets-stat ${cls}`.trim(), text });
         addStat(this.plugin.t("totalAssets", { count: summary.total }), "eaglebridge-note-assets-stat-total");
@@ -8162,6 +8181,9 @@
           this.plugin.t("selectedAssetsStat", { count: this.selectedAssetItems.size }),
           `eaglebridge-note-assets-stat-selected${this.selectedAssetItems.size ? "" : " is-hidden"}`
         );
+        this.renderInlineViewSwitcher(stats, async () => {
+          if (context) await this.loadForContext(context, { parentContext: this.parentContext });
+        });
         this.renderContextSourceBar(root, summary, context, items);
       }
     
@@ -10689,7 +10711,6 @@
         refresh: "Refresh",
         autoOn: "AUTO",
         autoOff: "AUTO",
-        triedTags: "Tried tags: {tags}",
         totalAssets: "Total: {count}",
         visibleAssetsStat: "Shown: {count}",
         inEagleCount: "Eagle: {count}",
@@ -10912,7 +10933,6 @@
         refresh: "刷新",
         autoOn: "AUTO",
         autoOff: "AUTO",
-        triedTags: "标签：{tags}",
         totalAssets: "总数：{count}",
         visibleAssetsStat: "显示：{count}",
         inEagleCount: "Eagle：{count}",

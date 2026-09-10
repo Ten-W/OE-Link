@@ -1,6 +1,6 @@
 # OE Link
 
-0.5.74 - Simplifies the Obsidian library toolbar and imports selected assets across every referencing note and canvas.
+0.5.75 - Aligns view controls with asset statistics and previews Eagle assets while the Obsidian library index loads.
 
 0.5.65 - Adds native range selection, compact source/status markers, and an independent trash filter.
 

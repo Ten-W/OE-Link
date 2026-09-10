@@ -72,7 +72,10 @@ assert.match(translations, /仅清除引用素材上以 Obsidian 开头的标签
 assert.match(translations, /不会删除素材或遗留的空文件夹；其他 Eagle 文件夹会保留/);
 assert.match(styles, /\.eaglebridge-context-asset-stats\s*\{[\s\S]*margin: 0 0 3px;/);
 assert.match(styles, /\.eaglebridge-context-source-bar\s*\{[\s\S]*margin: 2px 0 4px;/);
-assert.doesNotMatch(styles, /\.eaglebridge-asset-summary-header \.eaglebridge-library-view-switcher/);
+assert.match(styles, /\.eaglebridge-note-assets-stats \.eaglebridge-library-view-switcher\s*\{[\s\S]*margin-left: auto;/);
+assert.match(styles, /\.eaglebridge-library-mode-toggle\s*\{[\s\S]*display: grid;[\s\S]*place-items: center;[\s\S]*border-radius: 50%;/);
+assert.doesNotMatch(source, /this\.plugin\.t\("triedTags"/);
+assert.match(source, /const summaryTask = this\.getLibraryReferenceSummary\(\)[\s\S]*createObsidianLibraryPager\(\)[\s\S]*renderAssetGrid\(content, preview\.items/);
 assert.match(styles, /\.eaglebridge-asset-status-marker\s*\{[\s\S]*width: 10px;[\s\S]*height: 10px;[\s\S]*border: 0;/);
 assert.match(styles, /\.eaglebridge-asset-status-marker\.is-eagle/);
 assert.match(styles, /\.eaglebridge-asset-status-marker\.is-trash/);

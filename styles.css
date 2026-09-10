@@ -184,14 +184,21 @@ audio.eaglebridge-media-embed {
   padding-right: 44px;
 }
 
+.eaglebridge-note-assets-toolbar.is-library-mode {
+  min-height: 30px;
+  margin-bottom: 8px;
+}
+
 .eaglebridge-library-mode-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  min-width: 34px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
   height: 30px;
-  padding: 5px;
+  padding: 0;
+  border-radius: 50%;
+  box-sizing: border-box;
+  line-height: 1;
   flex: 0 0 auto;
   position: absolute;
   top: 0;
@@ -202,6 +209,7 @@ audio.eaglebridge-media-embed {
   display: block;
   width: 17px;
   height: 17px;
+  margin: 0;
   fill: currentColor;
 }
 
@@ -213,12 +221,10 @@ audio.eaglebridge-media-embed {
 }
 
 .eaglebridge-library-header {
-  position: relative;
   display: block;
   min-width: 0;
   min-height: 20px;
   margin: 0 0 var(--size-4-2);
-  padding-right: 76px;
 }
 
 .eaglebridge-library-title {
@@ -288,16 +294,8 @@ audio.eaglebridge-media-embed {
   outline-offset: 2px;
 }
 
-.eaglebridge-asset-summary-header .eaglebridge-library-title > div {
-  line-height: 20px;
-}
-
-.eaglebridge-library-header .eaglebridge-library-view-switcher {
-  position: absolute;
-  top: calc(50% - 2px);
-  right: 2px;
-  z-index: 1;
-  transform: translateY(-50%);
+.eaglebridge-note-assets-stats .eaglebridge-library-view-switcher {
+  margin-left: auto;
 }
 
 .eaglebridge-note-assets-toolbar button {
@@ -849,10 +847,6 @@ audio.eaglebridge-media-embed {
   font-size: var(--font-ui-smaller);
   margin-bottom: 10px;
   word-break: break-all;
-}
-
-.eaglebridge-asset-summary-header .eaglebridge-note-assets-meta {
-  margin-bottom: 0;
 }
 
 .eaglebridge-note-assets-stats {
