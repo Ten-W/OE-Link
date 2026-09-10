@@ -228,9 +228,10 @@ audio.eaglebridge-media-embed {
 }
 
 .eaglebridge-library-header {
-  display: block;
+  display: flex;
+  align-items: center;
   min-width: 0;
-  min-height: 20px;
+  min-height: 34px;
   margin: 0 0 2px;
   padding-right: 38px;
 }
