@@ -1,6 +1,6 @@
 # OE Link
 
-0.5.75 - Aligns view controls with asset statistics and previews Eagle assets while the Obsidian library index loads.
+0.5.76 - Removes excess space above the Obsidian library and tightens its title and statistics layout.
 
 0.5.65 - Adds native range selection, compact source/status markers, and an independent trash filter.
 
