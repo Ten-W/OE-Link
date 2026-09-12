@@ -2,7 +2,8 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 
-const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8");
+const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8")
+  + fs.readFileSync(path.join(__dirname, "lib", "eagle-assets-view.js"), "utf8");
 const chooseRange = (candidates, cachedRange) => {
   const exact = candidates.find(candidate => cachedRange && candidate.start === cachedRange.start && candidate.end === cachedRange.end);
   return exact || (candidates.length === 1 ? candidates[0] : null);

@@ -2,7 +2,8 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 
-const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8");
+const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8")
+  + fs.readFileSync(path.join(__dirname, "lib", "eagle-assets-view.js"), "utf8");
 const styles = fs.readFileSync(path.join(__dirname, "styles.css"), "utf8");
 const desktop = fs.readFileSync(path.join(__dirname, "desktop.js"), "utf8");
 const built = fs.readFileSync(path.join(__dirname, "main.js"), "utf8");

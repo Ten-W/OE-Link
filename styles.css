@@ -309,11 +309,6 @@ audio.eaglebridge-media-embed {
   white-space: nowrap;
 }
 
-.eaglebridge-note-assets-stat-missing {
-  color: var(--color-yellow);
-  font-weight: 600;
-}
-
 .eaglebridge-settings-rule-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -605,6 +600,29 @@ audio.eaglebridge-media-embed {
   flex-wrap: wrap;
 }
 
+.oe-link-export-modal > p {
+  margin: 8px 0 16px;
+}
+
+.oe-link-export-issues {
+  margin: 12px 0;
+}
+
+.oe-link-export-issues h4 {
+  margin: 0 0 6px;
+}
+
+.oe-link-export-issues ul {
+  max-height: 180px;
+  margin: 0 0 14px;
+  padding-left: 24px;
+  overflow: auto;
+}
+
+.oe-link-export-issues.is-error h4 {
+  color: var(--text-error);
+}
+
 @media (max-width: 760px) {
   .eaglebridge-settings-rule-grid {
     grid-template-columns: 1fr;
@@ -622,22 +640,16 @@ audio.eaglebridge-media-embed {
   }
 }
 
-.eaglebridge-refresh-group,
 .eaglebridge-import-group,
-.eaglebridge-action-group,
 .eaglebridge-tag-group,
-.eaglebridge-folder-group,
-.eaglebridge-view-mode-group {
+.eaglebridge-folder-group {
   display: inline-flex;
   align-items: stretch;
 }
 
-.eaglebridge-refresh-group button,
 .eaglebridge-import-group button,
-.eaglebridge-action-group button,
 .eaglebridge-tag-group button,
-.eaglebridge-folder-group button,
-.eaglebridge-view-mode-group button {
+.eaglebridge-folder-group button {
   margin: 0;
 }
 
@@ -655,11 +667,6 @@ audio.eaglebridge-media-embed {
 .eaglebridge-segmented-button:last-child {
   border-top-right-radius: var(--button-radius);
   border-bottom-right-radius: var(--button-radius);
-}
-
-.eaglebridge-view-mode-button.is-enabled {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
 }
 
 .eaglebridge-compound-auto-control {
@@ -707,11 +714,6 @@ audio.eaglebridge-media-embed {
 .eaglebridge-segmented-group:has(.is-management-disabled) button,
 .eaglebridge-segmented-group:has(.is-management-disabled) .eaglebridge-compound-auto-control {
   cursor: not-allowed;
-}
-
-.eaglebridge-refresh-group > .eaglebridge-compound-auto-control:last-child {
-  margin-left: 0;
-  border-radius: var(--button-radius) !important;
 }
 
 .eaglebridge-compound-primary-button,
@@ -772,8 +774,7 @@ audio.eaglebridge-media-embed {
   background: var(--interactive-hover);
 }
 
-.eaglebridge-import-group .eaglebridge-cleanup-button,
-.eaglebridge-refresh-group .eaglebridge-refresh-button {
+.eaglebridge-import-group .eaglebridge-cleanup-button {
   border-right-width: 0;
 }
 
@@ -870,10 +871,6 @@ audio.eaglebridge-media-embed {
 
 .eaglebridge-context-asset-stats {
   margin: 0 0 3px;
-}
-
-.eaglebridge-library-filter-row {
-  align-items: center;
 }
 
 .eaglebridge-library-filter-stats {
@@ -1086,11 +1083,6 @@ audio.eaglebridge-media-embed {
   background: var(--text-error);
 }
 
-.eaglebridge-library-trash-button {
-  margin-left: auto;
-  white-space: nowrap;
-}
-
 .eaglebridge-note-assets-stat {
   padding: 0 10px;
   border-left: 1px solid var(--background-modifier-border);
@@ -1102,38 +1094,8 @@ audio.eaglebridge-media-embed {
   border-left: 0;
 }
 
-.eaglebridge-note-assets-stat-trash {
-  color: var(--text-error);
-  font-weight: 600;
-}
-
 .eaglebridge-note-assets-stat-total {
   color: var(--text-normal);
-}
-
-.eaglebridge-note-assets-stat-eagle {
-  color: var(--color-blue);
-  font-weight: 600;
-}
-
-.eaglebridge-note-assets-stat-local {
-  color: var(--color-purple);
-  font-weight: 600;
-}
-
-.eaglebridge-note-assets-stat-internet {
-  color: var(--text-normal);
-  font-weight: 600;
-}
-
-.eaglebridge-note-assets-stat-referenced {
-  color: var(--color-green);
-  font-weight: 600;
-}
-
-.eaglebridge-note-assets-stat-unreferenced {
-  color: var(--text-muted);
-  font-weight: 600;
 }
 
 .eaglebridge-note-assets-scroll-area {
@@ -1518,17 +1480,6 @@ audio.eaglebridge-media-embed {
   font-size: var(--font-ui-smaller);
 }
 
-.eaglebridge-waterfall-repair-button {
-  margin-top: 4px;
-  padding: 3px 7px;
-  width: max-content;
-  border: 1px solid #f5c542;
-  border-radius: 6px;
-  color: #f5c542;
-  background: rgba(0, 0, 0, 0.35);
-  font-size: var(--font-ui-smaller);
-}
-
 .eaglebridge-note-assets-empty {
   color: var(--text-muted);
   padding: 20px 0;
@@ -1632,20 +1583,6 @@ img.eaglebridge-image-in-trash {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.eaglebridge-missing-repair-button {
-  padding: 2px 6px;
-  border: 1px solid #f5c542;
-  border-radius: 6px;
-  color: #f5c542;
-  background: transparent;
-  font-size: var(--font-ui-smaller);
-  cursor: pointer;
-}
-
-.eaglebridge-missing-repair-button:hover {
-  background: rgba(245, 197, 66, 0.16);
 }
 
 .eaglebridge-repair-choice-panel {

@@ -1123,20 +1123,19 @@ module.exports = EagleBridgeMobilePlugin;
 
   const factories = {
   "./main": function(module, exports, require, __filename, __dirname) {
-    const { Plugin, ItemView, Menu, Notice, addIcon, requestUrl: nativeRequestUrl, TFile } = require("obsidian");
+    const { Plugin, Menu, Notice, addIcon, requestUrl: nativeRequestUrl, TFile } = require("obsidian");
     const nodePath = require("path");
-    const { setTooltip } = require("obsidian");
     const nodeFs = require("fs");
     const nodeOs = require("os");
     const nodeCrypto = require("crypto");
     const { getDefaultEaglePluginsDir, normalizeEagleFolderId } = require("./lib/asset-utils");
-    
+
     const VIEW_TYPE = "eaglebridge-note-assets-view";
     const CONNECTION_MODE_KEY = "oe-link-connection-mode";
     const EAGLE_HELPER_PLUGIN_ID = "oe-link-helper";
     const EAGLE_HELPER_PLUGIN_VERSION = "0.2.13";
     const EAGLE_HELPER_PORTS = Array.from({ length: 10 }, (_, index) => 41596 + index);
-    
+
     function getRequestServiceName(request) {
       const url = String(request && request.url || "");
       if (/127\.0\.0\.1:41(?:59[6-9]|60[0-5])/i.test(url)) return "OE Link 辅助插件";
@@ -1144,7 +1143,7 @@ module.exports = EagleBridgeMobilePlugin;
       if (/:6060(?:\/|$)/.test(url)) return "OE Link 素材服务";
       return "网络素材服务";
     }
-    
+
     async function requestResponse(request, serviceName = getRequestServiceName(request), attempt = 0) {
       let response;
       try {
@@ -1166,11 +1165,11 @@ module.exports = EagleBridgeMobilePlugin;
       }
       return response;
     }
-    
+
     // Preserve legacy raw-response call sites while putting every request behind
     // the same network and HTTP-status error boundary.
     const requestUrl = request => requestResponse(request);
-    
+
     const DEFAULT_SETTINGS = {
       language: "auto",
       assetViewMode: "normal",
@@ -1205,46 +1204,46 @@ module.exports = EagleBridgeMobilePlugin;
       autoRefreshReferenceView: false,
       replacementTemplate: "![{filename}]({bridgeUrl})"
     };
-    
+
     const {
-      SUPPORTED_ATTACHMENT_EXTENSIONS, PREVIEWABLE_IMAGE_EXTENSIONS, getAssetSummary, normalizeAssetViewMode,
-      clampNumber, buildEagleFolderUrl, formatIdentityDate, normalizeIdentityTitle,
+      normalizeAssetViewMode, buildEagleFolderUrl, formatIdentityDate, normalizeIdentityTitle,
       buildTitleDateIdentity, isIdentityDate, getFileIdentityDate, getStableIdentityDate,
-      isObsidianManagedTag, isProbablyMarkdownTableRow, isProbablyMarkdownTableLine, getLineAtIndex,
-      indexToLineCh, getLineBefore, getLineAfter, hasUnescapedPipe,
-      isMarkdownTableSeparatorLine, escapeMarkdownTablePipes, makeMarkdownTableSafeReference, splitList, stripExtension,
-      getSourceParentPath, getSourceParentPathFromPath, getSourceManagedFolderPath, getSourceManagedFolderPathFromPath,
+      isObsidianManagedTag, isProbablyMarkdownTableLine, indexToLineCh,
+      escapeMarkdownTablePipes, makeMarkdownTableSafeReference, splitList, stripExtension,
+      getSourceParentPathFromPath,
       vaultPathBasename, normalizeVaultPath, isInsideEagleLibrary, findEagleFolderById, findEagleFolderWithParentById,
       normalizeFolderName, normalizeCreatedEagleFolder, collectEagleFolderIds, isSupportedSourceFile,
-      isExternalLink, supportedAttachmentExtensions, isSupportedAttachment, isSupportedCanvasAttachment,
-      isPreviewableImage, normalizeCanvasNodeSize, createFilePlaceholder, createNotePlaceholder,
-      getAssetDisplayName, isStableEagleItem, isLikelySameAssetByName, isLikelySameAssetByAnyName,
+      isExternalLink, isSupportedAttachment, isSupportedCanvasAttachment,
+      isPreviewableImage, normalizeCanvasNodeSize, getAssetDisplayName, isLikelySameAssetByName, isLikelySameAssetByAnyName,
       getDuplicateRepairSearchNames, getDuplicateRepairExpectedExtension, uniqueItemsById, mapWithConcurrency,
-      getEagleItemNameCandidates, normalizeMatchName, getEagleItemMatchSignature, isSameEagleAssetSignature,
-      firstNumberValue, getNestedNumberValue, getAssetExtension, getWikiAttachmentTarget,
-      cleanEagleBridgeLabel, sanitizeEagleBridgeEmbedLabel, getDisplayNameWithoutObsidianSize, getExtensionFromDisplayName, getInternetAttachmentDisplayName,
-      getFileNameFromUrl, isLikelyImageSizeLabel, cleanLocalCopyCandidateName, normalizeExtension, parseAttachmentReference,
-      cleanAttachmentTarget, cleanExternalAttachmentUrl, stripAttachmentSubpath, stripMarkdownLinkTitle, findSupportedAttachmentExtensionEnd,
+      getEagleItemMatchSignature, isSameEagleAssetSignature, getAssetExtension, getWikiAttachmentTarget,
+      cleanEagleBridgeLabel, sanitizeEagleBridgeEmbedLabel, getInternetAttachmentDisplayName,
+      cleanLocalCopyCandidateName, normalizeExtension, parseAttachmentReference,
+      cleanAttachmentTarget, cleanExternalAttachmentUrl, stripAttachmentSubpath,
       findMarkdownAttachmentReferences, getAttachmentReferenceSignature, preserveAttachmentDisplaySize,
-      findClosingBracket, findMarkdownTargetEnd, decodeAttachmentPath,
       getItemTime, getEagleItemId, extractEagleBridgeItemIdFromText, isEagleItemTrashed,
       itemHasEagleFolder, getEagleItemFolderIds, findOriginalFileInEagleInfoDir, replaceEagleBridgeIdsInText,
       readJsonFile, copyDirectory, compareVersions,
-      isTruthyFlag, getTrashBadgeAnchor, removeTrashBadgesForImage, removeFollowingTrashBadges,
+      getTrashBadgeAnchor, removeTrashBadgesForImage,
       stripInfoSuffix, sleep, normalizeFileUrl, fileUrlToLocalPath, externalLocalPathFromTarget,
-      eagleLocalPathToFsPath, normalizeFileUrlPath, safeDecode, escapeRegExp,
-      buildHtmlImage, buildStandardEagleBridgeEmbed, escapeHtmlAttr, unescapeHtmlAttr
+      eagleLocalPathToFsPath, safeDecode, escapeRegExp,
+      unescapeHtmlAttr
     } = require("./lib/asset-utils");
-    
+
     const TRANSLATIONS = require("./lib/translations");
     const { EagleItemRepository } = require("./lib/eagle-item-repository");
     const { KeyedTaskScheduler } = require("./lib/keyed-task-scheduler");
     const { chooseInObsidianModal } = require("./lib/choice-modal");
     const { EagleBridgeProgressModal } = require("./lib/progress-modal");
+    const { chooseExportFormat } = require("./lib/export-package-modal");
+    const {
+      parseOeLinkReferences, safeFileName, assignExportNames, rewriteReference, applyReplacements,
+      copyPackageFiles, listFiles, writeStoredZip, uniqueDestination
+    } = require("./lib/export-package");
     const { createEagleAssetsSettingTab } = require("./lib/settings-tab");
     const { createAttachmentElement, createLivePreviewAttachmentExtension, getAttachmentKind, normalizeLegacyNonImageEmbeds } = require("./lib/live-preview-attachments");
     const EagleAssetsSettingTab = createEagleAssetsSettingTab({ DEFAULT_SETTINGS, VIEW_TYPE });
-    
+
     const OE_LINK_ICON = `
     <svg class="eaglebridge-menu-icon" viewBox="0 0 226 226" fill="none" aria-hidden="true">
       <path d="M189 72C189 52.1178 172.882 36 153 36H72C52.1178 36 36 52.1177 36 72V153C36 172.882 52.1177 189 72 189H153C172.882 189 189 172.882 189 153" stroke="currentColor" stroke-width="20" stroke-linecap="round"/>
@@ -1253,13 +1252,10 @@ module.exports = EagleBridgeMobilePlugin;
     </svg>`;
     const EAGLE_ICON = OE_LINK_ICON;
     const EAGLE_COMPANION_ICON = OE_LINK_ICON;
-    
-    const LIBRARY_VIEW_ICONS = {
-      waterfall: `<svg viewBox="0 0 227 227" aria-hidden="true"><rect x="33" y="33" width="69" height="48" rx="12"/><rect x="126" y="33" width="69" height="103" rx="12"/><rect x="33" y="102" width="69" height="93" rx="12"/><rect x="126" y="158" width="69" height="37" rx="12"/></svg>`,
-      list: `<svg viewBox="0 0 227 227" aria-hidden="true"><rect x="36" y="33" width="69" height="69" rx="12"/><rect x="36" y="126" width="69" height="69" rx="12"/><path d="M124 49H191"/><path d="M124 141H191"/><path d="M124 88H191"/><path d="M124 180H191"/></svg>`,
-      normal: `<svg viewBox="0 0 227 227" aria-hidden="true"><rect x="33" y="33" width="69" height="69" rx="12"/><rect x="126" y="33" width="69" height="69" rx="12"/><rect x="33" y="126" width="69" height="69" rx="12"/><rect x="126" y="126" width="69" height="69" rx="12"/></svg>`
-    };
-    
+
+    const { createEagleAssetsView } = require("./lib/eagle-assets-view");
+    const EagleAssetsView = createEagleAssetsView({ VIEW_TYPE, DEFAULT_SETTINGS });
+
     module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       async onload() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -1290,17 +1286,17 @@ module.exports = EagleBridgeMobilePlugin;
         addIcon("eagle-outline", EAGLE_COMPANION_ICON);
         this.registerView(VIEW_TYPE, leaf => new EagleAssetsView(leaf, this));
         this.registerEditorExtension(createLivePreviewAttachmentExtension(this));
-    
+
         this.addRibbonIcon("eagle-outline", this.t("ribbonShowAssets"), async () => {
           await this.openReferenceView();
         });
-    
+
         this.addCommand({
           id: "open-current-note-eagle-assets",
           name: this.t("cmdShowAssets"),
           callback: async () => this.openReferenceView()
         });
-    
+
         this.addCommand({
           id: "copy-current-note-eagle-tag",
           name: this.t("cmdCopyTag"),
@@ -1311,49 +1307,43 @@ module.exports = EagleBridgeMobilePlugin;
             new Notice(this.t("noticeCopiedEagleTag", { tag: context.tags[0] }));
           }
         });
-    
+
         this.addCommand({
           id: "import-current-note-attachments-to-eagle",
           name: this.t("cmdImportAttachments"),
           callback: async () => this.importCurrentNoteAttachments()
         });
-    
+
         this.addCommand({
-          id: "fix-current-note-eagle-thumbnail-links",
-          name: this.t("cmdFixThumbnailLinks"),
-          callback: async () => this.fixCurrentNoteEagleThumbnailLinks()
+          id: "export-current-note-share-package",
+          name: this.t("cmdExportSharePackage"),
+          callback: async () => this.exportCurrentNoteSharePackage()
         });
-    
-        this.addCommand({
-          id: "fix-current-note-double-encoded-file-links",
-          name: this.t("cmdFixDoubleEncodedLinks"),
-          callback: async () => this.fixCurrentNoteDoubleEncodedFileLinks()
-        });
-    
-        this.addCommand({
-          id: "convert-current-note-eagle-file-links-to-eaglebridge",
-          name: this.t("cmdConvertFileLinks"),
-          callback: async () => this.convertCurrentNoteEagleFileLinksToBridge()
-        });
-    
-        this.addCommand({
-          id: "convert-current-note-eaglebridge-image-embeds-to-links",
-          name: this.t("cmdConvertEmbedsToLinks"),
-          callback: async () => this.convertCurrentNoteEagleBridgeEmbedsToLinks()
-        });
-    
-        this.addCommand({
-          id: "convert-current-note-eaglebridge-links-to-html-images",
-          name: this.t("cmdConvertLinksToHtml"),
-          callback: async () => this.convertCurrentNoteEagleBridgeLinksToHtmlImages()
-        });
-    
-        this.addCommand({
-          id: "convert-current-note-eaglebridge-links-to-standard-embeds",
-          name: this.t("cmdConvertLinksToEmbeds"),
-          callback: async () => this.convertCurrentNoteEagleBridgeLinksToStandardEmbeds()
-        });
-    
+
+        this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
+          if (!(file instanceof TFile) || file.extension !== "md") return;
+          menu.addItem(item => {
+            item.setTitle(this.t("menuExportSharePackage")).setIcon("eagle-outline");
+            const submenu = item.setSubmenu();
+            submenu.addItem(formatItem => formatItem
+              .setTitle(this.t("exportZip"))
+              .setIcon("archive")
+              .onClick(() => this.exportCurrentNoteSharePackage(file, "zip")));
+            submenu.addItem(formatItem => formatItem
+              .setTitle(this.t("exportFolder"))
+              .setIcon("folder")
+              .onClick(() => this.exportCurrentNoteSharePackage(file, "folder")));
+            if (typeof item.setSection === "function") item.setSection("export");
+            window.setTimeout(() => {
+              const itemEl = item.dom;
+              const parent = itemEl && itemEl.parentElement;
+              const pdfItem = parent && Array.from(parent.children).find(candidate =>
+                candidate !== itemEl && /PDF/i.test(candidate.querySelector(".menu-item-title")?.textContent || ""));
+              if (pdfItem) pdfItem.after(itemEl);
+            }, 0);
+          });
+        }));
+
         this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, view) => {
           if (!this.getImportableAttachmentAtCursor(editor, view)) return;
           menu.addItem(item => item
@@ -1363,7 +1353,7 @@ module.exports = EagleBridgeMobilePlugin;
               await this.importAttachmentAtCursor(editor, view);
             }));
         }));
-    
+
         this.registerDomEvent(document, "contextmenu", event => {
           this.handleRenderedImageContextMenu(event);
         }, true);
@@ -1391,7 +1381,7 @@ module.exports = EagleBridgeMobilePlugin;
           document.addEventListener("dragover", editorDragOverHandler, true);
           this.register(() => document.removeEventListener("dragover", editorDragOverHandler, true));
         }
-    
+
         this.registerMarkdownPostProcessor(el => {
           this.decorateEagleBridgeFileLinks(el);
           this.scheduleTrashStatusScan(el);
@@ -1468,10 +1458,10 @@ module.exports = EagleBridgeMobilePlugin;
             console.warn("Failed to clean Eagle associations after source deletion:", error);
           });
         }));
-    
+
         this.addSettingTab(new EagleAssetsSettingTab(this.app, this));
       }
-    
+
       onunload() {
         this.cancelReferenceViewRefresh();
         this.autoSyncScheduler && this.autoSyncScheduler.clear();
@@ -1481,11 +1471,11 @@ module.exports = EagleBridgeMobilePlugin;
         this.eagleItems && this.eagleItems.clear();
         this.app.workspace.detachLeavesOfType(VIEW_TYPE);
       }
-    
+
       async saveSettings() {
         await this.saveData(this.settings);
       }
-    
+
       switchConnectionMode(mode) {
         globalThis.localStorage?.setItem(CONNECTION_MODE_KEY, mode);
         const pluginId = this.manifest.id;
@@ -1495,18 +1485,18 @@ module.exports = EagleBridgeMobilePlugin;
           this.app.setting?.openTabById(pluginId);
         }, 0);
       }
-    
+
       getCompanionMediaUrl() {
         return String(this.settings.eagleBridgeBaseUrl || DEFAULT_SETTINGS.eagleBridgeBaseUrl)
           .trim()
           .replace(/\/+$/, "") || DEFAULT_SETTINGS.eagleBridgeBaseUrl;
       }
-    
+
       getEagleApiUrl(path) {
         const base = String(this.settings.eagleApiBaseUrl || DEFAULT_SETTINGS.eagleApiBaseUrl).trim().replace(/\/+$/, "");
         return /^https?:\/\//i.test(String(path || "")) ? path : `${base}/${String(path || "").replace(/^\/+/, "")}`;
       }
-    
+
       async detectReachableBaseUrl(candidates, path, serviceName) {
         let lastError = null;
         for (const candidate of [...new Set(candidates.map(value => String(value || "").trim().replace(/\/+$/, "")).filter(Boolean))]) {
@@ -1519,7 +1509,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         throw lastError || new Error(`${serviceName} was not detected.`);
       }
-    
+
       async detectAndFillEagleApiUrl() {
         const value = await this.detectReachableBaseUrl(
           [this.settings.eagleApiBaseUrl, DEFAULT_SETTINGS.eagleApiBaseUrl],
@@ -1530,7 +1520,7 @@ module.exports = EagleBridgeMobilePlugin;
         await this.saveSettings();
         return value;
       }
-    
+
       async detectAndFillCompanionMediaUrl() {
         const value = await this.detectReachableBaseUrl(
           [this.settings.eagleBridgeBaseUrl, DEFAULT_SETTINGS.eagleBridgeBaseUrl],
@@ -1541,14 +1531,14 @@ module.exports = EagleBridgeMobilePlugin;
         await this.saveSettings();
         return value;
       }
-    
+
       async detectAndFillEagleHelperPluginsDir() {
         const value = this.resolveEagleHelperPluginsDir();
         this.settings.eagleHelperPluginsDir = value;
         await this.saveSettings();
         return value;
       }
-    
+
       async detectAndFillEagleLibraryPaths() {
         let detected = [];
         try {
@@ -1579,7 +1569,7 @@ module.exports = EagleBridgeMobilePlugin;
         await this.syncCompanionMediaService();
         return paths;
       }
-    
+
       async requestJson(request, serviceName) {
         const response = await requestResponse(request, serviceName);
         const body = response && response.json ? response.json : {};
@@ -1588,11 +1578,11 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return body;
       }
-    
+
       requestEagleApiJson(request) {
         return this.requestJson(request, "Eagle API");
       }
-    
+
       async detectEagleHelperBaseUrl() {
         if (this.eagleHelperBaseUrl) return this.eagleHelperBaseUrl;
         if (this.eagleHelperProbeFailedAt && Date.now() - this.eagleHelperProbeFailedAt < 5000) {
@@ -1619,7 +1609,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.eagleHelperProbeFailedAt = Date.now();
         throw new Error(`未检测到 OE Link Helper ${EAGLE_HELPER_PLUGIN_VERSION}。`);
       }
-    
+
       async requestEagleHelperJson(path, options = {}) {
         const base = await this.detectEagleHelperBaseUrl();
         try {
@@ -1632,7 +1622,7 @@ module.exports = EagleBridgeMobilePlugin;
           throw error;
         }
       }
-    
+
       getCompanionMediaPort() {
         try {
           const parsed = new URL(this.getCompanionMediaUrl());
@@ -1642,7 +1632,7 @@ module.exports = EagleBridgeMobilePlugin;
           return 6060;
         }
       }
-    
+
       async syncCompanionMediaService() {
         const payload = await this.requestEagleHelperJson("media/config", {
           method: "POST",
@@ -1682,13 +1672,13 @@ module.exports = EagleBridgeMobilePlugin;
           return this.sanitizeDiagnosticText(value);
         }
       }
-    
+
       recordDesktopDiagnosticEvent(type, data = {}) {
         if (!Array.isArray(this.desktopDiagnosticEvents)) this.desktopDiagnosticEvents = [];
         this.desktopDiagnosticEvents.push({ time: new Date().toISOString(), type, ...data });
         if (this.desktopDiagnosticEvents.length > 100) this.desktopDiagnosticEvents.shift();
       }
-    
+
       async probeDesktopDiagnosticUrl(url, method = "GET") {
         const startedAt = Date.now();
         try {
@@ -1704,7 +1694,7 @@ module.exports = EagleBridgeMobilePlugin;
           return { url, method, error: error && error.message ? error.message : String(error), elapsedMs: Date.now() - startedAt };
         }
       }
-    
+
       async exportDesktopDiagnosticLog() {
         const activeFile = this.app.workspace.getActiveFile();
         const source = activeFile instanceof TFile && isSupportedSourceFile(activeFile)
@@ -1719,7 +1709,7 @@ module.exports = EagleBridgeMobilePlugin;
           parsed.hostname = "127.0.0.1";
           ipv4MediaBase = parsed.toString().replace(/\/$/, "");
         } catch (_) {}
-    
+
         const helperBase = await this.detectEagleHelperBaseUrl().catch(() => "");
         const probes = await Promise.all([
           this.probeDesktopDiagnosticUrl(`${this.getEagleApiUrl("").replace(/\/$/, "")}/api/application/info`),
@@ -1763,8 +1753,7 @@ module.exports = EagleBridgeMobilePlugin;
         } catch (error) {
           helperStatus = { status: "error", error: this.sanitizeDiagnosticText(error && error.message ? error.message : error) };
         }
-        const items = [];
-        for (const itemId of itemIds) {
+        const items = await mapWithConcurrency(itemIds, 4, async itemId => {
           let helper = null;
           let helperError = "";
           try {
@@ -1783,7 +1772,7 @@ module.exports = EagleBridgeMobilePlugin;
             ]);
           const helperItem = helper && helper.item || {};
           const resolvedFile = helper && helper.resolvedFile;
-          items.push({
+          return {
             itemKey: this.diagnosticHash(itemId),
             helper: helper ? {
               extension: String(helperItem.extension || helperItem.ext || ""),
@@ -1805,8 +1794,8 @@ module.exports = EagleBridgeMobilePlugin;
               url: this.sanitizeDiagnosticUrl(String(probe.url || "").replace(encodeURIComponent(itemId), "<item>")),
               error: this.sanitizeDiagnosticText(probe.error).split(itemId).join("<item>")
             }))
-          });
-        }
+          };
+        });
         const panel = this.app.workspace.getLeavesOfType(VIEW_TYPE).map(leaf => leaf.view).find(Boolean);
         const librarySummary = panel && panel.libraryReferenceSummary;
         const configuredLibraryPaths = Array.isArray(this.settings.eagleBridgeLibraryPaths) ? this.settings.eagleBridgeLibraryPaths : [];
@@ -1893,7 +1882,7 @@ module.exports = EagleBridgeMobilePlugin;
         new Notice(this.t("noticeDiagnosticExported", { path }));
         return path;
       }
-    
+
       async openEagleItem(itemId) {
         const cleanItemId = stripInfoSuffix(itemId);
         if (!cleanItemId) return;
@@ -1930,7 +1919,7 @@ module.exports = EagleBridgeMobilePlugin;
           });
         }
       }
-    
+
       async openAttachmentInDefaultApp(ref) {
         if (ref && ref.localPath) {
           const error = await require("electron").shell.openPath(ref.localPath);
@@ -1945,11 +1934,11 @@ module.exports = EagleBridgeMobilePlugin;
         const error = await require("electron").shell.openPath(fullPath);
         if (error) throw new Error(error);
       }
-    
+
       isPreviewableAttachmentImage(name) {
         return isPreviewableImage(name);
       }
-    
+
       getPluginInstallRootPath() {
         const adapter = this.app && this.app.vault && this.app.vault.adapter;
         if (adapter && typeof adapter.getFullPath === "function" && this.manifest && this.manifest.dir) {
@@ -1957,17 +1946,17 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return "";
       }
-    
+
       getBundledEagleHelperPath() {
         const root = this.getPluginInstallRootPath();
         return root ? nodePath.join(root, "oe-link-helper") : "";
       }
-    
+
       getEagleHelperInstallPath() {
         const pluginsDir = String(this.settings.eagleHelperPluginsDir || DEFAULT_SETTINGS.eagleHelperPluginsDir || "").trim();
         return pluginsDir ? nodePath.join(pluginsDir, EAGLE_HELPER_PLUGIN_ID) : "";
       }
-    
+
       resolveEagleHelperPluginsDir() {
         const configuredDir = String(this.settings.eagleHelperPluginsDir || "").trim();
         const defaultDir = String(DEFAULT_SETTINGS.eagleHelperPluginsDir || "").trim();
@@ -1983,7 +1972,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         throw new Error("Eagle 插件目录不存在或不可访问。请填写 Eagle 的 Plugins 目录后重试。");
       }
-    
+
       async installOrUpdateEagleHelperPlugin() {
         try {
           const sourceDir = this.getBundledEagleHelperPath();
@@ -2016,7 +2005,7 @@ module.exports = EagleBridgeMobilePlugin;
           return false;
         }
       }
-    
+
       getLanguage() {
         const configured = String(this.settings.language || DEFAULT_SETTINGS.language || "auto").toLowerCase();
         if (configured === "zh" || configured === "en") return configured;
@@ -2030,7 +2019,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (typeof navigator !== "undefined" && navigator.language) localeParts.push(navigator.language);
         return /zh|cn|hans|hant/i.test(localeParts.filter(Boolean).join(" ")) ? "zh" : "en";
       }
-    
+
       t(key, values = {}) {
         const lang = this.getLanguage();
         const text = (TRANSLATIONS[lang] && TRANSLATIONS[lang][key]) || TRANSLATIONS.en[key] || key;
@@ -2038,7 +2027,7 @@ module.exports = EagleBridgeMobilePlugin;
           return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match;
         });
       }
-    
+
       scheduleTrashStatusScan(root) {
         if (!root || !root.querySelectorAll) return;
         this.trashScanScheduler.scheduleSequence(root, [100, 600], () => {
@@ -2047,7 +2036,7 @@ module.exports = EagleBridgeMobilePlugin;
           });
         });
       }
-    
+
       rememberCanvasRename(file, oldPath) {
         if (!(file instanceof TFile) || file.extension !== "canvas" || !oldPath) return;
         const oldName = stripExtension(nodePath.basename(oldPath)).trim();
@@ -2064,7 +2053,7 @@ module.exports = EagleBridgeMobilePlugin;
           newTags: this.buildCanvasTagCandidates(newIdentity)
         };
       }
-    
+
       rememberNoteRename(file, oldPath) {
         if (!(file instanceof TFile) || file.extension !== "md" || !oldPath) return;
         const oldName = stripExtension(nodePath.basename(oldPath)).trim();
@@ -2083,13 +2072,13 @@ module.exports = EagleBridgeMobilePlugin;
           newTags: this.buildTagCandidates(newIdentity)
         };
       }
-    
+
       getNoteIdentityDateForPath(path) {
         if (!path || !this.settings.noteIdentityDates || typeof this.settings.noteIdentityDates !== "object") return "";
         const existing = this.settings.noteIdentityDates[path];
         return isIdentityDate(existing) ? existing : "";
       }
-    
+
       moveNoteIdentityDate(oldPath, newPath, fallbackDate = "") {
         if (!oldPath || !newPath) return;
         if (!this.settings.noteIdentityDates || typeof this.settings.noteIdentityDates !== "object") {
@@ -2106,13 +2095,13 @@ module.exports = EagleBridgeMobilePlugin;
           console.warn("Failed to save note identity date after rename:", error);
         });
       }
-    
+
       getCanvasIdentityDateForPath(path) {
         if (!path || !this.settings.canvasIdentityDates || typeof this.settings.canvasIdentityDates !== "object") return "";
         const existing = this.settings.canvasIdentityDates[path];
         return isIdentityDate(existing) ? existing : "";
       }
-    
+
       moveCanvasIdentityDate(oldPath, newPath, fallbackDate = "") {
         if (!oldPath || !newPath) return;
         if (!this.settings.canvasIdentityDates || typeof this.settings.canvasIdentityDates !== "object") {
@@ -2129,7 +2118,7 @@ module.exports = EagleBridgeMobilePlugin;
           console.warn("Failed to save Canvas identity date after rename:", error);
         });
       }
-    
+
       async markTrashedEagleBridgeImages(root) {
         this.removeAllNoteTrashBadges(root);
         const images = Array.from(root.querySelectorAll ? root.querySelectorAll("img") : []);
@@ -2138,12 +2127,12 @@ module.exports = EagleBridgeMobilePlugin;
           const src = String(image.getAttribute("src") || "");
           return Boolean(extractEagleBridgeItemIdFromText(src));
         });
-    
+
         await mapWithConcurrency(eagleImages, 4, async image => {
           if (!image.isConnected) return;
           const itemId = extractEagleBridgeItemIdFromText(String(image.getAttribute("src") || ""));
           if (!itemId) return;
-    
+
           const item = await this.queryEagleItemInfo(itemId);
           if (!image.isConnected) return;
           if (item && isEagleItemTrashed(item)) {
@@ -2159,19 +2148,19 @@ module.exports = EagleBridgeMobilePlugin;
           }
         });
       }
-    
+
       ensureTrashBadge(image) {
         const anchor = getTrashBadgeAnchor(image);
         removeTrashBadgesForImage(image);
         if (anchor) anchor.classList.add("eaglebridge-trash-anchor");
       }
-    
+
       removeTrashBadge(image) {
         const anchor = getTrashBadgeAnchor(image);
         if (anchor) anchor.classList.remove("eaglebridge-trash-anchor");
         removeTrashBadgesForImage(image);
       }
-    
+
       removeAllNoteTrashBadges(root) {
         if (!root || !root.querySelectorAll) return;
         const badges = Array.from(root.querySelectorAll(".eaglebridge-trash-badge"));
@@ -2181,17 +2170,17 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }
       }
-    
+
       scheduleAutoSyncForModifiedFile(file, mode = "diff") {
         if (!(file instanceof TFile) || !isSupportedSourceFile(file)) return;
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile || activeFile.path !== file.path) return;
-    
+
         this.autoSyncScheduler.schedule(file.path, 500, async () => {
           await this.autoSyncEagleBridgeLinksForFile(file, mode);
         });
       }
-    
+
       async rememberAttachmentReferenceSignature(file) {
         if (!(file instanceof TFile) || !isSupportedSourceFile(file)) return;
         try {
@@ -2199,7 +2188,7 @@ module.exports = EagleBridgeMobilePlugin;
           this.attachmentReferenceSignatures.set(file.path, getAttachmentReferenceSignature(text, file.extension));
         } catch (_) {}
       }
-    
+
       scheduleSemanticSourceModify(file) {
         if (!(file instanceof TFile) || !isSupportedSourceFile(file)) return;
         this.semanticModifyScheduler.schedule(file.path, 180, async () => {
@@ -2219,7 +2208,7 @@ module.exports = EagleBridgeMobilePlugin;
           this.scheduleReferenceViewRefresh(file);
         });
       }
-    
+
       async autoSyncEagleBridgeLinksForFile(file, mode = "diff") {
         try {
           const context = await this.getAssetContext(file, false);
@@ -2233,7 +2222,7 @@ module.exports = EagleBridgeMobilePlugin;
             || new Set(association ? association.itemIds : []);
           const currentIds = new Set(itemIds);
           const removedIds = Array.from(rememberedIds).filter(id => id && !currentIds.has(id));
-    
+
           // A removed link must relinquish only this source's ownership.  This is
           // deliberately done before persisting the new association so a later
           // source-file delete cannot touch an already-unlinked Eagle item.
@@ -2257,7 +2246,7 @@ module.exports = EagleBridgeMobilePlugin;
           console.warn("Failed to auto-sync EagleBridge link tags:", error);
         }
       }
-    
+
       async rememberCurrentFileEagleBridgeIds(file = null) {
         const targetFile = file || this.app.workspace.getActiveFile();
         if (!(targetFile instanceof TFile) || !isSupportedSourceFile(targetFile)) return;
@@ -2281,7 +2270,7 @@ module.exports = EagleBridgeMobilePlugin;
           console.warn("Failed to remember EagleBridge link ids:", error);
         }
       }
-    
+
       getManagedSourceAssetAssociation(sourcePath) {
         const key = normalizeVaultPath(sourcePath);
         const record = this.settings.managedSourceAssetAssociations && this.settings.managedSourceAssetAssociations[key];
@@ -2291,7 +2280,7 @@ module.exports = EagleBridgeMobilePlugin;
           tags: Array.from(new Set((record.tags || []).map(tag => String(tag || "").trim()).filter(Boolean)))
         };
       }
-    
+
       async rememberManagedSourceAssetAssociation(file, context, itemIds) {
         if (!(file instanceof TFile) || !isSupportedSourceFile(file) || !context) return false;
         const sourcePath = normalizeVaultPath(file.path);
@@ -2311,7 +2300,7 @@ module.exports = EagleBridgeMobilePlugin;
         await this.saveSettings();
         return true;
       }
-    
+
       async renameManagedSourceAssetAssociation(file, oldPath) {
         if (!(file instanceof TFile) || !isSupportedSourceFile(file)) return false;
         const oldKey = normalizeVaultPath(oldPath);
@@ -2328,19 +2317,19 @@ module.exports = EagleBridgeMobilePlugin;
         await this.saveSettings();
         return true;
       }
-    
+
       async cleanupDeletedSourceFile(file) {
         if (!(file instanceof TFile) || !isSupportedSourceFile(file)) return;
         const sourcePath = normalizeVaultPath(file.path);
         if (!sourcePath) return;
-    
+
         const association = this.getManagedSourceAssetAssociation(sourcePath);
         const folderRecord = this.settings.managedEagleFoldersBySource && this.settings.managedEagleFoldersBySource[sourcePath];
         const rootId = String(this.settings.eagleFolderId || "").trim();
         const folderId = String(folderRecord && folderRecord.id || "").trim();
         const itemIds = association ? association.itemIds : [];
         let folderDeleted = false;
-    
+
         try {
           if (folderId && rootId && folderId !== rootId && itemIds.length) {
             for (const itemId of itemIds) {
@@ -2387,13 +2376,13 @@ module.exports = EagleBridgeMobilePlugin;
           await this.saveSettings();
         }
       }
-    
+
       async cleanupRemovedContextReferences(context, itemIds, association = null) {
         const uniqueIds = Array.from(new Set((itemIds || [])
           .map(id => stripInfoSuffix(id))
           .filter(Boolean)));
         if (!context || !uniqueIds.length) return { detached: 0, tagsRemoved: 0 };
-    
+
         const rootId = String(this.settings.eagleFolderId || "").trim();
         const sourcePath = context.file instanceof TFile ? normalizeVaultPath(context.file.path) : "";
         const record = sourcePath && this.settings.managedEagleFoldersBySource
@@ -2401,7 +2390,7 @@ module.exports = EagleBridgeMobilePlugin;
           : null;
         const folderId = String(record && record.id || await this.findExistingEagleFolderIdForContext(context) || "").trim();
         let detached = 0;
-    
+
         if (this.settings.folderManagementEnabled !== false && folderId && folderId !== rootId) {
           for (const itemId of uniqueIds) {
             try {
@@ -2412,7 +2401,7 @@ module.exports = EagleBridgeMobilePlugin;
             }
           }
         }
-    
+
         // Preserve all other source folders.  An asset only returns to the
         // configured Obsidian root when removing this source left it unfiled.
         if (this.settings.folderManagementEnabled !== false && rootId) {
@@ -2424,7 +2413,7 @@ module.exports = EagleBridgeMobilePlugin;
             }
           }
         }
-    
+
         const tagsToClean = association && association.tags && association.tags.length
           ? association.tags
           : this.getContextTagsToClean(context);
@@ -2433,7 +2422,7 @@ module.exports = EagleBridgeMobilePlugin;
           : 0;
         return { detached, tagsRemoved };
       }
-    
+
       scheduleReferenceViewRefresh(file = null, delay = 250) {
         const activeFile = this.app.workspace.getActiveFile();
         const activePath = activeFile instanceof TFile ? activeFile.path : "";
@@ -2442,12 +2431,12 @@ module.exports = EagleBridgeMobilePlugin;
           await this.refreshReferenceViewsForCurrentNote(file);
         });
       }
-    
+
       cancelReferenceViewRefresh() {
         this.referenceViewRefreshScheduler && this.referenceViewRefreshScheduler.cancel("current-reference-view");
         this.referenceViewRefreshQueued = false;
       }
-    
+
       async runWithReferenceViewRefreshPaused(task, refreshFile = null) {
         this.referenceViewOperationDepth += 1;
         try {
@@ -2459,27 +2448,27 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }
       }
-    
+
       async refreshReferenceViewsForCurrentNote(file = null, options = {}) {
         const force = options.force === true;
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
         if (!leaves.length) return;
-    
+
         if (file && file instanceof TFile) {
           const activeFile = this.app.workspace.getActiveFile();
           if (!activeFile || activeFile.path !== file.path) return;
         }
-    
+
         if (!force && this.referenceViewOperationDepth > 0) {
           this.referenceViewRefreshQueued = true;
           return;
         }
-    
+
         if (this.referenceViewRefreshing) {
           this.referenceViewRefreshQueued = true;
           return;
         }
-    
+
         this.referenceViewRefreshing = true;
         try {
           do {
@@ -2497,13 +2486,13 @@ module.exports = EagleBridgeMobilePlugin;
           this.referenceViewRefreshing = false;
         }
       }
-    
+
       invalidateLibraryReferenceSummaries() {
         for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
           leaf.view?.invalidateLibraryReferenceSummary?.();
         }
       }
-    
+
       migrateSettings() {
         let changed = false;
         const eagleFolderId = normalizeEagleFolderId(this.settings.eagleFolderId);
@@ -2614,7 +2603,7 @@ module.exports = EagleBridgeMobilePlugin;
           this.saveSettings();
         }
       }
-    
+
       async openReferenceView() {
         const file = this.app.workspace.getActiveFile();
         if (file && !isSupportedSourceFile(file)) {
@@ -2622,18 +2611,18 @@ module.exports = EagleBridgeMobilePlugin;
           return;
         }
         const context = file ? await this.getAssetContext(file, true) : null;
-    
+
         let leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0];
         if (file && leaf && leaf.view && leaf.view.currentFilePath === file.path) {
           this.app.workspace.detachLeavesOfType(VIEW_TYPE);
           return;
         }
-    
+
         if (!leaf) {
           leaf = this.app.workspace.getRightLeaf(false);
           await leaf.setViewState({ type: VIEW_TYPE, active: true });
         }
-    
+
         this.app.workspace.revealLeaf(leaf);
         if (context) {
           await this.rememberCurrentFileEagleBridgeIds(file);
@@ -2642,7 +2631,7 @@ module.exports = EagleBridgeMobilePlugin;
           await leaf.view.loadObsidianLibrary();
         }
       }
-    
+
       async getCurrentNoteContext(showNotice = true) {
         const file = this.app.workspace.getActiveFile();
         if (!file || !isSupportedSourceFile(file)) {
@@ -2651,7 +2640,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return this.getAssetContext(file, showNotice);
       }
-    
+
       async getAssetContext(file, showNotice) {
         if (!file) return null;
         if (file.extension === "canvas") {
@@ -2659,7 +2648,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return this.getNoteContext(file, showNotice);
       }
-    
+
       async getCanvasContext(file) {
         const identity = await this.getCanvasIdentity(file);
         return {
@@ -2670,13 +2659,13 @@ module.exports = EagleBridgeMobilePlugin;
           kind: "canvas"
         };
       }
-    
+
       async getCanvasIdentity(file) {
         const name = normalizeIdentityTitle(stripExtension(file.name).trim());
         const date = await this.getCanvasIdentityDate(file);
         return buildTitleDateIdentity(name, date);
       }
-    
+
       async getCanvasIdentityDate(file) {
         if (!this.settings.canvasIdentityDates || typeof this.settings.canvasIdentityDates !== "object") {
           this.settings.canvasIdentityDates = {};
@@ -2689,7 +2678,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return date;
       }
-    
+
       async getNoteContext(file, showNotice) {
         const identity = await this.getNoteIdentity(file);
         return {
@@ -2700,13 +2689,13 @@ module.exports = EagleBridgeMobilePlugin;
           kind: "markdown"
         };
       }
-    
+
       async getNoteIdentity(file) {
         const name = normalizeIdentityTitle(file && file.basename ? file.basename : "note");
         const date = await this.getNoteIdentityDate(file);
         return buildTitleDateIdentity(name, date);
       }
-    
+
       async getNoteIdentityDate(file) {
         if (!this.settings.noteIdentityDates || typeof this.settings.noteIdentityDates !== "object") {
           this.settings.noteIdentityDates = {};
@@ -2719,21 +2708,21 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return date;
       }
-    
+
       buildTagCandidates(identity) {
         if (this.settings.tagManagementEnabled === false) return [];
         return [this.renderTagName(identity, this.settings.noteTagNameTemplate)].filter(Boolean);
       }
-    
+
       buildNoteTags(identity, file) {
         return this.buildTagCandidates(identity);
       }
-    
+
       buildCanvasTagCandidates(name) {
         if (this.settings.tagManagementEnabled === false) return [];
         return [this.renderTagName(name, this.settings.canvasTagNameTemplate)].filter(Boolean);
       }
-    
+
       getManagedTagPrefixes() {
         const templates = [
           this.settings.noteTagNameTemplate || DEFAULT_SETTINGS.noteTagNameTemplate,
@@ -2744,7 +2733,7 @@ module.exports = EagleBridgeMobilePlugin;
           .filter(Boolean);
         return Array.from(new Set(["Obsidian-", "Obsidian-cavs-", ...prefixes]));
       }
-    
+
       renderTagName(identity, template) {
         const rawIdentity = String(identity || "").trim();
         const match = rawIdentity.match(/^(.*)-(\d{8})$/);
@@ -2757,7 +2746,7 @@ module.exports = EagleBridgeMobilePlugin;
           .replace(/\{\{[^{}]*\}\}/g, "");
         return normalizeIdentityTitle(rendered) || buildTitleDateIdentity(cleanTitle, cleanDate);
       }
-    
+
       async queryEagleItemsByTags(tags) {
         const seen = new Set();
         const allItems = [];
@@ -2772,7 +2761,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return allItems;
       }
-    
+
       async queryEagleItemsForNoteContext(context) {
         const items = [];
         const seen = new Set();
@@ -2785,7 +2774,7 @@ module.exports = EagleBridgeMobilePlugin;
           seen.add(itemId);
           uniqueRefs.push(itemRef);
         }
-    
+
         const eagleItems = await mapWithConcurrency(uniqueRefs, 6, async itemRef => {
           const itemId = itemRef.id;
           const item = await this.queryEagleItemInfo(itemId);
@@ -2804,11 +2793,11 @@ module.exports = EagleBridgeMobilePlugin;
           });
         });
         items.push(...eagleItems);
-    
+
         if (context.kind === "canvas") {
           items.push(...this.findCanvasNoteLinks(text, context.file));
         }
-    
+
         const combined = items.concat(await this.queryNoteAttachmentItemsForFile(context.file, text));
         if (context.kind !== "markdown") return combined;
         return combined
@@ -2820,7 +2809,7 @@ module.exports = EagleBridgeMobilePlugin;
           })
           .map(entry => entry.item);
       }
-    
+
       async getCurrentContextEagleItems(context, existingText = null) {
         if (!context || !(context.file instanceof TFile)) return [];
         const text = existingText !== null ? existingText : await this.app.vault.read(context.file);
@@ -2834,7 +2823,7 @@ module.exports = EagleBridgeMobilePlugin;
           seen.add(itemId);
           items.push(detailed);
         };
-    
+
         const directIds = Array.from(new Set(this.extractEagleBridgeItemIds(text)
           .map(id => stripInfoSuffix(id))
           .filter(Boolean)));
@@ -2846,26 +2835,26 @@ module.exports = EagleBridgeMobilePlugin;
           seen.add(item.id);
           items.push(item);
         }
-    
+
         if (context.tags && context.tags.length) {
           const taggedItems = await this.queryEagleItemsByTags(context.tags);
           for (const item of taggedItems) {
             await addItem(item);
           }
         }
-    
+
         return items;
       }
-    
+
       getImportContextTags(context) {
         if (this.settings.tagManagementEnabled === false) return [];
         return Array.isArray(context && context.tags) ? context.tags : [];
       }
-    
+
       async organizeCurrentContextEagleItemsIntoFolder(context, existingText = null, options = {}) {
         if (this.settings.folderManagementEnabled === false) return 0;
         if (!context || !(context.file instanceof TFile)) return 0;
-    
+
         const text = existingText !== null ? existingText : await this.app.vault.read(context.file);
         // A plain note or Canvas must not create a dedicated Eagle folder merely
         // because its reference view refreshes. Only direct EagleBridge links are
@@ -2874,20 +2863,20 @@ module.exports = EagleBridgeMobilePlugin;
           .map(id => stripInfoSuffix(id))
           .filter(Boolean));
         if (!directRefIds.size) return 0;
-    
+
         const items = await this.getCurrentContextEagleItems(context, text);
         const directItems = items.filter(item => directRefIds.has(stripInfoSuffix(getEagleItemId(item))));
         if (!directItems.length) return 0;
-    
+
         const folderId = await this.resolveEagleFolderIdForContext(context, {
           createMissing: options.createMissing !== false
         });
         const rootId = String(this.settings.eagleFolderId || "").trim();
         if (!folderId || folderId === rootId) return 0;
-    
+
         let changed = 0;
         const replacementIds = new Map();
-    
+
         for (const item of directItems) {
           const itemId = getEagleItemId(item);
           if (!itemId || itemHasEagleFolder(item, folderId)) continue;
@@ -2900,7 +2889,7 @@ module.exports = EagleBridgeMobilePlugin;
             console.warn("Eagle helper could not add existing item to folder; skipped reimport to avoid duplicate import:", itemId, folderId);
           }
         }
-    
+
         if (replacementIds.size) {
           const latestText = await this.app.vault.read(context.file);
           const nextText = replaceEagleBridgeIdsInText(latestText, replacementIds);
@@ -2909,10 +2898,10 @@ module.exports = EagleBridgeMobilePlugin;
             await this.rememberCurrentFileEagleBridgeIds(context.file);
           }
         }
-    
+
         return changed;
       }
-    
+
       async getOriginalPathForEagleItem(item) {
         const directPaths = [
           item && item.fileURL,
@@ -2923,19 +2912,20 @@ module.exports = EagleBridgeMobilePlugin;
         for (const candidate of directPaths) {
           if (nodeFs.existsSync(candidate) && nodeFs.statSync(candidate).isFile()) return candidate;
         }
-    
+
         const thumbnailUrl = await this.getEagleItemThumbnailUrl(item);
         const thumbnailPath = fileUrlToLocalPath(thumbnailUrl) || eagleLocalPathToFsPath(thumbnailUrl);
         if (!thumbnailPath) return "";
         const infoDir = nodePath.dirname(thumbnailPath);
         return findOriginalFileInEagleInfoDir(infoDir, item);
       }
-    
+
       async queryNoteAttachmentItemsForFile(file, existingText = null) {
         const text = existingText !== null ? existingText : await this.app.vault.read(file);
+        const markdownLinks = file.extension === "canvas" ? null : this.collectMarkdownAttachmentLinks(text, file, { includeMissing: true });
         const localLinks = file.extension === "canvas"
           ? this.findCanvasAttachmentLinks(text, file)
-          : this.findLocalAttachmentLinks(text, file, true);
+          : markdownLinks.localLinks;
         const items = [];
         const seen = new Set();
         for (const link of localLinks) {
@@ -2976,7 +2966,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         const externalLocalLinks = file.extension === "canvas"
           ? this.findCanvasExternalLocalAttachmentLinks(text)
-          : this.findExternalLocalAttachmentLinks(text);
+          : markdownLinks.externalLocalLinks;
         for (const link of externalLocalLinks) {
           const key = `external-local:${link.localPath}`;
           if (seen.has(key)) continue;
@@ -2997,7 +2987,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         const internetLinks = file.extension === "canvas"
           ? this.findCanvasInternetAttachmentLinks(text, file)
-          : this.findInternetAttachmentLinks(text);
+          : markdownLinks.internetLinks;
         if (file.extension === "md" || file.extension === "canvas") {
           for (const link of internetLinks) {
             const parsed = parseAttachmentReference({ label: link.name, target: link.url, start: link.start, end: link.end });
@@ -3022,7 +3012,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return items;
       }
-    
+
       async queryEagleItemsByTag(tag) {
         const body = await this.requestEagleApiJson({
           url: this.getEagleApiUrl(`api/item/list?tags=${encodeURIComponent(tag)}`),
@@ -3030,7 +3020,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
         return Array.isArray(body && body.data) ? body.data : [];
       }
-    
+
       async queryEagleItemsByKeyword(keyword) {
         const value = String(keyword || "").trim();
         if (!value) return [];
@@ -3045,7 +3035,7 @@ module.exports = EagleBridgeMobilePlugin;
           return [];
         }
       }
-    
+
       async queryEagleItemsByKeywords(keywords) {
         const seen = new Set();
         const items = [];
@@ -3060,7 +3050,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return items;
       }
-    
+
       resolveAssetSourceRange(file, text, item) {
         if (!file || !item) return null;
         const source = String(text || "");
@@ -3078,14 +3068,14 @@ module.exports = EagleBridgeMobilePlugin;
           // while the saved source range identifies this occurrence of that item.
           return exact || (candidates.length === 1 ? candidates[0] : null);
         };
-    
+
         const eagleItemId = stripInfoSuffix(getEagleItemId(item));
         if (eagleItemId) {
           const reference = chooseRange(this.extractEagleBridgeItemReferences(source)
             .filter(candidate => stripInfoSuffix(candidate.id) === eagleItemId));
           if (reference) return reference;
         }
-    
+
         if (item.__assetSource === "local") {
           const localPath = item.__localFile && item.__localFile.path;
           const localTarget = item.__localTarget;
@@ -3096,21 +3086,21 @@ module.exports = EagleBridgeMobilePlugin;
             )));
           if (reference) return reference;
         }
-    
+
         if (item.__assetSource === "external-local") {
           const localPath = String(item.__externalLocalPath || "");
           const reference = chooseRange(this.findExternalLocalAttachmentLinks(source)
             .filter(candidate => candidate.localPath === localPath));
           if (reference) return reference;
         }
-    
+
         if (item.__assetSource === "internet") {
           const url = String(item.url || item.fileURL || "");
           const reference = chooseRange(this.findInternetAttachmentLinks(source)
             .filter(candidate => candidate.url === url));
           if (reference) return reference;
         }
-    
+
         if (cachedRange) {
           const cachedText = source.slice(cachedRange.start, cachedRange.end);
           const stableValue = eagleItemId || item.__localTarget || item.url || item.name;
@@ -3118,14 +3108,14 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return null;
       }
-    
+
       async waitForEditorLayout() {
         if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") return;
         await new Promise(resolve => window.requestAnimationFrame(() => {
           window.requestAnimationFrame(resolve);
         }));
       }
-    
+
       isMarkdownLeafForFile(leaf, filePath = "") {
         const view = leaf && leaf.view;
         const file = view && view.file;
@@ -3133,18 +3123,18 @@ module.exports = EagleBridgeMobilePlugin;
           && file.extension === "md"
           && (!filePath || file.path === filePath);
       }
-    
+
       rememberActiveMarkdownLeaf(leaf = this.app.workspace.activeLeaf) {
         if (this.isMarkdownLeafForFile(leaf)) this.lastActiveMarkdownLeaf = leaf;
       }
-    
+
       isWorkspaceLeafVisible(leaf) {
         const element = leaf && (leaf.containerEl || (leaf.view && leaf.view.containerEl));
         if (!element || !element.isConnected || typeof element.getBoundingClientRect !== "function") return false;
         const rect = element.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;
       }
-    
+
       findPreferredMarkdownLeaf(filePath, preferredLeaf = null) {
         const workspace = this.app && this.app.workspace;
         const matchingLeaves = workspace && typeof workspace.getLeavesOfType === "function"
@@ -3158,7 +3148,7 @@ module.exports = EagleBridgeMobilePlugin;
           this.isMarkdownLeafForFile(leaf, filePath)
           && leaves.indexOf(leaf) === index
         ));
-    
+
         // Sidebar clicks make the sidebar leaf active. Keep navigation tied to the
         // visible Markdown leaf that supplied the sidebar context instead of an
         // arbitrary duplicate/hidden tab whose saved scroll position may win later.
@@ -3168,7 +3158,7 @@ module.exports = EagleBridgeMobilePlugin;
           || matchingLeaves[0]
           || null;
       }
-    
+
       getRenderedAssetCandidates(view, item) {
         const root = view && view.containerEl;
         if (!root || typeof root.querySelectorAll !== "function") return [];
@@ -3183,7 +3173,7 @@ module.exports = EagleBridgeMobilePlugin;
         const normalizedLocalPath = safeDecode(localPath).replace(/\\/g, "/").toLowerCase();
         const localName = normalizedLocalPath.split("/").pop() || "";
         const displayName = safeDecode(getAssetDisplayName(item)).toLowerCase();
-    
+
         const candidates = Array.from(root.querySelectorAll(".markdown-source-view img, .markdown-preview-view img"))
           .map(element => {
             const values = [
@@ -3206,7 +3196,7 @@ module.exports = EagleBridgeMobilePlugin;
           .sort((left, right) => right.score - left.score);
         return itemId ? candidates.filter(candidate => candidate.exactId) : candidates;
       }
-    
+
       chooseNearestRenderedAsset(candidates) {
         if (!candidates.length) return null;
         const viewportCenter = typeof window !== "undefined" ? window.innerHeight / 2 : 0;
@@ -3218,7 +3208,7 @@ module.exports = EagleBridgeMobilePlugin;
             : best;
         }, null).element;
       }
-    
+
       async waitForRenderedAssetToSettle(element, generation, timeout = 2200) {
         if (!element || typeof window === "undefined") return false;
         const started = Date.now();
@@ -3235,7 +3225,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return false;
       }
-    
+
       async waitForRenderedAsset(view, item, generation, timeout = 1600) {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3246,7 +3236,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return null;
       }
-    
+
       flashRenderedAsset(element, generation) {
         if (!element || generation !== this.sourceRevealGeneration) return false;
         element.classList.remove("eaglebridge-source-target-highlight");
@@ -3255,14 +3245,14 @@ module.exports = EagleBridgeMobilePlugin;
         window.setTimeout(() => element.classList.remove("eaglebridge-source-target-highlight"), 1200);
         return true;
       }
-    
+
       async scrollRenderedAssetIntoView(element, generation) {
         if (!element || typeof element.scrollIntoView !== "function") return false;
         element.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
         if (!await this.waitForRenderedAssetToSettle(element, generation)) return false;
         return this.flashRenderedAsset(element, generation);
       }
-    
+
       async revealAssetInSource(filePath, item, preferredLeaf = null) {
         if (!filePath || !item) return;
         const generation = ++this.sourceRevealGeneration;
@@ -3273,7 +3263,7 @@ module.exports = EagleBridgeMobilePlugin;
           return;
         }
         if (file.extension !== "md") return;
-    
+
         const text = await this.app.vault.read(file);
         const sourceRange = this.resolveAssetSourceRange(file, text, item);
         if (!sourceRange) {
@@ -3283,7 +3273,7 @@ module.exports = EagleBridgeMobilePlugin;
         const from = indexToLineCh(text, sourceRange.start);
         const to = indexToLineCh(text, sourceRange.end);
         let targetLeaf = this.findPreferredMarkdownLeaf(file.path, preferredLeaf);
-    
+
         let openedFileInLeaf = false;
         if (!targetLeaf) {
           targetLeaf = this.app.workspace.getLeaf("tab");
@@ -3292,9 +3282,9 @@ module.exports = EagleBridgeMobilePlugin;
             openedFileInLeaf = true;
           }
         }
-    
+
         if (!targetLeaf) return;
-    
+
         this.lastActiveMarkdownLeaf = targetLeaf;
         if (openedFileInLeaf || !this.isWorkspaceLeafVisible(targetLeaf)) {
           this.app.workspace.setActiveLeaf(targetLeaf, { focus: false });
@@ -3313,7 +3303,7 @@ module.exports = EagleBridgeMobilePlugin;
           if (renderedAsset && await this.scrollRenderedAssetIntoView(renderedAsset, generation)) return;
         }
       }
-    
+
       async revealAssetInCanvas(file, item, preferredLeaf = null) {
         const generation = ++this.sourceRevealGeneration;
         const text = await this.app.vault.read(file);
@@ -3358,7 +3348,7 @@ module.exports = EagleBridgeMobilePlugin;
           this.flashRenderedAsset(element, generation);
         }
       }
-    
+
       smoothScrollEditorToRange(editor, view, range) {
         if (!editor || typeof editor.scrollIntoView !== "function") return;
         const scroller = view && view.containerEl && view.containerEl.querySelector
@@ -3368,7 +3358,7 @@ module.exports = EagleBridgeMobilePlugin;
           editor.scrollIntoView(range, true);
           return;
         }
-    
+
         const previousBehavior = scroller.style.scrollBehavior;
         scroller.style.scrollBehavior = "smooth";
         editor.scrollIntoView(range, true);
@@ -3376,7 +3366,7 @@ module.exports = EagleBridgeMobilePlugin;
           if (scroller.isConnected) scroller.style.scrollBehavior = previousBehavior;
         }, 460);
       }
-    
+
       getTransferFiles(dataTransfer) {
         if (!dataTransfer) return [];
         const candidates = [
@@ -3394,7 +3384,7 @@ module.exports = EagleBridgeMobilePlugin;
           return true;
         });
       }
-    
+
       getNativeTransferFilePath(file) {
         try {
           const electron = require("electron");
@@ -3407,12 +3397,12 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return file && typeof file.path === "string" ? file.path : "";
       }
-    
+
       async materializeTransferFile(file) {
         const nativePath = this.getNativeTransferFilePath(file);
         if (nativePath) return { path: nativePath, temporary: false };
         if (!file || typeof file.arrayBuffer !== "function") return null;
-    
+
         const tempDir = nodePath.join(nodeOs.tmpdir(), "eaglebridge-companion-drops");
         nodeFs.mkdirSync(tempDir, { recursive: true });
         const safeName = String(file.name || "drop.bin").replace(/[<>:"/\\|?*\x00-\x1f]/g, "-");
@@ -3420,7 +3410,7 @@ module.exports = EagleBridgeMobilePlugin;
         nodeFs.writeFileSync(targetPath, Buffer.from(await file.arrayBuffer()));
         return { path: targetPath, temporary: true };
       }
-    
+
       scheduleTemporaryDropCleanup(filePath) {
         window.setTimeout(() => {
           try {
@@ -3430,13 +3420,13 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }, 30_000);
       }
-    
+
       extractEagleItemIdFromDroppedPath(filePath) {
         const normalized = String(filePath || "").replace(/\\/g, "/");
         const match = normalized.match(/\/([^/]+)\.info(?:\/|$)/i);
         return match ? stripInfoSuffix(match[1]) : "";
       }
-    
+
       getActiveMarkdownDropTarget(editor) {
         const leaf = this.app.workspace.activeLeaf;
         const view = leaf && leaf.view;
@@ -3445,7 +3435,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (editor && view.editor !== editor) return null;
         return { view, editor: view.editor, file };
       }
-    
+
       syncEditorCursorToDrop(editor, event) {
         const cm = editor && editor.cm;
         if (!cm || typeof cm.posAtCoords !== "function" || typeof editor.offsetToPos !== "function") return false;
@@ -3455,12 +3445,12 @@ module.exports = EagleBridgeMobilePlugin;
         editor.setSelection(position, position);
         return true;
       }
-    
+
       isEditorFileDrop(event) {
         const target = event && event.target;
         return Boolean(target && typeof target.closest === "function" && target.closest(".cm-editor"));
       }
-    
+
       handleEditorDragOver(event) {
         if (this.settings.autoImportAttachments === false) return;
         if (!this.isEditorFileDrop(event)) return;
@@ -3469,7 +3459,7 @@ module.exports = EagleBridgeMobilePlugin;
         const target = this.getActiveMarkdownDropTarget();
         if (target) this.syncEditorCursorToDrop(target.editor, event);
       }
-    
+
       async ensureContextEagleFolder(context, item) {
         if (!item || this.settings.folderManagementEnabled === false) return item;
         const itemId = getEagleItemId(item);
@@ -3482,21 +3472,21 @@ module.exports = EagleBridgeMobilePlugin;
         if (!updated) return item;
         return await this.queryEagleItemInfo(itemId, { force: true }) || item;
       }
-    
+
       async ensureDroppedItemFolder(context, item) {
         return this.ensureContextEagleFolder(context, item);
       }
-    
+
       async buildDroppedEagleReference(context, transferFile) {
         const materialized = await this.materializeTransferFile(transferFile);
         if (!materialized || !materialized.path) throw new Error(`无法读取拖入的文件：${transferFile.name || "未知文件"}`);
-    
+
         try {
           const tags = this.getImportContextTags(context);
           const existingItemId = this.extractEagleItemIdFromDroppedPath(materialized.path);
           let item = existingItemId ? await this.queryEagleItemInfo(existingItemId, { force: true }) : null;
           const sourceName = String(transferFile.name || nodePath.basename(materialized.path) || "attachment");
-    
+
           if (!item) {
             // Match the regular attachment-import path: reuse an exact-content
             // Eagle item before asking Eagle to import, which avoids its duplicate dialog.
@@ -3504,7 +3494,7 @@ module.exports = EagleBridgeMobilePlugin;
             if (reusable.cancelled) throw new Error("已取消复用已有 Eagle 素材。");
             item = reusable.item;
           }
-    
+
           if (!item) {
             const addResult = await this.addPathToEagle(await this.withContextEagleFolder({
               path: materialized.path,
@@ -3514,14 +3504,14 @@ module.exports = EagleBridgeMobilePlugin;
             }, context));
             item = await this.findImportedEagleItem({ name: sourceName }, tags, addResult);
           }
-    
+
           item = await this.ensureImportedEagleItemTags(context, item);
           item = await this.ensureDroppedItemFolder(context, item);
           const itemId = getEagleItemId(item);
           const bridgeUrl = this.getEagleBridgeUrl(item);
           const url = await this.getEagleItemEmbedUrl(item);
           if (!item || (!bridgeUrl && !url)) throw new Error(`Eagle 未返回可引用的素材：${transferFile.name || "未知文件"}`);
-    
+
           return this.buildReplacement({ name: sourceName }, {
             displayName: this.getCanonicalEagleFileName(item, sourceName),
             itemId,
@@ -3532,7 +3522,7 @@ module.exports = EagleBridgeMobilePlugin;
           if (materialized.temporary) this.scheduleTemporaryDropCleanup(materialized.path);
         }
       }
-    
+
       async handleEditorDrop(event, editor) {
         if (this.settings.autoImportAttachments === false) return;
         if (!event || event.defaultPrevented || !this.isEditorFileDrop(event)) return;
@@ -3540,12 +3530,12 @@ module.exports = EagleBridgeMobilePlugin;
         if (!files.length || !files.every(file => isSupportedAttachment(file.name))) return;
         const target = this.getActiveMarkdownDropTarget(editor);
         if (!target) return;
-    
+
         this.syncEditorCursorToDrop(target.editor, event);
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
-    
+
         const context = await this.getAssetContext(target.file, false);
         if (!context) throw new Error("无法取得当前笔记的 Eagle 上下文。");
         const replacements = [];
@@ -3554,13 +3544,13 @@ module.exports = EagleBridgeMobilePlugin;
         target.editor.replaceSelection(replacements.join("\n"));
         new Notice(files.length === 1 ? "已写入 Eagle 引用。" : `已写入 ${files.length} 个 Eagle 引用。`);
       }
-    
+
       async importCurrentNoteAttachments() {
         const context = await this.getCurrentNoteContext();
         if (!context) return;
         await this.importAttachmentsForContext(context);
       }
-    
+
       async importAttachmentsForContext(context, options = {}) {
         if (!context) return;
         const run = task => options.refresh === false
@@ -3581,13 +3571,11 @@ module.exports = EagleBridgeMobilePlugin;
           });
           return;
         }
-    
+
         const text = await this.app.vault.read(context.file);
-        const localLinks = this.findLocalAttachmentLinks(text, context.file);
-        const externalLocalLinks = this.settings.importExternalLocalAttachments === true
-          ? this.findExternalLocalAttachmentLinks(text)
-          : [];
-        const internetLinks = this.findInternetAttachmentLinks(text);
+        const { localLinks, externalLocalLinks, internetLinks } = this.collectMarkdownAttachmentLinks(text, context.file, {
+          includeExternal: this.settings.importExternalLocalAttachments === true
+        });
         if (!localLinks.length && !externalLocalLinks.length && !internetLinks.length) {
           if (options.organize === false) return;
           const moved = await this.organizeCurrentContextEagleItemsIntoFolder(context, text, {
@@ -3600,7 +3588,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
           return;
         }
-    
+
         await run(async () => {
           await this.importAttachmentLinks(context, [...localLinks, ...externalLocalLinks], internetLinks, { silent: options.silent });
           if (options.organize !== false) {
@@ -3611,23 +3599,23 @@ module.exports = EagleBridgeMobilePlugin;
           }
         });
       }
-    
+
       async importLocalAttachmentItemFromPanel(filePath, item, options = {}) {
         const sourceFile = this.app.vault.getAbstractFileByPath(filePath || "");
         if (!(sourceFile instanceof TFile) || !isSupportedSourceFile(sourceFile)) {
           new Notice(this.t("noticeOpenNoteOrCanvas"));
           return;
         }
-    
+
         const localFile = item && item.__localFile;
         if (!(localFile instanceof TFile)) {
           new Notice(this.t("noticeNoAttachmentAtCursor"));
           return;
         }
-    
+
         const context = await this.getAssetContext(sourceFile, true);
         if (!context) return;
-    
+
         return this.runWithReferenceViewRefreshPaused(async () => {
           if (context.kind === "canvas") {
             return this.importCanvasAttachments(context, localFile.path, {
@@ -3635,7 +3623,7 @@ module.exports = EagleBridgeMobilePlugin;
               importedByPath: options.importedByPath
             });
           }
-    
+
           const text = await this.app.vault.read(sourceFile);
           const links = this.findLocalAttachmentLinks(text, sourceFile)
             .filter(link => link.file.path === localFile.path);
@@ -3657,7 +3645,7 @@ module.exports = EagleBridgeMobilePlugin;
           });
         }, sourceFile);
       }
-    
+
       async importAttachmentItemFromLibraryReferences(item, sourceFiles, options, importer) {
         const files = (Array.isArray(sourceFiles) ? sourceFiles : [])
           .filter(file => file instanceof TFile && isSupportedSourceFile(file));
@@ -3701,7 +3689,7 @@ module.exports = EagleBridgeMobilePlugin;
           (filePath, selectedItem, sharedOptions) => this.importLocalAttachmentItemFromPanel(filePath, selectedItem, sharedOptions)
         );
       }
-    
+
       async importExternalLocalAttachmentItemFromPanel(filePath, item, options = {}) {
         if (this.settings.importExternalLocalAttachments !== true) return;
         const sourceFile = this.app.vault.getAbstractFileByPath(filePath || "");
@@ -3713,7 +3701,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (!localPath) return;
         const context = await this.getAssetContext(sourceFile, true);
         if (!context) return;
-    
+
         return this.runWithReferenceViewRefreshPaused(async () => {
           if (context.kind === "canvas") {
             return this.importCanvasAttachments(context, localPath, {
@@ -3737,7 +3725,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }, sourceFile);
       }
-    
+
       async importExternalLocalAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
         return this.importAttachmentItemFromLibraryReferences(
           item,
@@ -3746,23 +3734,23 @@ module.exports = EagleBridgeMobilePlugin;
           (filePath, selectedItem, sharedOptions) => this.importExternalLocalAttachmentItemFromPanel(filePath, selectedItem, sharedOptions)
         );
       }
-    
+
       async importInternetAttachmentItemFromPanel(filePath, item, options = {}) {
         const sourceFile = this.app.vault.getAbstractFileByPath(filePath || "");
         if (!(sourceFile instanceof TFile) || !isSupportedSourceFile(sourceFile)) {
           new Notice(this.t("noticeOpenNoteOrCanvas"));
           return;
         }
-    
+
         const sourceUrl = String(item && (item.url || item.fileURL || (item.__internetLink && item.__internetLink.url)) || "").trim();
         if (!/^https?:\/\//i.test(sourceUrl)) {
           new Notice(this.t("noticeNoAttachmentAtCursor"));
           return;
         }
-    
+
         const context = await this.getAssetContext(sourceFile, true);
         if (!context) return;
-    
+
         return this.runWithReferenceViewRefreshPaused(async () => {
           if (context.kind === "canvas") {
             return this.importCanvasAttachments(context, sourceUrl, {
@@ -3791,7 +3779,7 @@ module.exports = EagleBridgeMobilePlugin;
           });
         }, sourceFile);
       }
-    
+
       async importInternetAttachmentItemFromLibrary(item, sourceFiles = [], options = {}) {
         return this.importAttachmentItemFromLibraryReferences(
           item,
@@ -3800,7 +3788,7 @@ module.exports = EagleBridgeMobilePlugin;
           (filePath, selectedItem, sharedOptions) => this.importInternetAttachmentItemFromPanel(filePath, selectedItem, sharedOptions)
         );
       }
-    
+
       async importCanvasAttachments(context, targetFilePath = "", options = {}) {
         const raw = options.sourceText !== undefined
           ? options.sourceText
@@ -3813,7 +3801,7 @@ module.exports = EagleBridgeMobilePlugin;
           if (!options.silent) new Notice(this.t("noticeCanvasImportUnsupported"));
           return { success: 0, failed: 1, reused: 0, changed: false };
         }
-    
+
         const nodes = Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [];
         const importedByPath = options.importedByPath instanceof Map
           ? options.importedByPath
@@ -3826,7 +3814,7 @@ module.exports = EagleBridgeMobilePlugin;
         let failed = 0;
         let reused = 0;
         let changed = false;
-    
+
         for (const node of nodes) {
           if (!node || typeof node !== "object") continue;
           const rawTarget = typeof node.file === "string" ? node.file : typeof node.url === "string" ? node.url : "";
@@ -3873,7 +3861,7 @@ module.exports = EagleBridgeMobilePlugin;
             importLink = { original: node.file, target: cleaned, file, start: 0, end: 0 };
           }
           if (targetFilePath && importKey !== targetFilePath) continue;
-    
+
           try {
             const importedItems = internetUrl ? importedByUrl : importedByPath;
             let imported = importedItems.get(importKey);
@@ -3891,25 +3879,25 @@ module.exports = EagleBridgeMobilePlugin;
                 if (imported.sourceFile instanceof TFile) importedFiles.push(imported);
               }
             }
-    
+
             if (!imported) {
               failed += 1;
               continue;
             }
-    
+
             const bridgeUrl = this.getEagleBridgeUrl(imported.item);
             if (!bridgeUrl) {
               failed += 1;
               continue;
             }
-    
+
             const size = normalizeCanvasNodeSize(node, imported.sourceFile.name);
             node.type = "link";
             node.url = this.buildCanvasEagleBridgeUrl(bridgeUrl, imported.sourceFile.name);
             node.width = size.width;
             node.height = size.height;
             delete node.file;
-    
+
             if (isPreviewableImage(imported.sourceFile.name)) {
               node.eagleBridgeManaged = true;
               node.eagleBridgeSourceUrl = bridgeUrl;
@@ -3925,7 +3913,7 @@ module.exports = EagleBridgeMobilePlugin;
               delete node.eagleBridgeLastWidth;
               delete node.eagleBridgeLastHeight;
             }
-    
+
             success += 1;
             changed = true;
           } catch (error) {
@@ -3933,34 +3921,34 @@ module.exports = EagleBridgeMobilePlugin;
             failed += 1;
           }
         }
-    
+
         if (!success && !failed) {
           if (!options.silent) new Notice(this.t("noticeCanvasImportUnsupported"));
           return { success, failed, reused, changed };
         }
-    
+
         if (changed) {
           await this.app.vault.modify(context.file, `${JSON.stringify(canvas, null, 2)}\n`);
           if (options.trashImported !== false) await this.trashImportedFiles(importedFiles);
           if (options.scheduleRefresh !== false) this.scheduleReferenceViewRefresh(context.file);
         }
-    
+
         if (!options.silent) {
           new Notice(this.t("noticeProcessedAttachments", { success, reused, failed }));
         }
         return { success, failed, reused, changed };
       }
-    
+
       async cleanupLocalCopiesForContext(context, options = {}) {
         if (!context) return { deleted: 0, skipped: 0 };
-    
+
         const text = await this.app.vault.read(context.file);
         const refs = this.extractEagleBridgeItemReferences(text);
         if (!refs.length) {
           if (!options.silent) new Notice(this.t("noticeNoEagleBridgeLinks"));
           return { deleted: 0, skipped: 0 };
         }
-    
+
         const protectedLocalPaths = options.protectedLocalPaths instanceof Set
           ? options.protectedLocalPaths
           : await this.getVaultReferencedLocalAttachmentPaths();
@@ -3973,7 +3961,7 @@ module.exports = EagleBridgeMobilePlugin;
         const deletedPaths = options.deletedPaths instanceof Set ? options.deletedPaths : new Set();
         const filesToTrash = new Map();
         let skipped = 0;
-    
+
         for (const ref of refs) {
           const item = ref && ref.id ? await this.queryEagleItemInfo(ref.id) : null;
           if (!item) {
@@ -4016,7 +4004,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
           if (!matched) skipped += 1;
         }
-    
+
         let deleted = 0;
         for (const file of filesToTrash.values()) {
           try {
@@ -4028,13 +4016,13 @@ module.exports = EagleBridgeMobilePlugin;
             skipped += 1;
           }
         }
-    
+
         if (!options.silent) {
           new Notice(this.t("noticeCleanedLocalCopies", { deleted, skipped }));
         }
         return { deleted, skipped };
       }
-    
+
       getSupportedVaultFilesByName(files = this.app.vault.getFiles()) {
         const filesByName = new Map();
         for (const file of files) {
@@ -4048,7 +4036,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return filesByName;
       }
-    
+
       async getVaultReferencedLocalAttachmentPaths(files = this.getAllObsidianAssetSourceFiles()) {
         const paths = new Set();
         for (const file of files) {
@@ -4062,7 +4050,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return paths;
       }
-    
+
       async filesHaveSameContent(firstPath, secondPath) {
         try {
           const [firstStat, secondStat] = await Promise.all([
@@ -4081,13 +4069,13 @@ module.exports = EagleBridgeMobilePlugin;
           return false;
         }
       }
-    
+
       async isVerifiedLocalCopyOfEagleItem(file, item) {
         const localPath = this.getFullPath(file);
         const eaglePath = await this.getOriginalPathForEagleItem(item);
         return Boolean(localPath && eaglePath && await this.filesHaveSameContent(localPath, eaglePath));
       }
-    
+
       getSupportedVaultFilesByStem(filesByName) {
         const filesByStem = new Map();
         for (const files of filesByName.values()) {
@@ -4099,131 +4087,12 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return filesByStem;
       }
-    
+
       getAllObsidianAssetSourceFiles(files = this.app.vault.getFiles()) {
         return files
           .filter(file => file instanceof TFile && !isInsideEagleLibrary(file.path) && isSupportedSourceFile(file));
       }
-    
-      async confirmAndImportAllUnimportedAttachments() {
-        const choice = await chooseInObsidianModal(
-          this.app,
-          "批量导入未导入附件",
-          "将扫描全部 Markdown 笔记和白板，把本地附件和网络素材引用转换为 Eagle 素材链接。已是 Eagle 链接的条目会跳过，同一素材只上传一次并补齐各笔记或白板的标签和文件夹。默认保留 Obsidian 本地文件；若已开启自动清理，则按该设置移入 Obsidian 回收站。",
-          [{ value: "continue", label: "开始导入", cta: true }],
-          "取消"
-        );
-        if (choice !== "continue") return null;
-    
-        return this.runVaultRebuildTask({
-          title: "批量导入未导入附件",
-          description: "正在扫描笔记和白板，并将仍未转换的附件导入 Eagle。",
-          run: async update => this.runWithReferenceViewRefreshPaused(async () => {
-            const files = this.getAllObsidianAssetSourceFiles();
-            const importedByPath = new Map();
-            const importedByUrl = new Map();
-            let scanned = 0;
-            let converted = 0;
-            let reused = 0;
-            let failed = 0;
-    
-            for (const file of files) {
-              scanned += 1;
-              update({
-                phase: "正在导入附件",
-                completed: scanned,
-                total: files.length,
-                detail: file.path
-              });
-              const context = await this.getAssetContext(file, false);
-              if (!context) continue;
-              const sourceText = await this.app.vault.read(file);
-    
-              let result;
-              if (context.kind === "canvas") {
-                result = await this.importCanvasAttachments(context, "", {
-                  silent: true,
-                  importedByPath,
-                  sourceText
-                });
-              } else {
-                const localLinks = this.findLocalAttachmentLinks(sourceText, file);
-                const externalLocalLinks = this.settings.importExternalLocalAttachments === true
-                  ? this.findExternalLocalAttachmentLinks(sourceText)
-                  : [];
-                const internetLinks = this.findInternetAttachmentLinks(sourceText);
-                if (!localLinks.length && !externalLocalLinks.length && !internetLinks.length) continue;
-                result = await this.importAttachmentLinks(context, [...localLinks, ...externalLocalLinks], internetLinks, {
-                  silent: true,
-                  importedByPath,
-                  importedByUrl,
-                  sourceText
-                });
-              }
-              if (result) {
-                converted += Number(result.success) || 0;
-                reused += Number(result.reused) || 0;
-                failed += Number(result.failed) || 0;
-              }
-              if (scanned % 3 === 0) await sleep(0);
-            }
-    
-            return `完成：扫描 ${scanned} 个笔记/白板；转换 ${converted} 个引用，复用 ${reused} 个已导入素材，失败 ${failed} 个。`;
-          })
-        });
-      }
-    
-      async confirmAndCleanupAllImportedLocalCopies() {
-        const choice = await chooseInObsidianModal(
-          this.app,
-          "批量清理已导入附件",
-          "将扫描全部 Markdown 笔记和白板，把已确认存在于 Eagle、且不再被本地链接直接引用的 Obsidian 本地副本移入 Obsidian 回收站。无法唯一确认的文件会保留，Eagle 素材不会被删除。",
-          [{ value: "continue", label: "开始清理", cta: true }],
-          "取消"
-        );
-        if (choice !== "continue") return null;
-    
-        return this.runVaultRebuildTask({
-          title: "批量清理已导入附件",
-          description: "正在检查已经导入 Eagle 的本地副本。",
-          run: async update => this.runWithReferenceViewRefreshPaused(async () => {
-            const vaultFiles = this.app.vault.getFiles();
-            const files = this.getAllObsidianAssetSourceFiles(vaultFiles);
-            const filesByName = this.getSupportedVaultFilesByName(vaultFiles);
-            const filesByStem = this.getSupportedVaultFilesByStem(filesByName);
-            const protectedLocalPaths = await this.getVaultReferencedLocalAttachmentPaths(files);
-            const deletedPaths = new Set();
-            let scanned = 0;
-            let deleted = 0;
-            let skipped = 0;
-    
-            for (const file of files) {
-              scanned += 1;
-              update({
-                phase: "正在清理本地副本",
-                completed: scanned,
-                total: files.length,
-                detail: file.path
-              });
-              const context = await this.getAssetContext(file, false);
-              if (!context) continue;
-              const result = await this.cleanupLocalCopiesForContext(context, {
-                silent: true,
-                deletedPaths,
-                filesByName,
-                filesByStem,
-                protectedLocalPaths
-              });
-              deleted += Number(result && result.deleted) || 0;
-              skipped += Number(result && result.skipped) || 0;
-              if (scanned % 3 === 0) await sleep(0);
-            }
-    
-            return `完成：扫描 ${scanned} 个笔记/白板；已移入 Obsidian 回收站 ${deleted} 个本地副本，跳过 ${skipped} 个无法唯一确认的条目。`;
-          })
-        });
-      }
-    
+
       async getLocalCopyCandidateNamesForEagleBridgeRef(ref, knownItem = null) {
         const names = new Set();
         const addName = value => {
@@ -4231,7 +4100,7 @@ module.exports = EagleBridgeMobilePlugin;
           if (cleaned && isSupportedAttachment(cleaned)) names.add(cleaned);
         };
         addName(ref && ref.label);
-    
+
         const item = knownItem || (ref && ref.id ? await this.queryEagleItemInfo(ref.id) : null);
         if (item) {
           addName(item.filename);
@@ -4249,180 +4118,19 @@ module.exports = EagleBridgeMobilePlugin;
             }
           }
         }
-    
+
         return Array.from(names);
       }
-    
-      async fixCurrentNoteEagleThumbnailLinks() {
-        const file = this.app.workspace.getActiveFile();
-        if (!file || file.extension !== "md") {
-          new Notice(this.t("noticeOpenMarkdown"));
-          return;
-        }
-    
-        let text = await this.app.vault.read(file);
-        const re = /http:\/\/localhost:\d+\/api\/item\/thumbnail\?id=[A-Za-z0-9_-]+/g;
-        const matches = Array.from(new Set(text.match(re) || []));
-        if (!matches.length) {
-          new Notice(this.t("noticeNoThumbnailLinks"));
-          return;
-        }
-    
-        let fixed = 0;
-        for (const url of matches) {
-          const resolved = await this.resolveEaglePathEndpoint(url);
-          if (!resolved) continue;
-          text = text.split(url).join(resolved);
-          fixed += 1;
-        }
-    
-        if (fixed) {
-          await this.app.vault.modify(file, text);
-        }
-        new Notice(this.t("noticeFixedThumbnailLinks", { count: fixed }));
-      }
-    
-      async fixCurrentNoteDoubleEncodedFileLinks() {
-        const file = this.app.workspace.getActiveFile();
-        if (!file || file.extension !== "md") {
-          new Notice(this.t("noticeOpenMarkdown"));
-          return;
-        }
-    
-        let text = await this.app.vault.read(file);
-        const re = /file:\/\/\/[^\s)]+/g;
-        const matches = Array.from(new Set(text.match(re) || []));
-        let fixed = 0;
-    
-        for (const url of matches) {
-          const normalized = normalizeFileUrl(url);
-          if (normalized && normalized !== url) {
-            text = text.split(url).join(normalized);
-            fixed += 1;
-          }
-        }
-    
-        if (fixed) {
-          await this.app.vault.modify(file, text);
-        }
-        new Notice(this.t("noticeFixedDoubleEncodedLinks", { count: fixed }));
-      }
-    
-      async convertCurrentNoteEagleFileLinksToBridge() {
-        const file = this.app.workspace.getActiveFile();
-        if (!file || file.extension !== "md") {
-          new Notice(this.t("noticeOpenMarkdown"));
-          return;
-        }
-    
-        let text = await this.app.vault.read(file);
-        const re = /file:\/\/\/[^\s)]*?\/images\/([^/\\)]+)\.info\/[^\s)]*/gi;
-        let fixed = 0;
-        text = text.replace(re, (_match, id) => {
-          fixed += 1;
-          const base = this.settings.eagleBridgeBaseUrl.replace(/\/+$/, "");
-          return `${base}/images/${encodeURIComponent(stripInfoSuffix(safeDecode(id)))}.info`;
-        });
-    
-        if (fixed) {
-          await this.app.vault.modify(file, text);
-        }
-        new Notice(this.t("noticeConvertedFileLinks", { count: fixed }));
-      }
-    
-      async convertCurrentNoteEagleBridgeEmbedsToLinks() {
-        const file = this.app.workspace.getActiveFile();
-        if (!file || file.extension !== "md") {
-          new Notice(this.t("noticeOpenMarkdown"));
-          return;
-        }
-    
-        let text = await this.app.vault.read(file);
-        const re = /!\[([^\]]*)\]\((http:\/\/localhost:\d+\/images\/[^)\s]+\.info)\)/g;
-        let fixed = 0;
-        text = text.replace(re, (_match, label, url) => {
-          fixed += 1;
-          return `[${label || this.t("cleanLabelFallback")}](${url})`;
-        });
-    
-        if (fixed) {
-          await this.app.vault.modify(file, text);
-        }
-        new Notice(this.t("noticeConvertedEmbedsToLinks", { count: fixed }));
-      }
-    
-      async convertCurrentNoteEagleBridgeLinksToHtmlImages() {
-        const file = this.app.workspace.getActiveFile();
-        if (!file || file.extension !== "md") {
-          new Notice(this.t("noticeOpenMarkdown"));
-          return;
-        }
-    
-        let text = await this.app.vault.read(file);
-        let fixed = 0;
-    
-        text = text.replace(/!\[([^\]]*)\]\((http:\/\/localhost:\d+\/images\/[^)\s]+\.info)\)/g, (_match, label, url) => {
-          fixed += 1;
-          return buildHtmlImage(label || this.t("cleanLabelFallback"), url);
-        });
-    
-        text = text.replace(/\[([^\]]*)\]\((http:\/\/localhost:\d+\/images\/[^)\s]+\.info)\)/g, (_match, label, url) => {
-          fixed += 1;
-          return buildHtmlImage(label || this.t("cleanLabelFallback"), url);
-        });
-    
-        if (fixed) {
-          await this.app.vault.modify(file, text);
-        }
-        new Notice(this.t("noticeConvertedLinksToHtml", { count: fixed }));
-      }
-    
-      async convertCurrentNoteEagleBridgeLinksToStandardEmbeds() {
-        const file = this.app.workspace.getActiveFile();
-        if (!file || file.extension !== "md") {
-          new Notice(this.t("noticeOpenMarkdown"));
-          return;
-        }
-    
-        let text = await this.app.vault.read(file);
-        let fixed = 0;
-    
-        text = text.replace(/!\[([^\]]*)\]\((http:\/\/localhost:\d+\/images\/[^)\s]+\.info)\)/g, (_match, label, url) => {
-          fixed += 1;
-          return buildStandardEagleBridgeEmbed(label || this.t("cleanLabelFallback"), url);
-        });
-    
-        text = text.replace(/\[([^\]]*)\]\((http:\/\/localhost:\d+\/images\/[^)\s]+\.info)\)/g, (_match, label, url) => {
-          fixed += 1;
-          return buildStandardEagleBridgeEmbed(label || this.t("cleanLabelFallback"), url);
-        });
-    
-        text = text.replace(/<img\s+[^>]*src=["'](http:\/\/localhost:\d+\/images\/[^"']+\.info)["'][^>]*>/g, match => {
-          const urlMatch = match.match(/src=["']([^"']+)["']/i);
-          const altMatch = match.match(/alt=["']([^"']*)["']/i);
-          const widthMatch = match.match(/width=["']?(\d+)["']?/i);
-          if (!urlMatch) return match;
-          fixed += 1;
-          const label = altMatch ? unescapeHtmlAttr(altMatch[1]) : this.t("cleanLabelFallback");
-          const width = widthMatch ? widthMatch[1] : "200";
-          return buildStandardEagleBridgeEmbed(label, urlMatch[1], width);
-        });
-    
-        if (fixed) {
-          await this.app.vault.modify(file, text);
-        }
-        new Notice(this.t("noticeConvertedLinksToEmbeds", { count: fixed }));
-      }
-    
+
       async handleRenderedImageContextMenu(event) {
         const target = event.target;
         if (!target || !target.closest) return;
         const image = target.closest("img, audio, video, .file-embed, .media-embed, .pdf-embed, .internal-embed, .eaglebridge-file-embed");
         if (!image || image.closest(".eaglebridge-note-assets-view")) return;
-    
+
         const file = this.getRenderedImageSourceFile(image);
         if (!file || file.extension !== "md") return;
-    
+
         const range = await this.findAssetRangeForRenderedImage(file, image);
         if (range && range.itemId) {
           const source = await this.app.vault.read(file);
@@ -4472,7 +4180,7 @@ module.exports = EagleBridgeMobilePlugin;
           window.setTimeout(() => this.injectItemsIntoNativeMenu(descriptors), 30);
           return;
         }
-    
+
         const link = range && range.link || await this.findAttachmentLinkForRenderedImage(file, image);
         if (!link) return;
         window.setTimeout(() => this.injectItemsIntoNativeMenu([{
@@ -4488,7 +4196,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }]), 30);
       }
-    
+
       async copyRenderedEagleAttachment(itemId) {
         const item = await this.queryEagleItemInfo(itemId);
         const filePath = item && await this.getOriginalPathForEagleItem(item);
@@ -4502,16 +4210,16 @@ module.exports = EagleBridgeMobilePlugin;
         clipboard.writeBuffer("application/x-eaglebridge-attachment", nodeFs.readFileSync(filePath));
         clipboard.writeText(`file:///${filePath.replace(/\\/g, "/")}`);
       }
-    
+
       async openRenderedEagleAttachment(itemId) {
         await this.openEagleItem(itemId);
       }
-    
+
       injectItemsIntoNativeMenu(descriptors) {
         const menus = Array.from(document.querySelectorAll(".menu"));
         const menu = menus[menus.length - 1];
         if (!menu || menu.querySelector(".eaglebridge-import-rendered-image")) return;
-    
+
         let activeSubmenu = null;
         const runDescriptor = async descriptor => {
           try {
@@ -4571,11 +4279,11 @@ module.exports = EagleBridgeMobilePlugin;
           });
           return item;
         };
-    
+
         const items = (Array.isArray(descriptors) ? descriptors : [])
           .filter(item => item && item.title && (typeof item.onClick === "function" || Array.isArray(item.children)))
           .map(addItem);
-    
+
         const nativeItem = menu.querySelector(".menu-item:not(.eaglebridge-import-rendered-image)");
         const itemContainer = nativeItem && nativeItem.parentElement || menu;
         let separator = nativeItem && nativeItem.previousElementSibling;
@@ -4588,7 +4296,7 @@ module.exports = EagleBridgeMobilePlugin;
           itemContainer.insertBefore(item, separator);
         }
       }
-    
+
       handleRenderedImagePointerDown(event) {
         const image = this.getRenderedImageFromEvent(event);
         this.renderedImagePointerDown = image
@@ -4600,12 +4308,12 @@ module.exports = EagleBridgeMobilePlugin;
           }
           : null;
       }
-    
+
       handleRenderedImagePointerUp(event) {
         const pointer = this.renderedImagePointerDown;
         this.renderedImagePointerDown = null;
         if (!pointer || pointer.pointerId !== event.pointerId) return;
-    
+
         const deltaX = (Number(event.clientX) || 0) - pointer.clientX;
         const deltaY = (Number(event.clientY) || 0) - pointer.clientY;
         if (Math.hypot(deltaX, deltaY) > 6) {
@@ -4615,21 +4323,21 @@ module.exports = EagleBridgeMobilePlugin;
         if (this.getRenderedImageFromEvent(event) !== pointer.image) return;
         void this.handleRenderedImageClick(event);
       }
-    
+
       async handleRenderedImageClick(event) {
         if (Date.now() < this.suppressRenderedImageClickUntil) return;
         const image = this.getRenderedImageFromEvent(event);
         if (!image) return;
-    
+
         if (image.closest(".eaglebridge-note-assets-view")) return;
-    
+
         // A normal click is usually preceded by pointerup. Treat both as one action
         // so special Live Preview embeds can be handled without double-scrolling.
         const now = Date.now();
         const last = this.lastRenderedImageActivation;
         if (last && last.image === image && now - last.at < 500) return;
         this.lastRenderedImageActivation = { image, at: now };
-    
+
         const file = this.getRenderedImageSourceFile(image);
         if (!file) return;
         if (file.extension === "canvas") {
@@ -4648,12 +4356,12 @@ module.exports = EagleBridgeMobilePlugin;
         if (file.extension !== "md") return;
         const sourceView = image.closest && image.closest(".markdown-preview-view, .markdown-source-view");
         if (!sourceView) return;
-    
+
         const range = await this.findAssetRangeForRenderedImage(file, image);
         if (!range) return;
         await this.scrollReferenceViewsToAsset(file.path, range);
       }
-    
+
       getRenderedImageFromEvent(event) {
         const target = event && event.target;
         // Do not walk ancestors or descendants here. In a table, for example, a
@@ -4661,7 +4369,7 @@ module.exports = EagleBridgeMobilePlugin;
         // is allowed to drive the side-panel selection.
         return target && target.tagName === "IMG" ? target : null;
       }
-    
+
       getRenderedImageSourceFile(image) {
         const sourceElement = image && image.closest ? image.closest("[data-path]") : null;
         const sourcePath = sourceElement && sourceElement.getAttribute ? sourceElement.getAttribute("data-path") : "";
@@ -4672,7 +4380,7 @@ module.exports = EagleBridgeMobilePlugin;
         const activeFile = this.app.workspace.getActiveFile();
         return activeFile instanceof TFile ? activeFile : null;
       }
-    
+
       async findAssetRangeForRenderedImage(noteFile, image) {
         const text = await this.app.vault.read(noteFile);
         const identity = this.getRenderedAttachmentIdentity(image);
@@ -4680,18 +4388,18 @@ module.exports = EagleBridgeMobilePlugin;
         const idMatch = src.match(/\/images\/([^/?#]+)\.info/i);
         const cleanId = idMatch ? stripInfoSuffix(safeDecode(idMatch[1])) : "";
         const refs = this.extractEagleBridgeItemReferences(text);
-    
+
         if (cleanId) {
           const byId = refs.find(ref => ref.id === cleanId);
           if (byId) return { start: byId.start, end: byId.end, itemId: cleanId };
         }
-    
+
         for (const name of identity.names) {
           const cleanAlt = cleanEagleBridgeLabel(name);
           const byLabel = cleanAlt && refs.find(ref => cleanEagleBridgeLabel(ref.label) === cleanAlt);
           if (byLabel) return { start: byLabel.start, end: byLabel.end, itemId: byLabel.id };
         }
-    
+
         // EagleBridge URLs carry a stable item ID. Resolve them before matching a
         // local attachment by filename, since local and Eagle copies can share a name.
         const localOrInternet = await this.findAttachmentLinkForRenderedImage(noteFile, image);
@@ -4702,10 +4410,10 @@ module.exports = EagleBridgeMobilePlugin;
             link: localOrInternet
           };
         }
-    
+
         return null;
       }
-    
+
       async scrollReferenceViewsToAsset(filePath, range) {
         for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
           const view = leaf.view;
@@ -4714,17 +4422,15 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }
       }
-    
+
       async findAttachmentLinkForRenderedImage(noteFile, image) {
         const text = await this.app.vault.read(noteFile);
-        const links = this.findLocalAttachmentLinks(text, noteFile);
-        const externalLocalLinks = this.findExternalLocalAttachmentLinks(text);
-        const internetLinks = this.findInternetAttachmentLinks(text);
-    
+        const { localLinks: links, externalLocalLinks, internetLinks } = this.collectMarkdownAttachmentLinks(text, noteFile);
+
         const { src, names } = this.getRenderedAttachmentIdentity(image);
         const srcName = safeDecode(nodePath.basename(src.split("?")[0]));
         const matchesName = candidates => names.some(name => candidates.includes(name));
-    
+
         for (const link of links) {
           const fullPath = this.getFullPath(link.file).replace(/\\/g, "/");
           const decodedFullPath = safeDecode(fullPath);
@@ -4732,25 +4438,25 @@ module.exports = EagleBridgeMobilePlugin;
           if (matchesName([link.file.basename, link.file.name, link.target])) return link;
           if (srcName && srcName === link.file.name) return link;
         }
-    
+
         for (const link of externalLocalLinks) {
           const normalizedPath = safeDecode(link.localPath).replace(/\\/g, "/");
           const fileName = nodePath.basename(link.localPath);
           if (src && (safeDecode(src).replace(/\\/g, "/").includes(normalizedPath) || srcName === fileName)) return link;
           if (matchesName([link.name, fileName, link.target])) return link;
         }
-    
+
         for (const link of internetLinks) {
           if (src && (src === link.url || src.includes(link.url) || safeDecode(src) === safeDecode(link.url))) return link;
           if (matchesName([link.name, link.url])) return link;
           if (srcName && srcName === nodePath.basename(String(link.url).split("?")[0])) return link;
         }
-    
+
         const allLocalLinks = links.concat(externalLocalLinks);
         if (allLocalLinks.length === 1) return allLocalLinks[0];
         return null;
       }
-    
+
       getRenderedAttachmentIdentity(element) {
         const source = element && element.matches && element.matches("[src], [href], [data-href]")
           ? element
@@ -4761,15 +4467,15 @@ module.exports = EagleBridgeMobilePlugin;
           .filter(Boolean);
         return { src, names: Array.from(new Set(names)) };
       }
-    
+
       async prepareEagleBridgeRepairCandidates(ref) {
         const context = await this.getCurrentNoteContext(false);
         if (!context || !ref || !ref.id) return null;
-    
+
         const text = await this.app.vault.read(context.file);
         const locatedRef = this.resolveRepairRefFromText(text, ref);
         if (!locatedRef) return null;
-    
+
         const currentText = text.slice(locatedRef.start, locatedRef.end);
         const parsedRef = this.extractEagleBridgeItemReferences(currentText)[0] || {};
         const currentRef = Object.assign({}, locatedRef, parsedRef, {
@@ -4781,42 +4487,42 @@ module.exports = EagleBridgeMobilePlugin;
         const candidates = await this.findConservativeDuplicateCandidates(currentRef, currentItem, context);
         return { context, ref: currentRef, candidates };
       }
-    
+
       resolveRepairRefFromText(text, ref) {
         const refs = this.extractEagleBridgeItemReferences(text);
         const cleanId = stripInfoSuffix(ref && ref.id);
         if (!cleanId) return null;
-    
+
         if (typeof ref.start === "number" && typeof ref.end === "number") {
           const inRange = refs.find(item => item.start === ref.start && item.end === ref.end);
           if (inRange) return Object.assign({}, inRange, { label: inRange.label || ref.label });
         }
-    
+
         const sameId = refs.filter(item => item.id === cleanId);
         if (sameId.length === 1) return Object.assign({}, sameId[0], { label: sameId[0].label || ref.label });
-    
+
         const expectedLabel = cleanEagleBridgeLabel(ref.label);
         if (expectedLabel) {
           const sameLabel = sameId.filter(item => cleanEagleBridgeLabel(item.label) === expectedLabel);
           if (sameLabel.length === 1) return Object.assign({}, sameLabel[0], { label: sameLabel[0].label || ref.label });
         }
-    
+
         if (sameId.length > 1 && typeof ref.start === "number") {
           const sorted = sameId.slice().sort((a, b) => Math.abs(a.start - ref.start) - Math.abs(b.start - ref.start));
           return Object.assign({}, sorted[0], { label: sorted[0].label || ref.label });
         }
-    
+
         return null;
       }
-    
+
       async applyEagleBridgeLinkReplacement(ref, replacementId) {
         const context = await this.getCurrentNoteContext(false);
         if (!context || !ref || !replacementId) return false;
-    
+
         const text = await this.app.vault.read(context.file);
         const locatedRef = this.resolveRepairRefFromText(text, ref);
         if (!locatedRef) return false;
-    
+
         const currentText = text.slice(locatedRef.start, locatedRef.end);
         const currentId = stripInfoSuffix(locatedRef.id);
         const nextSegment = currentText.replace(
@@ -4824,18 +4530,18 @@ module.exports = EagleBridgeMobilePlugin;
           `$1${stripInfoSuffix(replacementId)}$2`
         );
         if (nextSegment === currentText) return false;
-    
+
         const nextText = text.slice(0, locatedRef.start) + nextSegment + text.slice(locatedRef.end);
         await this.app.vault.modify(context.file, nextText);
         await this.syncEagleBridgeItemTags(context, [replacementId], false);
         await this.rememberCurrentFileEagleBridgeIds(context.file);
         return true;
       }
-    
+
       async importAttachmentAtCursor(editor, view) {
         const context = await this.getCurrentNoteContext();
         if (!context || !view || !view.file) return;
-    
+
         const match = this.getImportableAttachmentAtCursor(editor, view);
         if (!match) {
           new Notice(this.t("noticeNoAttachmentAtCursor"));
@@ -4844,7 +4550,7 @@ module.exports = EagleBridgeMobilePlugin;
         const { cursor, lineText, link } = match;
         const imported = await this.importOneAttachment(context, link);
         if (!imported) return;
-    
+
         const sizedReplacement = preserveAttachmentDisplaySize(link.original, imported.replacement);
         const replacement = isProbablyMarkdownTableLine(lineText)
           ? escapeMarkdownTablePipes(sizedReplacement)
@@ -4853,7 +4559,7 @@ module.exports = EagleBridgeMobilePlugin;
         await this.trashImportedFiles([imported]);
         new Notice(this.t("noticeImportedToEagle", { name: imported.sourceFile.name }));
       }
-    
+
       getImportableAttachmentAtCursor(editor, view) {
         if (!editor || !view || !view.file) return null;
         const cursor = editor.getCursor();
@@ -4862,7 +4568,7 @@ module.exports = EagleBridgeMobilePlugin;
           .filter(link => link.start <= cursor.ch && cursor.ch <= link.end);
         return links.length ? { cursor, lineText, link: links[0] } : null;
       }
-    
+
       async importAttachmentLinks(context, links, internetLinks = [], options = {}) {
         const replacements = [];
         const importedFiles = [];
@@ -4878,7 +4584,7 @@ module.exports = EagleBridgeMobilePlugin;
         let success = 0;
         let failed = 0;
         let reused = 0;
-    
+
         for (const link of links) {
           try {
             const importKey = link.file instanceof TFile ? link.file.path : link.localPath;
@@ -4912,7 +4618,7 @@ module.exports = EagleBridgeMobilePlugin;
             failed += 1;
           }
         }
-    
+
         for (const link of internetLinks) {
           try {
             const importKey = link.url;
@@ -4944,7 +4650,7 @@ module.exports = EagleBridgeMobilePlugin;
             failed += 1;
           }
         }
-    
+
         if (replacements.length) {
           let text = sourceText;
           replacements.sort((a, b) => b.start - a.start);
@@ -4960,13 +4666,13 @@ module.exports = EagleBridgeMobilePlugin;
           const normalizedText = await this.normalizeEagleBridgeReferenceLabels(context, sourceText);
           if (normalizedText !== sourceText) await this.app.vault.modify(context.file, normalizedText);
         }
-    
+
         if (!options.silent) {
           new Notice(this.t("noticeProcessedAttachments", { success, reused, failed }));
         }
         return { success, reused, failed };
       }
-    
+
       async importOneAttachment(context, link) {
         const externalPath = String(link && link.localPath || "");
         const sourceFile = link.file instanceof TFile
@@ -4977,11 +4683,11 @@ module.exports = EagleBridgeMobilePlugin;
           new Notice(this.t("noticeCannotResolvePath", { path: sourceFile.path }));
           return null;
         }
-    
+
         const tags = this.getImportContextTags(context);
         const reusable = await this.findReusableEagleItemForLocalAttachment(sourceFile, fullPath);
         if (reusable.cancelled) return null;
-    
+
         let item = reusable.item;
         if (!item) {
           const name = stripExtension(sourceFile.name);
@@ -4993,7 +4699,7 @@ module.exports = EagleBridgeMobilePlugin;
           }, context));
           item = await this.findImportedEagleItem(sourceFile, tags, addResult);
         }
-    
+
         item = await this.ensureImportedEagleItemTags(context, item);
         // Import endpoints may return only partial item data. Read Eagle's stored
         // metadata before composing Markdown so the visible filename is canonical.
@@ -5006,7 +4712,7 @@ module.exports = EagleBridgeMobilePlugin;
           new Notice(this.t("noticeNoEmbedUrl", { name: sourceFile.name }));
           return null;
         }
-    
+
         return {
           item,
           sourceFile,
@@ -5018,13 +4724,13 @@ module.exports = EagleBridgeMobilePlugin;
           })
         };
       }
-    
+
       async findReusableEagleItemForLocalAttachment(sourceFile, fullPath) {
         const sourceName = String(sourceFile && sourceFile.name || "");
         const baseName = stripExtension(sourceName).trim();
         const expectedExtension = normalizeExtension(nodePath.extname(sourceName));
         if (!sourceName || !expectedExtension) return { item: null, cancelled: false };
-    
+
         let sourceSize = 0;
         try {
           sourceSize = Number(nodeFs.statSync(fullPath).size) || 0;
@@ -5032,7 +4738,7 @@ module.exports = EagleBridgeMobilePlugin;
           console.warn("Could not read local attachment size before Eagle import:", error);
           return { item: null, cancelled: false };
         }
-    
+
         const exactContentMatches = await this.findEagleItemsByContentHash(fullPath, sourceSize, expectedExtension);
         if (exactContentMatches.length) {
           return this.chooseReusableEagleItem(
@@ -5040,7 +4746,7 @@ module.exports = EagleBridgeMobilePlugin;
             "Eagle 中找到内容完全相同的素材。将复用选中的旧素材，并同步当前笔记的标签、文件夹与引用链接。"
           );
         }
-    
+
         if (!baseName) return { item: null, cancelled: false };
         const listed = await this.queryEagleItemsByKeyword(baseName);
         const confirmed = [];
@@ -5048,13 +4754,13 @@ module.exports = EagleBridgeMobilePlugin;
         for (const listedItem of listed) {
           const candidateId = stripInfoSuffix(getEagleItemId(listedItem));
           if (!candidateId || isEagleItemTrashed(listedItem)) continue;
-    
+
           const candidate = await this.queryEagleItemInfo(candidateId, { force: true }) || listedItem;
           if (isEagleItemTrashed(candidate)) continue;
           if (!isLikelySameAssetByName(candidate, baseName)) continue;
           if (normalizeExtension(getAssetExtension(candidate)) !== expectedExtension) continue;
           if (!await this.hasEagleItemOriginalFile(candidate)) continue;
-    
+
           const signature = getEagleItemMatchSignature(candidate);
           const candidateSize = Number(signature && signature.size) || 0;
           if (sourceSize && candidateSize) {
@@ -5063,7 +4769,7 @@ module.exports = EagleBridgeMobilePlugin;
             ambiguous.push(candidate);
           }
         }
-    
+
         const candidates = uniqueItemsById([...confirmed, ...ambiguous]);
         if (!candidates.length) return { item: null, cancelled: false };
         return this.chooseReusableEagleItem(
@@ -5072,7 +4778,7 @@ module.exports = EagleBridgeMobilePlugin;
           candidates.length === 1 && confirmed.length === 1
         );
       }
-    
+
       async findEagleItemsByContentHash(fullPath, sourceSize, extension) {
         try {
           const hash = await this.getLocalFileContentHash(fullPath);
@@ -5082,10 +4788,10 @@ module.exports = EagleBridgeMobilePlugin;
           return [];
         }
       }
-    
+
       async findEagleItemsByContentSignature({ hash, size, extension }) {
         if (!hash || !size) return [];
-    
+
         await this.syncCompanionMediaService();
         const payload = await this.requestEagleHelperJson("item/find-by-content-hash", {
           method: "POST",
@@ -5097,7 +4803,7 @@ module.exports = EagleBridgeMobilePlugin;
             algorithm: "sha256"
           })
         });
-    
+
         const helperItems = payload.data && Array.isArray(payload.data.items)
           ? payload.data.items
           : Array.isArray(payload.data)
@@ -5115,7 +4821,7 @@ module.exports = EagleBridgeMobilePlugin;
         return uniqueItemsById(resolved)
           .sort((a, b) => getItemTime(a) - getItemTime(b));
       }
-    
+
       async getLocalFileContentHash(fullPath, algorithm = "sha256") {
         return new Promise((resolve, reject) => {
           const hash = nodeCrypto.createHash(algorithm);
@@ -5125,14 +4831,14 @@ module.exports = EagleBridgeMobilePlugin;
           stream.on("end", () => resolve(hash.digest("hex")));
         });
       }
-    
+
       async getInternetContentSignature(url, extension) {
         if (!url) return null;
-    
+
         const response = await requestUrl({ url, method: "GET" });
         const arrayBuffer = response && response.arrayBuffer;
         if (!arrayBuffer || !arrayBuffer.byteLength) return null;
-    
+
         const bytes = Buffer.from(arrayBuffer);
         // Avoid keeping unexpectedly large remote downloads in the Obsidian process.
         if (bytes.byteLength > 50 * 1024 * 1024) return null;
@@ -5142,7 +4848,7 @@ module.exports = EagleBridgeMobilePlugin;
           extension: normalizeExtension(extension)
         };
       }
-    
+
       getInternetAttachmentExtension(link) {
         const labeledName = String(link && link.name || "");
         let urlPath = "";
@@ -5153,13 +4859,13 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return normalizeExtension(nodePath.extname(labeledName) || nodePath.extname(urlPath));
       }
-    
+
       async chooseReusableEagleItem(candidates, description, autoReuseSingle = true) {
         if (!candidates.length) return { item: null, cancelled: false };
         if (candidates.length === 1 && autoReuseSingle) {
           return { item: candidates[0], cancelled: false };
         }
-    
+
         const choice = await chooseInObsidianModal(
           this.app,
           "选择要复用的 Eagle 素材",
@@ -5186,13 +4892,13 @@ module.exports = EagleBridgeMobilePlugin;
           cancelled: false
         };
       }
-    
+
       async importOneInternetAttachment(context, link) {
         const tags = this.getImportContextTags(context);
         const fileName = link.name || nodePath.basename(String(link.url).split("?")[0]) || "internet-image";
         const name = stripExtension(fileName);
         const extension = this.getInternetAttachmentExtension(link);
-    
+
         // Eagle's addFromURL duplicate dialog does not return the surviving item ID.
         // Resolve byte-identical remote assets before calling Eagle so a duplicate never
         // enters that ambiguous state and the note can only receive a verified ID.
@@ -5207,7 +4913,7 @@ module.exports = EagleBridgeMobilePlugin;
         } catch (error) {
           console.warn("Network attachment content lookup failed; Eagle will import normally:", error);
         }
-    
+
         if (!item) {
           const addResult = await this.addUrlToEagle(await this.withContextEagleFolder({
             url: link.url,
@@ -5221,7 +4927,7 @@ module.exports = EagleBridgeMobilePlugin;
             return null;
           }
         }
-    
+
         item = await this.ensureImportedEagleItemTags(context, item);
         // addFromURL frequently returns an id/url stub instead of the final item
         // filename. Always fetch the stored Eagle record before creating Markdown.
@@ -5233,7 +4939,7 @@ module.exports = EagleBridgeMobilePlugin;
           new Notice(this.t("noticeNoEmbedUrl", { name: link.name || link.url }));
           return null;
         }
-    
+
         return {
           item,
           sourceFile: { name: fileName },
@@ -5245,7 +4951,7 @@ module.exports = EagleBridgeMobilePlugin;
           })
         };
       }
-    
+
       async addPathToEagle(data) {
         const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
         const response = await requestUrl({
@@ -5260,7 +4966,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return body;
       }
-    
+
       withEagleFolder(data, folderIdOverride = null) {
         const folderId = String(folderIdOverride || this.settings.eagleFolderId || "").trim();
         if (!folderId) return data;
@@ -5269,14 +4975,14 @@ module.exports = EagleBridgeMobilePlugin;
           folderID: folderId
         });
       }
-    
+
       async withContextEagleFolder(data, context, options = {}) {
         const folderId = await this.resolveEagleFolderIdForContext(context, {
           createMissing: options.createMissing !== false && this.settings.autoFolderOnImport !== false
         });
         return this.withEagleFolder(data, folderId);
       }
-    
+
       // Folder names share the stable note/Canvas identity used by tags. This
       // prevents ordinary same-title notes from being merged into one Eagle folder.
       async getManagedEagleFolderPathForContext(context) {
@@ -5284,14 +4990,14 @@ module.exports = EagleBridgeMobilePlugin;
         const identity = String(context.identity || await this.getEagleFolderIdentityForFile(context.file) || "").trim();
         return this.buildManagedEagleFolderPath(context.file.path, identity);
       }
-    
+
       async getEagleFolderIdentityForFile(file) {
         if (!(file instanceof TFile)) return "";
         return file.extension === "canvas"
           ? this.getCanvasIdentity(file)
           : this.getNoteIdentity(file);
       }
-    
+
       buildManagedEagleFolderPath(filePath, identity) {
         const title = normalizeIdentityTitle(stripExtension(vaultPathBasename(filePath)));
         const date = (String(identity || "").match(/-(\d{8})$/) || [])[1] || formatIdentityDate(new Date());
@@ -5301,7 +5007,7 @@ module.exports = EagleBridgeMobilePlugin;
         const parent = getSourceParentPathFromPath(filePath);
         return parent ? `${parent}/${leaf}` : leaf;
       }
-    
+
       renderEagleFolderName(title, createdDate) {
         const cleanTitle = normalizeIdentityTitle(title) || "note";
         const cleanDate = isIdentityDate(createdDate) ? String(createdDate) : formatIdentityDate(new Date());
@@ -5313,15 +5019,15 @@ module.exports = EagleBridgeMobilePlugin;
           .replace(/\{\{[^{}]*\}\}/g, "");
         return normalizeIdentityTitle(rendered) || buildTitleDateIdentity(cleanTitle, cleanDate);
       }
-    
+
       async resolveEagleFolderIdForContext(context, options = {}) {
         const rootId = String(this.settings.eagleFolderId || "").trim();
         if (this.settings.folderManagementEnabled === false) return rootId;
         if (!rootId || !context || !(context.file instanceof TFile)) return rootId;
-    
+
         const targetPath = await this.getManagedEagleFolderPathForContext(context);
         if (!targetPath) return rootId;
-    
+
         const createMissing = options.createMissing !== false;
         const folderId = await this.resolveEagleFolderIdForVaultPath(targetPath, rootId, true, createMissing);
         if (folderId && folderId !== rootId) {
@@ -5329,7 +5035,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return folderId || rootId;
       }
-    
+
       async rememberManagedEagleFolderForSource(sourcePath, folderId, rootId, folderPath = "") {
         const cleanSourcePath = normalizeVaultPath(sourcePath);
         const cleanFolderId = String(folderId || "").trim();
@@ -5348,7 +5054,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.settings.managedEagleFoldersBySource[cleanSourcePath] = next;
         await this.saveSettings();
       }
-    
+
       async resolveEagleFolderIdForVaultPath(vaultPath, rootId = null, remember = true, createMissing = true) {
         const cleanRootId = String(rootId || this.settings.eagleFolderId || "").trim();
         const targetPath = normalizeVaultPath(vaultPath);
@@ -5357,7 +5063,7 @@ module.exports = EagleBridgeMobilePlugin;
           const folders = await this.queryEagleFolders();
           const root = findEagleFolderById(folders, cleanRootId);
           if (!root) return cleanRootId;
-    
+
           let current = root;
           let currentPath = "";
           for (const segment of targetPath.split("/").map(part => part.trim()).filter(Boolean)) {
@@ -5382,7 +5088,7 @@ module.exports = EagleBridgeMobilePlugin;
           return cleanRootId;
         }
       }
-    
+
       async findExistingEagleFolderForVaultPath(vaultPath, rootId = null) {
         const cleanRootId = String(rootId || this.settings.eagleFolderId || "").trim();
         const targetPath = normalizeVaultPath(vaultPath);
@@ -5390,7 +5096,7 @@ module.exports = EagleBridgeMobilePlugin;
         const folders = await this.queryEagleFolders();
         const root = findEagleFolderById(folders, cleanRootId);
         if (!root) return null;
-    
+
         let current = root;
         for (const segment of targetPath.split("/").map(part => part.trim()).filter(Boolean)) {
           const children = Array.isArray(current.children) ? current.children : [];
@@ -5400,7 +5106,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return current && current.id ? current : null;
       }
-    
+
       async rememberManagedEagleFolder(obsidianPath, folder, rootId) {
         if (!obsidianPath || !folder || !folder.id) return;
         if (!this.settings.managedEagleFolders || typeof this.settings.managedEagleFolders !== "object") {
@@ -5417,12 +5123,12 @@ module.exports = EagleBridgeMobilePlugin;
         this.settings.managedEagleFolders[key] = next;
         await this.saveSettings();
       }
-    
+
       async syncManagedEagleFolderRename(file, oldPath) {
         if (this.settings.folderManagementEnabled === false) return;
         if (!file || !oldPath) return;
         if (!this.settings.managedEagleFolders || typeof this.settings.managedEagleFolders !== "object") return;
-    
+
         const useTree = this.settings.useObsidianFolderTree === true;
         const currentIdentity = await this.getEagleFolderIdentityForFile(file);
         const identityDate = (String(currentIdentity).match(/-(\d{8})$/) || [])[1] || getFileIdentityDate(file);
@@ -5435,7 +5141,7 @@ module.exports = EagleBridgeMobilePlugin;
           ? this.buildManagedEagleFolderPath(file.path, currentIdentity)
           : (useTree ? normalizeVaultPath(file.path) : "");
         if (!oldFolderPath || !newFolderPath || oldFolderPath === newFolderPath) return;
-    
+
         // Newer releases remember the exact Eagle folder used by a source file.
         // Prefer that stable ID over reconstructing a path from a possibly changed
         // naming rule. Parent moves remain deliberately conservative because the
@@ -5473,7 +5179,7 @@ module.exports = EagleBridgeMobilePlugin;
             return;
           }
         }
-    
+
         const updates = [];
         const entries = Object.entries(this.settings.managedEagleFolders);
         for (const [path, record] of entries) {
@@ -5499,7 +5205,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }
         if (!updates.length) return;
-    
+
         if (exact && exact.record && exact.record.id) {
           const newName = vaultPathBasename(newFolderPath);
           const newParentPath = getSourceParentPathFromPath(newFolderPath);
@@ -5512,7 +5218,7 @@ module.exports = EagleBridgeMobilePlugin;
           if (!updated) return;
           exact.record = Object.assign({}, exact.record, { name: newName });
         }
-    
+
         for (const update of updates) {
           delete this.settings.managedEagleFolders[update.oldPath];
         }
@@ -5521,7 +5227,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         await this.saveSettings();
       }
-    
+
       async queryEagleFolders() {
         const now = Date.now();
         if (this.eagleFolderCache && now - this.eagleFolderCache.time < 30000) {
@@ -5540,12 +5246,12 @@ module.exports = EagleBridgeMobilePlugin;
         this.eagleFolderCache = { time: now, folders };
         return folders;
       }
-    
+
       async createEagleFolder(name, parentId) {
         const cleanName = String(name || "").trim();
         const cleanParentId = String(parentId || "").trim();
         if (!cleanName || !cleanParentId) return null;
-    
+
         const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
         try {
           const response = await requestUrl({
@@ -5564,7 +5270,7 @@ module.exports = EagleBridgeMobilePlugin;
           this.eagleFolderCache = null;
           const data = body && body.data ? body.data : null;
           if (data && data.id) return normalizeCreatedEagleFolder(data, cleanName);
-    
+
           const folders = await this.queryEagleFolders();
           const parent = findEagleFolderById(folders, cleanParentId);
           const children = parent && Array.isArray(parent.children) ? parent.children : [];
@@ -5574,13 +5280,13 @@ module.exports = EagleBridgeMobilePlugin;
           return null;
         }
       }
-    
+
       async updateEagleFolderName(folderId, name, parentId = null) {
         const cleanId = String(folderId || "").trim();
         const cleanName = String(name || "").trim();
         const cleanParentId = String(parentId || "").trim();
         if (!cleanId || !cleanName) return null;
-    
+
         const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
         const baseBodies = [
           { folderId: cleanId, newName: cleanName },
@@ -5618,7 +5324,7 @@ module.exports = EagleBridgeMobilePlugin;
         console.warn(`Failed to update Eagle folder "${cleanId}" name to "${cleanName}":`, lastError);
         return null;
       }
-    
+
       async verifyEagleFolderUpdate(folderId, expectedName, expectedParentId = "") {
         try {
           const folders = await this.queryEagleFolders();
@@ -5632,7 +5338,7 @@ module.exports = EagleBridgeMobilePlugin;
           return false;
         }
       }
-    
+
       async addUrlToEagle(data) {
         const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
         const requestBody = JSON.stringify(data);
@@ -5654,11 +5360,11 @@ module.exports = EagleBridgeMobilePlugin;
         }
         throw lastError || new Error("Eagle URL import failed.");
       }
-    
+
       async findImportedEagleItem(sourceFile, tags, addResult) {
         const resultItem = await this.getItemFromAddResult(addResult);
         if (resultItem) return resultItem;
-    
+
         const baseName = stripExtension(sourceFile.name).toLowerCase();
         for (let attempt = 0; attempt < 10; attempt += 1) {
           for (const tag of tags) {
@@ -5676,11 +5382,11 @@ module.exports = EagleBridgeMobilePlugin;
         if (sortedMatches[0]) return sortedMatches[0];
         return null;
       }
-    
+
       async resolveInternetItemAfterAdd(addResult, contentSignature) {
         const directItem = await this.getItemFromAddResult(addResult);
         if (directItem) return directItem;
-    
+
         // Eagle's addFromURL can acknowledge the request before it exposes an item
         // object. Only match by the exact downloaded bytes afterwards: a generic tag
         // lookup could accidentally select a different asset from the same note.
@@ -5693,18 +5399,18 @@ module.exports = EagleBridgeMobilePlugin;
               console.warn("Unable to resolve Eagle URL import by content signature:", error);
             }
           }
-    
+
           await sleep(350);
         }
         return null;
       }
-    
+
       async getItemFromAddResult(addResult) {
         const queue = [addResult && Object.prototype.hasOwnProperty.call(addResult, "data") ? addResult.data : addResult];
         const seen = new Set();
         let direct = null;
         let id = "";
-    
+
         while (queue.length) {
           const value = queue.shift();
           if (value == null) continue;
@@ -5729,18 +5435,18 @@ module.exports = EagleBridgeMobilePlugin;
             if (value[key] != null) queue.push(value[key]);
           }
         }
-    
+
         if (direct) return direct;
         if (!id) return null;
         const item = await this.queryEagleItemInfo(id);
         return item || { id };
       }
-    
+
       async ensureImportedEagleItemTags(context, item) {
         const itemId = getEagleItemId(item);
         const tags = this.getImportContextTags(context);
         if (!itemId || !tags.length) return item;
-    
+
         const detailedItem = await this.queryEagleItemInfo(itemId) || item;
         const existingTags = Array.isArray(detailedItem && detailedItem.tags) ? detailedItem.tags : [];
         const removableTags = this.getRemovableTagsForContext(context, existingTags);
@@ -5753,22 +5459,22 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return detailedItem;
       }
-    
+
       invalidateEagleItemInfo(itemId) {
         this.eagleItems.invalidate(itemId);
       }
-    
+
       async queryEagleItemInfo(itemId, options = {}) {
         return this.eagleItems.get(itemId, options);
       }
-    
+
       async syncCurrentNoteEagleBridgeLinkTags(context, existingText = null, showNotice = true) {
         if (this.settings.tagManagementEnabled === false) return;
         try {
           const text = existingText !== null ? existingText : await this.app.vault.read(context.file);
           const itemIds = this.extractEagleBridgeItemIds(text);
           if (!itemIds.length) return;
-    
+
           const updated = await this.syncEagleBridgeItemTags(context, itemIds, showNotice);
           if (updated && showNotice) {
             new Notice(this.t("noticeSyncedTags", { count: updated }));
@@ -5777,7 +5483,7 @@ module.exports = EagleBridgeMobilePlugin;
           console.warn("Failed to sync EagleBridge link tags:", error);
         }
       }
-    
+
       async syncEagleBridgeItemTags(context, itemIds, showNotice = true) {
         if (this.settings.tagManagementEnabled === false) return 0;
         let updated = 0;
@@ -5797,12 +5503,12 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return updated;
       }
-    
+
       async findConservativeDuplicateCandidates(ref, currentItem, context = null) {
         const labelName = cleanEagleBridgeLabel(ref.label);
         const searchNames = getDuplicateRepairSearchNames(labelName || getAssetDisplayName(currentItem));
         if (!searchNames.length) return [];
-    
+
         const candidates = await this.queryEagleItemsByKeywords(searchNames);
         const currentSignature = getEagleItemMatchSignature(currentItem);
         const expectedExtension = getDuplicateRepairExpectedExtension(
@@ -5811,7 +5517,7 @@ module.exports = EagleBridgeMobilePlugin;
           currentItem ? getAssetExtension(currentItem) : ""
         );
         const matches = [];
-    
+
         for (const candidate of candidates) {
           const candidateId = getEagleItemId(candidate);
           if (!candidateId || candidateId === ref.id) continue;
@@ -5822,15 +5528,15 @@ module.exports = EagleBridgeMobilePlugin;
           if (!await this.hasEagleItemOriginalFile(candidate)) continue;
           matches.push(candidate);
         }
-    
+
         return uniqueItemsById(matches);
       }
-    
+
       async hasEagleItemOriginalFile(item) {
         const thumbnailUrl = await this.getEagleItemThumbnailUrl(item);
         const thumbnailPath = fileUrlToLocalPath(thumbnailUrl) || eagleLocalPathToFsPath(thumbnailUrl);
         if (!thumbnailPath) return false;
-    
+
         const infoDir = nodePath.dirname(thumbnailPath);
         let names = [];
         try {
@@ -5838,7 +5544,7 @@ module.exports = EagleBridgeMobilePlugin;
         } catch (error) {
           return false;
         }
-    
+
         const expectedExtension = normalizeExtension(getAssetExtension(item));
         return names.some(name => {
           if (!name || /^metadata(?:-|\.)/i.test(name)) return false;
@@ -5847,12 +5553,12 @@ module.exports = EagleBridgeMobilePlugin;
           return expectedExtension ? extension === expectedExtension : !!extension;
         });
       }
-    
+
       async removeEagleTagsFromItemIds(itemIds, tagsToClean) {
         if (this.settings.tagManagementEnabled === false) return 0;
         const tagSet = new Set((tagsToClean || []).map(tag => String(tag || "").trim()).filter(Boolean));
         if (!tagSet.size) return 0;
-    
+
         let updated = 0;
         const uniqueIds = Array.from(new Set((itemIds || []).map(id => stripInfoSuffix(id)).filter(Boolean)));
         for (const itemId of uniqueIds) {
@@ -5865,7 +5571,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return updated;
       }
-    
+
       async clearObsidianTagsForCurrentContext(context, scope = "all") {
         if (!context || !context.file) return 0;
         const text = await this.app.vault.read(context.file);
@@ -5873,7 +5579,7 @@ module.exports = EagleBridgeMobilePlugin;
         const uniqueIds = Array.from(new Set(itemIds.map(id => stripInfoSuffix(id)).filter(Boolean)));
         if (!uniqueIds.length) return 0;
         const contextTags = new Set(this.getContextTagsToClean(context));
-    
+
         let updated = 0;
         for (const itemId of uniqueIds) {
           const item = await this.queryEagleItemInfo(itemId);
@@ -5888,21 +5594,21 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return updated;
       }
-    
+
       async clearObsidianFoldersForCurrentContext(context, scope = "all") {
         if (!context || !context.file) return { updated: 0 };
         const rootId = String(this.settings.eagleFolderId || "").trim();
         if (!rootId) return { updated: 0 };
-    
+
         const text = await this.app.vault.read(context.file);
         const itemIds = this.extractEagleBridgeItemIds(text);
         const uniqueIds = Array.from(new Set(itemIds.map(id => stripInfoSuffix(id)).filter(Boolean)));
         const currentFolderId = await this.findExistingEagleFolderIdForContext(context);
-    
+
         const managedFolderIds = scope === "current"
           ? [currentFolderId].filter(Boolean)
           : await this.getObsidianManagedEagleFolderIds(rootId);
-    
+
         let updated = 0;
         if (managedFolderIds.length) {
           for (const itemId of uniqueIds) {
@@ -5910,28 +5616,28 @@ module.exports = EagleBridgeMobilePlugin;
             if (removed > 0) updated += 1;
           }
         }
-    
+
         return { updated };
       }
-    
+
       async collectVaultEagleBridgePlan(onProgress = null) {
         const files = this.getAllObsidianAssetSourceFiles();
         const records = [];
         const tagsByItemId = new Map();
-    
+
         for (let index = 0; index < files.length; index += 1) {
           const file = files[index];
           if (typeof onProgress === "function") {
             onProgress({ completed: index, total: files.length, detail: file.path });
           }
-    
+
           try {
             const text = await this.app.vault.read(file);
             const itemIds = Array.from(new Set(this.extractEagleBridgeItemIds(text)
               .map(id => stripInfoSuffix(id))
               .filter(Boolean)));
             if (!itemIds.length) continue;
-    
+
             const context = await this.getAssetContext(file, false);
             if (!context) continue;
             records.push({ context, text, itemIds });
@@ -5944,17 +5650,17 @@ module.exports = EagleBridgeMobilePlugin;
           } catch (error) {
             console.warn("Failed to scan vault source file for Eagle rebuild:", file.path, error);
           }
-    
+
           // Yield occasionally so the progress modal can paint during large vault scans.
           if (index % 8 === 7) await sleep(0);
         }
-    
+
         if (typeof onProgress === "function") {
           onProgress({ completed: files.length, total: files.length, detail: "" });
         }
         return { files, records, tagsByItemId };
       }
-    
+
       async collectManagedRootEagleItems(rootId) {
         const folderIds = await this.getObsidianManagedEagleFolderIds(rootId);
         if (!folderIds.length) return [];
@@ -5976,7 +5682,7 @@ module.exports = EagleBridgeMobilePlugin;
           return uniqueItemsById(items);
         }
       }
-    
+
       async collectEagleItemsForVaultPlan(plan, rootId) {
         const byId = new Map();
         for (const item of await this.collectManagedRootEagleItems(rootId)) {
@@ -5990,7 +5696,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return Array.from(byId.values());
       }
-    
+
       async getManagedFoldersBelowRoot(rootId) {
         const folders = await this.queryEagleFolders();
         const root = findEagleFolderById(folders, rootId);
@@ -6006,7 +5712,7 @@ module.exports = EagleBridgeMobilePlugin;
         visit(root, 1);
         return nodes;
       }
-    
+
       async getEagleItemsAssignedToFolder(folderId) {
         const items = [];
         let offset = 0;
@@ -6020,7 +5726,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return uniqueItemsById(items);
       }
-    
+
       recordManagedFolderForRebuild(context, folderId, rootId, folderPath) {
         if (!context || !context.file || !folderId || !rootId) return;
         const sourcePath = normalizeVaultPath(context.file.path);
@@ -6041,24 +5747,24 @@ module.exports = EagleBridgeMobilePlugin;
           path: targetPath
         };
       }
-    
+
       async findLegacyManagedFolderForRebuild(record, rootId, managedFolderIds) {
         const context = record && record.context;
         if (!context || !context.file) return null;
         const sourcePath = normalizeVaultPath(context.file.path);
         const remembered = this._folderRebuildPreviousRecords || this.settings;
         const folders = await this.queryEagleFolders();
-    
+
         const sourceRecord = remembered.managedEagleFoldersBySource && remembered.managedEagleFoldersBySource[sourcePath];
         if (sourceRecord && String(sourceRecord.rootId || "") === String(rootId || "") && managedFolderIds.has(String(sourceRecord.id))) {
           const fromSource = findEagleFolderById(folders, sourceRecord.id);
           if (fromSource) return fromSource;
         }
-    
+
         const targetPath = await this.getManagedEagleFolderPathForContext(context);
         const exact = await this.findExistingEagleFolderForVaultPath(targetPath, rootId);
         if (exact && managedFolderIds.has(String(exact.id))) return exact;
-    
+
         // Versions before 0.4.130 only remembered folder paths. The former default
         // naming rule was title-date, so it is a safe first migration fallback.
         const identity = String(context.identity || await this.getEagleFolderIdentityForFile(context.file) || "");
@@ -6076,7 +5782,7 @@ module.exports = EagleBridgeMobilePlugin;
           const found = findEagleFolderById(folders, legacyRecord.id);
           if (found) return found;
         }
-    
+
         // Last resort for legacy data: infer ownership from the current direct
         // references. A tie is deliberately ignored rather than renaming a folder
         // that may belong to a different note with shared assets.
@@ -6093,7 +5799,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (!ranked.length || (ranked[1] && ranked[0][1] === ranked[1][1])) return null;
         return findEagleFolderById(folders, ranked[0][0]) || null;
       }
-    
+
       async resolveRebuildFolderForRecord(record, rootId, managedFolderIds) {
         const context = record.context;
         const targetPath = await this.getManagedEagleFolderPathForContext(context);
@@ -6103,7 +5809,7 @@ module.exports = EagleBridgeMobilePlugin;
           ? await this.resolveEagleFolderIdForVaultPath(targetParentPath, rootId, false, true)
           : rootId;
         const existing = await this.findLegacyManagedFolderForRebuild(record, rootId, managedFolderIds);
-    
+
         if (existing && existing.id) {
           const folders = await this.queryEagleFolders();
           const parentInfo = findEagleFolderWithParentById(folders, existing.id);
@@ -6117,7 +5823,7 @@ module.exports = EagleBridgeMobilePlugin;
             return { id: String(existing.id), reused: true, targetPath };
           }
         }
-    
+
         const createdId = await this.resolveEagleFolderIdForVaultPath(targetPath, rootId, false, true);
         if (!createdId || createdId === rootId) {
           throw new Error(`无法创建 Eagle 专属文件夹：${targetPath}`);
@@ -6125,7 +5831,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.recordManagedFolderForRebuild(context, createdId, rootId, targetPath);
         return { id: String(createdId), reused: false, targetPath };
       }
-    
+
       async rebuildAllVaultTags() {
         if (this.settings.tagManagementEnabled === false) {
           throw new Error("标签管理当前已关闭。请先在设置中开启后再重建。");
@@ -6159,7 +5865,7 @@ module.exports = EagleBridgeMobilePlugin;
               update({ phase: "清理旧标签", completed: index + 1, total: cleanupTotal, detail: getAssetDisplayName(current) });
               if (index % 8 === 7) await sleep(0);
             }
-    
+
             const assignments = Array.from(plan.tagsByItemId.entries());
             let written = 0;
             update({ phase: "写入当前标签规则", completed: 0, total: assignments.length });
@@ -6184,7 +5890,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         });
       }
-    
+
       async rebuildAllVaultFolders() {
         if (this.settings.folderManagementEnabled === false) {
           throw new Error("文件夹管理当前已关闭。请先在设置中开启后再重建。");
@@ -6224,7 +5930,7 @@ module.exports = EagleBridgeMobilePlugin;
                   created += 1;
                   managedFolderIds.add(String(folder.id));
                 }
-    
+
                 // A dedicated folder may still contain references deleted from the
                 // note later on. Clear only this folder membership, then rebuild it
                 // from the current direct references. Other Eagle folders stay intact.
@@ -6235,7 +5941,7 @@ module.exports = EagleBridgeMobilePlugin;
                   const removed = await this.removeEagleItemFoldersViaHelper(itemId, [folder.id]);
                   if (removed > 0) detached += 1;
                 }
-    
+
                 for (const itemId of record.itemIds) {
                   const item = await this.queryEagleItemInfo(itemId, { force: true });
                   if (!item || itemHasEagleFolder(item, folder.id)) continue;
@@ -6256,7 +5962,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         });
       }
-    
+
       async runVaultRebuildTask({ title, description, run }) {
         const modal = new EagleBridgeProgressModal(this.app, title, description);
         modal.open();
@@ -6276,7 +5982,7 @@ module.exports = EagleBridgeMobilePlugin;
           return null;
         }
       }
-    
+
       async confirmAndRebuildAllTags() {
         const choice = await chooseInObsidianModal(
           this.app,
@@ -6288,7 +5994,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (choice !== "continue") return;
         await this.rebuildAllVaultTags();
       }
-    
+
       async confirmAndRebuildAllFolders() {
         const choice = await chooseInObsidianModal(
           this.app,
@@ -6300,7 +6006,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (choice !== "continue") return;
         await this.rebuildAllVaultFolders();
       }
-    
+
       async confirmAndNormalizeAllEagleReferenceLabels() {
         const choice = await chooseInObsidianModal(
           this.app,
@@ -6312,7 +6018,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (choice !== "continue") return;
         await this.normalizeAllEagleReferenceLabels();
       }
-    
+
       async normalizeAllEagleReferenceLabels() {
         return this.runVaultRebuildTask({
           title: this.t("settingNormalizeAllReferencesName"),
@@ -6321,7 +6027,7 @@ module.exports = EagleBridgeMobilePlugin;
             const files = this.getAllObsidianAssetSourceFiles();
             let updatedFiles = 0;
             let updatedLinks = 0;
-    
+
             for (let index = 0; index < files.length; index += 1) {
               const file = files[index];
               const source = await this.app.vault.read(file);
@@ -6333,13 +6039,13 @@ module.exports = EagleBridgeMobilePlugin;
               }
               update(`正在检查 ${index + 1}/${files.length}：${file.path}`);
             }
-    
+
             if (!updatedLinks) return "没有需要修正的 Eagle 引用链接。";
             return `已在 ${updatedFiles} 个文件中修正 ${updatedLinks} 条 Eagle 引用链接。`;
           })
         });
       }
-    
+
       async getObsidianManagedEagleFolderIds(rootId = null) {
         const cleanRootId = String(rootId || this.settings.eagleFolderId || "").trim();
         if (!cleanRootId) return [];
@@ -6348,7 +6054,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (!root) return [cleanRootId];
         return collectEagleFolderIds(root);
       }
-    
+
       async queryEagleItemsByFolderPage(folderId, offset = 0, limit = 24) {
         const cleanFolderId = String(folderId || "").trim();
         if (!cleanFolderId) return [];
@@ -6363,7 +6069,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
         return Array.isArray(body && body.data) ? body.data : [];
       }
-    
+
       async createObsidianLibraryPager(filterItem = null) {
         const folderIds = await this.getObsidianManagedEagleFolderIds();
         const plugin = this;
@@ -6371,7 +6077,7 @@ module.exports = EagleBridgeMobilePlugin;
         let folderIndex = 0;
         let offset = 0;
         let exhausted = !folderIds.length;
-    
+
         return {
           async nextPage(limit = 24) {
             const page = [];
@@ -6400,7 +6106,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         };
       }
-    
+
       createArrayPager(items, filterItem = null) {
         const source = Array.isArray(items) ? items : [];
         let offset = 0;
@@ -6417,7 +6123,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         };
       }
-    
+
       getLibraryAssetKey(item) {
         if (!item) return "";
         if (item.__libraryKey) return String(item.__libraryKey);
@@ -6427,7 +6133,7 @@ module.exports = EagleBridgeMobilePlugin;
           : String(item.id || "");
         return id ? `${source}:${id}` : "";
       }
-    
+
       async queryObsidianLibraryItemsViaHelper(folderIds, tagPrefixes, referencedItemIds = []) {
         const cleanFolderIds = Array.from(new Set((folderIds || []).map(value => String(value || "").trim()).filter(Boolean)));
         const cleanTagPrefixes = Array.from(new Set((tagPrefixes || []).map(value => String(value || "").trim()).filter(Boolean)));
@@ -6455,7 +6161,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return Array.isArray(body.data && body.data.items) ? body.data.items : [];
       }
-    
+
       async collectObsidianLibrarySourceAssets() {
         const vaultFiles = this.app.vault.getFiles()
           .filter(file => file instanceof TFile && !isInsideEagleLibrary(file.path));
@@ -6468,13 +6174,13 @@ module.exports = EagleBridgeMobilePlugin;
         const readSource = typeof this.app.vault.cachedRead === "function"
           ? file => this.app.vault.cachedRead(file)
           : file => this.app.vault.read(file);
-    
+
         const addReference = (map, key, filePath) => {
           if (!key || !filePath) return;
           if (!map.has(key)) map.set(key, new Set());
           map.get(key).add(filePath);
         };
-    
+
         const createLocalItem = file => {
           const key = file.path;
           const fullPath = this.getFullPath(file);
@@ -6489,17 +6195,18 @@ module.exports = EagleBridgeMobilePlugin;
             __libraryKey: `local:${key}`
           };
         };
-    
+
         await mapWithConcurrency(sourceFiles, 8, async file => {
           try {
             const text = await readSource(file);
+            const markdownLinks = file.extension === "canvas" ? null : this.collectMarkdownAttachmentLinks(text, file);
             for (const id of this.extractEagleBridgeItemIds(text)) {
               addReference(eagleReferenceFilesById, stripInfoSuffix(id), file.path);
             }
-    
+
             const localLinks = file.extension === "canvas"
               ? this.findCanvasAttachmentLinks(text, file)
-              : this.findLocalAttachmentLinks(text, file, false);
+              : markdownLinks.localLinks;
             for (const link of localLinks) {
               if (!(link.file instanceof TFile)) continue;
               const key = link.file.path;
@@ -6510,10 +6217,10 @@ module.exports = EagleBridgeMobilePlugin;
               }
               addReference(item.__libraryReferences || (item.__libraryReferences = new Map()), item.__libraryKey, file.path);
             }
-    
+
             const externalLocalLinks = file.extension === "canvas"
               ? this.findCanvasExternalLocalAttachmentLinks(text)
-              : this.findExternalLocalAttachmentLinks(text);
+              : markdownLinks.externalLocalLinks;
             for (const link of externalLocalLinks) {
               const key = link.localPath;
               let item = externalLocalItemsByPath.get(key);
@@ -6533,10 +6240,10 @@ module.exports = EagleBridgeMobilePlugin;
               }
               addReference(item.__libraryReferences || (item.__libraryReferences = new Map()), item.__libraryKey, file.path);
             }
-    
+
             const internetLinks = file.extension === "canvas"
               ? this.findCanvasInternetAttachmentLinks(text, file)
-              : this.findInternetAttachmentLinks(text);
+              : markdownLinks.internetLinks;
             for (const link of internetLinks) {
               const key = String(link.url || "");
               if (!key) continue;
@@ -6562,7 +6269,7 @@ module.exports = EagleBridgeMobilePlugin;
             console.warn("Failed to scan Obsidian library source file:", file.path, error);
           }
         });
-    
+
         // Add every vault attachment after reference parsing. This lets the global
         // library surface unreferenced PDFs, design files, media, archives, and
         // other attachments without treating notes or Obsidian configuration as assets.
@@ -6574,7 +6281,7 @@ module.exports = EagleBridgeMobilePlugin;
             localItemsByPath.set(file.path, createLocalItem(file));
           }
         }
-    
+
         const sourceReferences = new Map();
         for (const item of [...localItemsByPath.values(), ...externalLocalItemsByPath.values(), ...internetItemsByUrl.values()]) {
           const references = item.__libraryReferences && item.__libraryReferences.get(item.__libraryKey);
@@ -6589,11 +6296,11 @@ module.exports = EagleBridgeMobilePlugin;
           internetItems: Array.from(internetItemsByUrl.values())
         };
       }
-    
+
       async collectObsidianTrashLibraryItems() {
         const adapter = this.app.vault && this.app.vault.adapter;
         if (!adapter || typeof adapter.list !== "function") return [];
-    
+
         const filePaths = [];
         const walk = async folderPath => {
           let listing;
@@ -6610,7 +6317,7 @@ module.exports = EagleBridgeMobilePlugin;
             await walk(childPath);
           }
         };
-    
+
         await walk(".trash");
         return mapWithConcurrency(filePaths, 6, async filePath => {
           let stat = null;
@@ -6638,7 +6345,7 @@ module.exports = EagleBridgeMobilePlugin;
           };
         });
       }
-    
+
       async getObsidianLibraryReferenceSummary() {
         const collected = await this.collectObsidianLibrarySourceAssets();
         let folderIds;
@@ -6671,7 +6378,7 @@ module.exports = EagleBridgeMobilePlugin;
             if (!page.hasMore) break;
           }
         }
-    
+
         const referencedIds = new Set(collected.eagleReferenceFilesById.keys());
         const activeEagleItemIds = new Set(
           eagleItems
@@ -6741,14 +6448,14 @@ module.exports = EagleBridgeMobilePlugin;
           unreferenced: Math.max(0, items.length - referenced)
         };
       }
-    
+
       async reconcileCurrentContextEagleBridgeTags(context, existingText = null, showNotice = true) {
         if (this.settings.tagManagementEnabled === false) return;
         const text = existingText !== null ? existingText : await this.app.vault.read(context.file);
         await this.syncCurrentNoteEagleBridgeLinkTags(context, text, showNotice);
         await this.removeStaleContextTags(context, text, showNotice);
       }
-    
+
       async removeStaleContextTags(context, existingText = null, showNotice = true) {
         if (this.settings.tagManagementEnabled === false) return;
         try {
@@ -6756,7 +6463,7 @@ module.exports = EagleBridgeMobilePlugin;
           const currentIds = new Set(this.extractEagleBridgeItemIds(text).map(id => stripInfoSuffix(id)));
           const tagsToClean = this.getContextTagsToClean(context);
           if (!tagsToClean.length) return;
-    
+
           const taggedItems = await this.queryEagleItemsByTags(tagsToClean);
           let updated = 0;
           for (const item of taggedItems) {
@@ -6776,7 +6483,7 @@ module.exports = EagleBridgeMobilePlugin;
           console.warn("Failed to remove stale EagleBridge link tags:", error);
         }
       }
-    
+
       getContextTagsToClean(context) {
         const tags = new Set(context.tags || []);
         const noteRename = this.lastNoteRename;
@@ -6789,7 +6496,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return Array.from(tags).filter(Boolean);
       }
-    
+
       getRemovableTagsForContext(context, existingTags = []) {
         if (context && context.kind === "canvas") {
           const rename = this.lastCanvasRename;
@@ -6808,11 +6515,11 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return Array.from(new Set(tags));
       }
-    
+
       extractEagleBridgeItemIds(text) {
         return this.extractEagleBridgeItemReferences(text).map(ref => ref.id);
       }
-    
+
       extractEagleBridgeItemReferences(text) {
         const refs = [];
         const seen = new Set();
@@ -6823,21 +6530,21 @@ module.exports = EagleBridgeMobilePlugin;
           seen.add(cleanId);
           refs.push({ id: cleanId, label: cleanEagleBridgeLabel(label), start, end });
         };
-    
+
         const mdRe = /!?\[([^\]]*)\]\((https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info)\)/g;
         let match;
         while ((match = mdRe.exec(source)) !== null) {
           addRef(match[3], match[1], match.index, match.index + match[0].length);
         }
-    
+
         const urlRe = /https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info/g;
         while ((match = urlRe.exec(source)) !== null) {
           addRef(match[1], "", match.index, match.index + match[0].length);
         }
-    
+
         return refs;
       }
-    
+
       async updateEagleItemTags(itemId, tags) {
         const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
         try {
@@ -6866,15 +6573,15 @@ module.exports = EagleBridgeMobilePlugin;
           return body;
         }
       }
-    
+
       async updateEagleItemFolder(itemId, folderId) {
         const cleanItemId = String(itemId || "").trim();
         const cleanFolderId = String(folderId || "").trim();
         if (!cleanItemId || !cleanFolderId) return false;
-    
+
         const helperOk = await this.addEagleItemToFolderViaHelper(cleanItemId, cleanFolderId);
         if (helperOk) return true;
-    
+
         const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
         const attempts = [
           { endpoint: "moveToFolder", payload: { id: cleanItemId, itemId: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
@@ -6885,7 +6592,7 @@ module.exports = EagleBridgeMobilePlugin;
           { endpoint: "update", payload: { id: cleanItemId, itemId: cleanItemId, folderIds: [cleanFolderId] } },
           { endpoint: "update", payload: { id: cleanItemId, itemId: cleanItemId, folderIDs: [cleanFolderId] } }
         ];
-    
+
         for (const attempt of attempts) {
           try {
             const response = await requestUrl({
@@ -6903,7 +6610,7 @@ module.exports = EagleBridgeMobilePlugin;
             console.warn("Failed to update Eagle item folder:", error);
           }
         }
-    
+
         const queryAttempts = [
           `moveToFolder?id=${encodeURIComponent(cleanItemId)}&folderId=${encodeURIComponent(cleanFolderId)}`,
           `moveToFolder?itemId=${encodeURIComponent(cleanItemId)}&folderId=${encodeURIComponent(cleanFolderId)}`,
@@ -6924,10 +6631,10 @@ module.exports = EagleBridgeMobilePlugin;
             console.warn("Failed to update Eagle item folder with query endpoint:", error);
           }
         }
-    
+
         return false;
       }
-    
+
       async addEagleItemToFolderViaHelper(itemId, folderId) {
         try {
           const body = await this.requestEagleHelperJson("item/add-folder", {
@@ -6943,18 +6650,18 @@ module.exports = EagleBridgeMobilePlugin;
           return false;
         }
       }
-    
+
       async restoreUnfiledEagleItemToRoot(itemId, rootId) {
         const cleanItemId = stripInfoSuffix(String(itemId || "").trim());
         const cleanRootId = String(rootId || "").trim();
         if (!cleanItemId || !cleanRootId) return false;
-    
+
         const item = await this.queryEagleItemInfo(cleanItemId, { force: true });
         if (!item || isEagleItemTrashed(item) || getEagleItemFolderIds(item).length > 0) return false;
-    
+
         return this.addEagleItemToFolderViaHelper(cleanItemId, cleanRootId);
       }
-    
+
       async removeEagleItemFoldersViaHelper(itemId, folderIds) {
         const ids = Array.from(new Set((folderIds || []).map(id => String(id || "").trim()).filter(Boolean)));
         if (!ids.length) return 0;
@@ -6967,7 +6674,7 @@ module.exports = EagleBridgeMobilePlugin;
         const data = body.data || {};
         return Number(data.removed || 0);
       }
-    
+
       async deleteEagleFolderIfEmptyViaHelper(folderId) {
         const cleanFolderId = String(folderId || "").trim();
         if (!cleanFolderId) return false;
@@ -6978,7 +6685,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
         return Boolean(body.data && body.data.deleted);
       }
-    
+
       async moveEagleItemsToTrashViaHelper(itemIds) {
         const ids = Array.from(new Set((itemIds || []).map(id => stripInfoSuffix(id)).filter(Boolean)));
         if (!ids.length) return 0;
@@ -6994,7 +6701,7 @@ module.exports = EagleBridgeMobilePlugin;
         ids.forEach(itemId => this.invalidateEagleItemInfo(itemId));
         return Number((body.data && body.data.moved) || ids.length);
       }
-    
+
       async getEagleItemEmbedUrl(item) {
         if (!item) return "";
         if (item.fileURL) return normalizeFileUrl(item.fileURL);
@@ -7011,7 +6718,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return "";
       }
-    
+
       async getEagleItemThumbnailUrl(item) {
         if (!item) return "";
         if (item.thumbnailURL) {
@@ -7030,14 +6737,14 @@ module.exports = EagleBridgeMobilePlugin;
         if (item.url && /^file:\/\//i.test(item.url)) return item.url;
         return "";
       }
-    
+
       getEagleBridgeUrl(item) {
         const itemId = getEagleItemId(item);
         if (!itemId) return "";
         const base = this.getCompanionMediaUrl();
         return `${base}/images/${encodeURIComponent(stripInfoSuffix(itemId))}.info`;
       }
-    
+
       isEagleBridgeAssetUrl(url) {
         const text = String(url || "").trim();
         if (!/^https?:\/\//i.test(text)) return false;
@@ -7048,7 +6755,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return /^https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/images\/[^/?#]+\.info(?:$|[?#/])/i.test(text);
       }
-    
+
       buildCanvasEagleBridgeUrl(bridgeUrl, fileName) {
         try {
           const parsedUrl = new URL(bridgeUrl);
@@ -7060,7 +6767,7 @@ module.exports = EagleBridgeMobilePlugin;
           return bridgeUrl;
         }
       }
-    
+
       async resolveEaglePathEndpoint(url) {
         try {
           const response = await requestUrl({ url, method: "GET" });
@@ -7075,7 +6782,7 @@ module.exports = EagleBridgeMobilePlugin;
           return "";
         }
       }
-    
+
       async trashImportedFiles(importedItems) {
         if (!this.settings.trashAfterImport) return;
         const seen = new Set();
@@ -7091,7 +6798,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }
       }
-    
+
       async trashLocalFile(file) {
         const sourcePath = String(file && file.path || "").trim();
         const currentFile = this.app.vault.getAbstractFileByPath(sourcePath);
@@ -7100,22 +6807,22 @@ module.exports = EagleBridgeMobilePlugin;
           error.code = "ENOENT";
           throw error;
         }
-    
+
         // Let Obsidian manage its special .trash folder and any duplicate names.
         if (typeof this.app.vault.trash === "function") {
           await this.app.vault.trash(currentFile, false);
           return sourcePath;
         }
-    
+
         // Older Obsidian builds still expose FileManager's native trash command.
         if (this.app.fileManager && typeof this.app.fileManager.trashFile === "function") {
           await this.app.fileManager.trashFile(currentFile);
           return sourcePath;
         }
-    
+
         throw new Error("This Obsidian version does not provide a local trash API.");
       }
-    
+
       async getAuthoritativeEagleItem(item) {
         const itemId = stripInfoSuffix(getEagleItemId(item));
         if (!itemId) return item;
@@ -7126,12 +6833,12 @@ module.exports = EagleBridgeMobilePlugin;
           return item;
         }
       }
-    
+
       async normalizeEagleBridgeReferenceLabels(context, sourceText) {
         const source = String(sourceText || "");
         const refs = this.extractEagleBridgeItemReferences(source);
         if (!context || !refs.length) return source;
-    
+
         const namesById = new Map();
         for (const ref of refs) {
           const itemId = stripInfoSuffix(ref.id);
@@ -7141,7 +6848,7 @@ module.exports = EagleBridgeMobilePlugin;
           const canonicalName = this.getCanonicalEagleFileName(item, fallback);
           if (canonicalName) namesById.set(itemId, canonicalName);
         }
-    
+
         const markdownRef = /(!?\[)([^\]]*)(\]\((https?:\/\/[^)\s"'<>]+\/images\/([^\)\s"'<>]+)\.info)\))/g;
         return source.replace(markdownRef, (full, opening, label, closing, url, rawId, offset) => {
           if (!this.isEagleBridgeAssetUrl(url)) return full;
@@ -7154,7 +6861,7 @@ module.exports = EagleBridgeMobilePlugin;
           return makeMarkdownTableSafeReference(source, offset, `${opening}${nextLabel}${closing}`);
         });
       }
-    
+
       normalizeLegacyEagleBridgeReferenceLabels(sourceText) {
         const source = String(sourceText || "");
         let changed = 0;
@@ -7180,7 +6887,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
         return { text, changed };
       }
-    
+
       getCanonicalEagleFileName(item, fallbackName = "") {
         const fallback = String(fallbackName || "").trim();
         const eagleName = String(item && (item.name || item.filename || item.fileName || item.title) || "").trim();
@@ -7192,7 +6899,7 @@ module.exports = EagleBridgeMobilePlugin;
         const stem = nodePath.extname(baseName) ? stripExtension(baseName) : baseName;
         return extension ? `${stem}${extension}` : baseName;
       }
-    
+
       buildReplacement(sourceFile, values = {}) {
         const displayName = sanitizeEagleBridgeEmbedLabel(values.displayName || sourceFile.name) || "attachment";
         if (!isPreviewableImage(displayName)) {
@@ -7206,7 +6913,7 @@ module.exports = EagleBridgeMobilePlugin;
           .replaceAll("{bridgeUrl}", values.bridgeUrl || "")
           .replaceAll("{url}", values.url || "");
       }
-    
+
       async normalizeLegacyNonImageEagleBridgeEmbeds(file) {
         if (!(file instanceof TFile) || file.extension !== "md") return 0;
         const source = await this.app.vault.read(file);
@@ -7214,7 +6921,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (normalized.count) await this.app.vault.modify(file, normalized.text);
         return normalized.count;
       }
-    
+
       decorateEagleBridgeFileLinks(root) {
         if (!root || typeof root.querySelectorAll !== "function") return;
         const sources = [];
@@ -7247,7 +6954,7 @@ module.exports = EagleBridgeMobilePlugin;
           }));
         }
       }
-    
+
       getFullPath(file) {
         const adapter = this.app.vault.adapter;
         if (adapter && typeof adapter.getFullPath === "function") {
@@ -7255,19 +6962,166 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return "";
       }
-    
+
+      async buildCurrentNoteExportPlan(file, text) {
+        const entriesByKey = new Map();
+        const replacements = [];
+        const missingByKey = new Map();
+        const addMissing = (key, label, reason) => {
+          if (!missingByKey.has(key)) missingByKey.set(key, { label, reason });
+        };
+        const addResolved = (key, sourcePath, desiredName, suffix, ref) => {
+          const sourceKey = `file:${nodePath.resolve(sourcePath).toLowerCase()}`;
+          let entry = entriesByKey.get(sourceKey);
+          if (!entry) {
+            entry = { key, sourcePath, desiredName, suffix, refs: [] };
+            entriesByKey.set(sourceKey, entry);
+          }
+          entry.refs.push(ref);
+        };
+
+        const oeRefs = parseOeLinkReferences(text);
+        const { localLinks: localRefs, externalLocalLinks: externalRefs } = this.collectMarkdownAttachmentLinks(text, file, {
+          includeMissing: true,
+          includeInternet: false
+        });
+        const resolvedEagle = new Map();
+        await mapWithConcurrency(Array.from(new Set(oeRefs.map(ref => stripInfoSuffix(ref.id)))), 6, async id => {
+          try {
+            const item = await this.queryEagleItemInfo(id, { force: true });
+            const sourcePath = item && await this.getOriginalPathForEagleItem(item);
+            if (!sourcePath || !nodeFs.existsSync(sourcePath)) throw new Error(this.t("exportMissingEagleFile"));
+            resolvedEagle.set(id, { sourcePath, desiredName: nodePath.basename(sourcePath), suffix: id.slice(-8) });
+          } catch (error) {
+            resolvedEagle.set(id, { error: error && error.message ? error.message : String(error) });
+          }
+        });
+        for (const ref of oeRefs) {
+          const id = stripInfoSuffix(ref.id);
+          const resolved = resolvedEagle.get(id);
+          if (!resolved || resolved.error) addMissing(`eagle:${id}`, id, resolved && resolved.error || this.t("exportMissingEagleFile"));
+          else addResolved(`eagle:${id}`, resolved.sourcePath, resolved.desiredName, resolved.suffix, ref);
+        }
+
+        for (const ref of localRefs) {
+          if (ref.__missingAttachment || !(ref.file instanceof TFile)) {
+            addMissing(`local:${ref.target}`, ref.target, this.t("exportMissingVaultFile"));
+            continue;
+          }
+          const sourcePath = this.getFullPath(ref.file);
+          if (!sourcePath || !nodeFs.existsSync(sourcePath)) addMissing(`local:${ref.file.path}`, ref.file.path, this.t("exportMissingVaultFile"));
+          else addResolved(`local:${ref.file.path}`, sourcePath, nodePath.basename(sourcePath), "", ref);
+        }
+
+        for (const ref of externalRefs) {
+          if (ref.__missingAttachment || !nodeFs.existsSync(ref.localPath)) {
+            addMissing(`external:${ref.localPath}`, ref.localPath, this.t("exportMissingExternalFile"));
+            continue;
+          }
+          addResolved(`external:${ref.localPath}`, ref.localPath, nodePath.basename(ref.localPath), "", ref);
+        }
+
+        const entries = Array.from(entriesByKey.values());
+        const renames = assignExportNames(entries);
+        for (const entry of entries) {
+          const target = `attachments/${entry.exportName}`;
+          for (const ref of entry.refs) replacements.push({
+            start: ref.start,
+            end: ref.end,
+            replacement: rewriteReference(ref.original, target)
+          });
+        }
+        return {
+          entries,
+          renames,
+          missing: Array.from(missingByKey.values()),
+          referenceCount: oeRefs.length + localRefs.length + externalRefs.length,
+          noteText: applyReplacements(text, replacements)
+        };
+      }
+
+      async chooseExportParentDirectory() {
+        let dialog = null;
+        try { dialog = require("@electron/remote").dialog; } catch (_) {
+          try { dialog = require("electron").remote && require("electron").remote.dialog; } catch (_) { /* fall through */ }
+        }
+        if (dialog && typeof dialog.showOpenDialog === "function") {
+          const result = await dialog.showOpenDialog({
+            title: this.t("exportChooseDirectory"),
+            properties: ["openDirectory", "createDirectory"]
+          });
+          return result && !result.canceled && result.filePaths && result.filePaths[0] || "";
+        }
+        const downloads = nodePath.join(nodeOs.homedir(), "Downloads");
+        return nodeFs.existsSync(downloads) ? downloads : nodeOs.homedir();
+      }
+
+      async exportCurrentNoteSharePackage(targetFile = null, preferredFormat = "") {
+        const file = targetFile || this.app.workspace.getActiveFile();
+        if (!(file instanceof TFile) || file.extension !== "md") {
+          new Notice(this.t("noticeOpenMarkdown"));
+          return;
+        }
+        try {
+          new Notice(this.t("exportScanning"));
+          const source = await this.app.vault.read(file);
+          const plan = await this.buildCurrentNoteExportPlan(file, source);
+          const format = await chooseExportFormat(this.app, plan, {
+            title: this.t("exportTitle"), summary: this.t("exportSummary"), missingTitle: this.t("exportMissingTitle"),
+            renameTitle: this.t("exportRenameTitle"), ignorePrefix: this.t("exportIgnorePrefix"),
+            folder: this.t("exportFolder"), zip: this.t("exportZip"), cancel: this.t("cancel")
+          }, preferredFormat);
+          if (!format) return;
+          const parent = await this.chooseExportParentDirectory();
+          if (!parent) return;
+
+          const baseName = safeFileName(file.basename, "OE-Link-export");
+          const workRoot = await nodeFs.promises.mkdtemp(nodePath.join(parent, ".oe-link-export-"));
+          const packageRoot = nodePath.join(workRoot, baseName);
+          try {
+            await nodeFs.promises.mkdir(packageRoot, { recursive: true });
+            await copyPackageFiles(packageRoot, file.name, plan.noteText, plan.entries);
+            let destination;
+            if (format === "folder") {
+              destination = uniqueDestination(parent, baseName);
+              await nodeFs.promises.rename(packageRoot, destination);
+            } else {
+              destination = uniqueDestination(parent, baseName, ".zip");
+              const temporaryZip = nodePath.join(workRoot, `${baseName}.zip`);
+              await writeStoredZip(temporaryZip, await listFiles(workRoot));
+              await nodeFs.promises.rename(temporaryZip, destination);
+            }
+            new Notice(this.t("exportComplete", { path: destination }), 10000);
+          } finally {
+            await nodeFs.promises.rm(workRoot, { recursive: true, force: true });
+          }
+        } catch (error) {
+          console.error("OE Link export failed:", error);
+          new Notice(this.t("exportFailed", { error: error && error.message ? error.message : error }), 10000);
+        }
+      }
+
       getResourcePath(file) {
         if (this.app.vault && typeof this.app.vault.getResourcePath === "function") {
           return this.app.vault.getResourcePath(file);
         }
         return "";
       }
-    
+
+      collectMarkdownAttachmentLinks(text, sourceFile, options = {}) {
+        const includeMissing = options.includeMissing === true;
+        return {
+          localLinks: this.findLocalAttachmentLinks(text, sourceFile, includeMissing),
+          externalLocalLinks: options.includeExternal === false ? [] : this.findExternalLocalAttachmentLinks(text, includeMissing),
+          internetLinks: options.includeInternet === false ? [] : this.findInternetAttachmentLinks(text)
+        };
+      }
+
       findLocalAttachmentLinks(text, sourceFile, includeMissing = false) {
         const links = [];
         const seenRanges = new Set();
         const sourcePath = sourceFile.path;
-    
+
         const addLink = (matchText, rawPath, start, end) => {
           const cleaned = cleanAttachmentTarget(rawPath);
           if (!cleaned || isExternalLink(cleaned) || externalLocalPathFromTarget(cleaned)) return;
@@ -7295,36 +7149,34 @@ module.exports = EagleBridgeMobilePlugin;
           seenRanges.add(key);
           links.push({ original: matchText, target: cleaned, file, start, end });
         };
-    
+
         const wikiRe = /!?\[\[((?:\\\||[^\]])+)\]\]/g;
         let match;
         while ((match = wikiRe.exec(text)) !== null) {
           addLink(match[0], getWikiAttachmentTarget(match[1]), match.index, match.index + match[0].length);
         }
-    
+
         for (const mdLink of findMarkdownAttachmentReferences(text)) {
           addLink(mdLink.original, mdLink.target, mdLink.start, mdLink.end);
         }
-    
+
         const htmlAttrRe = /<(?:img|video|audio|source|embed|object|a)\b[^>]*?\s(?:src|href|data)=["']([^"']+)["'][^>]*>/gi;
         while ((match = htmlAttrRe.exec(text)) !== null) {
           addLink(match[0], match[1], match.index, match.index + match[0].length);
         }
-    
+
         return links;
       }
-    
-      findExternalLocalAttachmentLinks(text) {
+
+      findExternalLocalAttachmentLinks(text, includeMissing = false) {
         const links = [];
         const seenRanges = new Set();
         const addLink = (matchText, rawPath, start, end, label = "") => {
           const localPath = externalLocalPathFromTarget(rawPath);
           if (!localPath || !isSupportedAttachment(localPath)) return;
-          try {
-            if (!nodeFs.statSync(localPath).isFile()) return;
-          } catch (_) {
-            return;
-          }
+          let missing = false;
+          try { missing = !nodeFs.statSync(localPath).isFile(); } catch (_) { missing = true; }
+          if (missing && !includeMissing) return;
           const key = `${start}:${end}:${localPath}`;
           if (seenRanges.has(key)) return;
           seenRanges.add(key);
@@ -7336,14 +7188,15 @@ module.exports = EagleBridgeMobilePlugin;
             localPath,
             name: parsed.displayName || nodePath.basename(localPath),
             start,
-            end
+            end,
+            __missingAttachment: missing
           });
         };
-    
+
         for (const mdLink of findMarkdownAttachmentReferences(text)) {
           addLink(mdLink.original, mdLink.target, mdLink.start, mdLink.end, mdLink.label);
         }
-    
+
         const htmlAttrRe = /<(?:img|video|audio|source|embed|object|a)\b[^>]*?\s(?:src|href|data)=["']([^"']+)["'][^>]*>/gi;
         let match;
         while ((match = htmlAttrRe.exec(text)) !== null) {
@@ -7352,11 +7205,11 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return links;
       }
-    
+
       findInternetAttachmentLinks(text) {
         const links = [];
         const seenRanges = new Set();
-    
+
         const addLink = (matchText, rawUrl, start, end, label = "", allowExtensionless = false, isImage = false) => {
           const url = cleanExternalAttachmentUrl(String(rawUrl || "").trim());
           if (!/^https?:\/\//i.test(url)) return;
@@ -7368,11 +7221,11 @@ module.exports = EagleBridgeMobilePlugin;
           const name = getInternetAttachmentDisplayName(label, url);
           links.push({ kind: "internet", original: matchText, target: url, url, name, start, end, __isImage: isImage });
         };
-    
+
         for (const mdLink of findMarkdownAttachmentReferences(text)) {
           addLink(mdLink.original, mdLink.target, mdLink.start, mdLink.end, mdLink.label, !!mdLink.isEmbed, !!mdLink.isEmbed);
         }
-    
+
         const htmlTagRe = /<(img|video|audio|source|embed|object|a)\b[^>]*>/gi;
         let match;
         while ((match = htmlTagRe.exec(text)) !== null) {
@@ -7391,14 +7244,14 @@ module.exports = EagleBridgeMobilePlugin;
             }
           }
         }
-    
+
         return links;
       }
-    
+
       findCanvasAttachmentLinks(text, sourceFile) {
         const links = [];
         const seen = new Set();
-    
+
         const addFilePath = (rawPath, original = "", start = 0, end = 0, canvasNodeId = "") => {
           const cleaned = cleanAttachmentTarget(rawPath);
           if (!cleaned || isExternalLink(cleaned) || externalLocalPathFromTarget(cleaned)) return;
@@ -7417,7 +7270,7 @@ module.exports = EagleBridgeMobilePlugin;
             canvasNodeId
           });
         };
-    
+
         try {
           const canvas = JSON.parse(text);
           const nodes = Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [];
@@ -7430,10 +7283,10 @@ module.exports = EagleBridgeMobilePlugin;
         } catch (error) {
           console.warn("Failed to parse Canvas attachments:", error);
         }
-    
+
         return links;
       }
-    
+
       findCanvasInternetAttachmentLinks(text, sourceFile) {
         const links = [];
         const seen = new Set();
@@ -7461,7 +7314,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return links;
       }
-    
+
       findCanvasExternalLocalAttachmentLinks(text) {
         const links = [];
         const seen = new Set();
@@ -7495,11 +7348,11 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return links;
       }
-    
+
       findCanvasNoteLinks(text, sourceFile) {
         const links = [];
         const seen = new Set();
-    
+
         const addNotePath = rawPath => {
           const cleaned = cleanAttachmentTarget(rawPath);
           if (!cleaned || isExternalLink(cleaned)) return;
@@ -7517,7 +7370,7 @@ module.exports = EagleBridgeMobilePlugin;
             __noteFile: file
           });
         };
-    
+
         try {
           const canvas = JSON.parse(text);
           const nodes = Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [];
@@ -7530,10 +7383,10 @@ module.exports = EagleBridgeMobilePlugin;
         } catch (error) {
           console.warn("Failed to parse Canvas note links:", error);
         }
-    
+
         return links;
       }
-    
+
       openExternalUrl(url) {
         if (!url) return;
         try {
@@ -7551,11 +7404,11 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }
       }
-    
+
       openEagleApp() {
         this.openExternalUrl(this.settings.eagleProtocolUrl);
       }
-    
+
       async openEagleForContext(context, options = {}) {
         const activeFile = this.app.workspace.getActiveFile();
         const preferActive = options.preferActive !== false;
@@ -7574,7 +7427,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         this.openEagleApp();
       }
-    
+
       async findExistingEagleFolderIdForContext(context) {
         const rootId = String(this.settings.eagleFolderId || "").trim();
         if (this.settings.folderManagementEnabled === false) return "";
@@ -7590,7 +7443,1256 @@ module.exports = EagleBridgeMobilePlugin;
         }
       }
     };
-    
+
+  },
+  "./lib/asset-utils": function(module, exports, require, __filename, __dirname) {
+    const { TFile } = require("obsidian");
+    const nodePath = require("path");
+    const nodeFs = require("fs");
+
+    const SUPPORTED_ATTACHMENT_EXTENSIONS = [
+      ".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".png", ".apng", ".gif", ".webp", ".avif", ".bmp", ".svg", ".tif", ".tiff", ".heic", ".heif", ".ico", ".raw",
+      ".psd", ".psb", ".ai", ".eps", ".cdr", ".sketch", ".fig", ".xd", ".indd", ".idml", ".afdesign", ".afphoto", ".afpub", ".kra", ".clip", ".ora", ".exr", ".hdr", ".dng", ".cr2", ".nef", ".arw", ".rw2", ".raf",
+      ".pdf",
+      ".mp4", ".mov", ".webm", ".mkv", ".avi", ".wmv", ".m4v", ".flv",
+      ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma",
+      ".doc", ".docx", ".docm", ".dot", ".dotx", ".rtf", ".odt", ".pages",
+      ".ppt", ".pptx", ".pptm", ".pps", ".ppsx", ".pot", ".potx", ".odp", ".key",
+      ".xls", ".xlsx", ".xlsm", ".xlsb", ".xlt", ".xltx", ".csv", ".ods", ".numbers",
+      ".txt", ".md",
+      ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso", ".dmg", ".pkg", ".apk",
+      ".obj", ".fbx", ".blend", ".stl", ".glb", ".gltf", ".3ds", ".dae"
+    ];
+
+    const PREVIEWABLE_IMAGE_EXTENSIONS = [
+      ".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".png", ".apng", ".gif", ".webp", ".avif", ".bmp", ".svg", ".tif", ".tiff", ".heic", ".heif", ".ico"
+    ];
+
+    function getAssetSummary(items) {
+      const assets = (items || []).filter(item => item && item.__assetSource !== "note");
+      const summary = {
+        total: assets.length,
+        inEagle: 0,
+        local: 0,
+        externalLocal: 0,
+        internet: 0,
+        trash: 0,
+        failed: 0
+      };
+      for (const item of assets) {
+        if (item.__assetSource === "missing" || item.__missingAttachment) {
+          summary.failed += 1;
+        } else if (item.__assetSource === "local") {
+          summary.local += 1;
+        } else if (item.__assetSource === "external-local") {
+          summary.externalLocal += 1;
+        } else if (item.__assetSource === "internet") {
+          summary.internet += 1;
+        } else if (isEagleItemTrashed(item)) {
+          summary.trash += 1;
+        } else {
+          summary.inEagle += 1;
+        }
+      }
+      return summary;
+    }
+
+    function normalizeAssetViewMode(value) {
+      if (value === "compact") return "normal";
+      return ["normal", "list", "waterfall"].includes(value) ? value : "normal";
+    }
+
+    function clampNumber(value, min, max, fallback) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.min(max, Math.max(min, number));
+    }
+
+    function buildEagleFolderUrl(baseUrl, folderId) {
+      const rawBase = String(baseUrl || "eagle://").trim() || "eagle://";
+      const base = /^eagle:\/+$/i.test(rawBase) ? "eagle://" : rawBase;
+      const prefix = base.endsWith("://") ? base : `${base.replace(/\/+$/, "")}/`;
+      return `${prefix}folder/${encodeURIComponent(String(folderId || "").trim())}`;
+    }
+
+    function formatIdentityDate(date) {
+      const year = String(date.getFullYear());
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}${month}${day}`;
+    }
+
+    function normalizeIdentityTitle(title) {
+      return String(title || "")
+        .normalize("NFKC")
+        .trim()
+        // Preserve normal spaces and supported punctuation for direct Eagle search.
+        .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/[. ]+$/g, "")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    function buildTitleDateIdentity(title, date) {
+      const cleanTitle = normalizeIdentityTitle(title) || "note";
+      const cleanDate = isIdentityDate(date) ? date : formatIdentityDate(new Date());
+      return `${cleanTitle}-${cleanDate}`;
+    }
+
+    function isIdentityDate(value) {
+      return /^\d{8}$/.test(String(value || "").trim());
+    }
+
+    function getFileIdentityDate(file) {
+      const ctime = file && file.stat && Number.isFinite(file.stat.ctime) ? file.stat.ctime : Date.now();
+      return formatIdentityDate(new Date(ctime));
+    }
+
+    function getStableIdentityDate(file, existingDate = "") {
+      return isIdentityDate(existingDate) ? existingDate : getFileIdentityDate(file);
+    }
+
+    function isObsidianManagedTag(tag) {
+      return /^obsidian/i.test(String(tag || "").trim());
+    }
+
+    function isProbablyMarkdownTableRow(text, index) {
+      const current = getLineAtIndex(text, index);
+      if (!isProbablyMarkdownTableLine(current.line)) return false;
+      const previous = getLineBefore(text, current.start);
+      const next = getLineAfter(text, current.end);
+      return isMarkdownTableSeparatorLine(previous) || isMarkdownTableSeparatorLine(next) || /^\s*\|/.test(current.line) || /\|\s*$/.test(current.line);
+    }
+
+    function isProbablyMarkdownTableLine(line) {
+      return hasUnescapedPipe(line);
+    }
+
+    function getLineAtIndex(text, index) {
+      const value = String(text || "");
+      const safeIndex = Math.max(0, Math.min(index, value.length));
+      const start = value.lastIndexOf("\n", safeIndex - 1) + 1;
+      const nextBreak = value.indexOf("\n", safeIndex);
+      const end = nextBreak === -1 ? value.length : nextBreak;
+      return { line: value.slice(start, end), start, end };
+    }
+
+    function indexToLineCh(text, index) {
+      const value = String(text || "");
+      const safeIndex = Math.max(0, Math.min(index, value.length));
+      const before = value.slice(0, safeIndex);
+      const lines = before.split("\n");
+      return {
+        line: lines.length - 1,
+        ch: lines[lines.length - 1].length
+      };
+    }
+
+    function getLineBefore(text, lineStart) {
+      const value = String(text || "");
+      if (lineStart <= 0) return "";
+      const previousEnd = lineStart - 1;
+      const previousStart = value.lastIndexOf("\n", previousEnd - 1) + 1;
+      return value.slice(previousStart, previousEnd);
+    }
+
+    function getLineAfter(text, lineEnd) {
+      const value = String(text || "");
+      if (lineEnd >= value.length) return "";
+      const start = lineEnd + 1;
+      const nextBreak = value.indexOf("\n", start);
+      const end = nextBreak === -1 ? value.length : nextBreak;
+      return value.slice(start, end);
+    }
+
+    function hasUnescapedPipe(line) {
+      const value = String(line || "");
+      for (let index = 0; index < value.length; index += 1) {
+        if (value[index] !== "|") continue;
+        let slashCount = 0;
+        for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
+          slashCount += 1;
+        }
+        if (slashCount % 2 === 0) return true;
+      }
+      return false;
+    }
+
+    function isMarkdownTableSeparatorLine(line) {
+      const value = String(line || "").trim();
+      if (!value || !hasUnescapedPipe(value)) return false;
+      const cells = value.split("|").map(cell => cell.trim()).filter(Boolean);
+      return cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+    }
+
+    function escapeMarkdownTablePipes(value) {
+      return String(value || "").replace(/(^|[^\\])\|/g, "$1\\|");
+    }
+
+    function makeMarkdownTableSafeReference(source, index, reference) {
+      return isProbablyMarkdownTableRow(source, index)
+        ? escapeMarkdownTablePipes(reference)
+        : reference;
+    }
+
+    function splitList(value) {
+      return String(value || "")
+        .split(",")
+        .map(item => item.trim())
+        .filter((item, index, list) => item || list.length > 1);
+    }
+
+    function stripExtension(fileName) {
+      return fileName.replace(/\.[^.]+$/, "");
+    }
+
+    function getSourceParentPath(file) {
+      const path = String(file && file.path || "").replace(/\\/g, "/");
+      const index = path.lastIndexOf("/");
+      return index > 0 ? path.slice(0, index) : "";
+    }
+
+    function getSourceParentPathFromPath(path) {
+      const normalized = normalizeVaultPath(path);
+      const index = normalized.lastIndexOf("/");
+      return index > 0 ? normalized.slice(0, index) : "";
+    }
+
+    function getSourceManagedFolderPath(file, useObsidianFolderTree = false) {
+      return getSourceManagedFolderPathFromPath(file && file.path, useObsidianFolderTree);
+    }
+
+    function getSourceManagedFolderPathFromPath(path, useObsidianFolderTree = false) {
+      const normalized = normalizeVaultPath(path);
+      if (!normalized) return "";
+      const sourcePath = useObsidianFolderTree ? normalized : vaultPathBasename(normalized);
+      return stripExtension(sourcePath);
+    }
+
+    function vaultPathBasename(path) {
+      const normalized = normalizeVaultPath(path);
+      const parts = normalized.split("/").filter(Boolean);
+      return parts.length ? parts[parts.length - 1] : "";
+    }
+
+    function normalizeVaultPath(value) {
+      return String(value || "")
+        .replace(/\\/g, "/")
+        .replace(/^\/+|\/+$/g, "")
+        .replace(/\/{2,}/g, "/");
+    }
+
+    function isInsideEagleLibrary(value) {
+      return /(^|\/)[^/]+\.library(?:\/|$)/i.test(normalizeVaultPath(value));
+    }
+
+    function findEagleFolderById(folders, id) {
+      const targetId = String(id || "");
+      for (const folder of Array.isArray(folders) ? folders : []) {
+        if (!folder || typeof folder !== "object") continue;
+        if (String(folder.id || "") === targetId) return folder;
+        const child = findEagleFolderById(folder.children, targetId);
+        if (child) return child;
+      }
+      return null;
+    }
+
+    function findEagleFolderWithParentById(folders, id, parent = null) {
+      const targetId = String(id || "");
+      for (const folder of Array.isArray(folders) ? folders : []) {
+        if (!folder || typeof folder !== "object") continue;
+        if (String(folder.id || "") === targetId) {
+          return {
+            folder,
+            parent,
+            parentId: parent && parent.id ? String(parent.id) : ""
+          };
+        }
+        const child = findEagleFolderWithParentById(folder.children, targetId, folder);
+        if (child) return child;
+      }
+      return null;
+    }
+
+    function normalizeFolderName(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function normalizeCreatedEagleFolder(folder, fallbackName) {
+      if (!folder || typeof folder !== "object") return null;
+      if (folder.name) return folder;
+      return Object.assign({}, folder, {
+        name: fallbackName
+      });
+    }
+
+    function collectEagleFolderIds(folder) {
+      const ids = [];
+      const visit = current => {
+        if (!current || typeof current !== "object") return;
+        const id = String(current.id || current.folderId || current.folderID || "").trim();
+        if (id) ids.push(id);
+        for (const child of Array.isArray(current.children) ? current.children : []) {
+          visit(child);
+        }
+      };
+      visit(folder);
+      return Array.from(new Set(ids));
+    }
+
+    function isSupportedSourceFile(file) {
+      return file instanceof TFile && ["md", "canvas"].includes(file.extension);
+    }
+
+    function isExternalLink(value) {
+      return /^(https?:|file:|obsidian:|eagle:|data:)/i.test(value);
+    }
+
+    function supportedAttachmentExtensions() {
+      return SUPPORTED_ATTACHMENT_EXTENSIONS;
+    }
+
+    function isSupportedAttachment(value) {
+      const ext = nodePath.extname(stripAttachmentSubpath(value)).toLowerCase();
+      return supportedAttachmentExtensions().includes(ext);
+    }
+
+    function isSupportedCanvasAttachment(value) {
+      const ext = nodePath.extname(stripAttachmentSubpath(value)).toLowerCase();
+      return ext !== ".md" && supportedAttachmentExtensions().includes(ext);
+    }
+
+    function isPreviewableImage(value) {
+      const ext = nodePath.extname(String(value || "").split("?")[0]).toLowerCase();
+      return PREVIEWABLE_IMAGE_EXTENSIONS.includes(ext);
+    }
+
+    function normalizeCanvasNodeSize(node, fileName) {
+      const width = Number(node && node.width);
+      const height = Number(node && node.height);
+      const validWidth = Number.isFinite(width) && width > 0;
+      const validHeight = Number.isFinite(height) && height > 0;
+      if (validWidth && validHeight) {
+        return {
+          width: Math.round(width),
+          height: Math.round(height)
+        };
+      }
+      if (isPreviewableImage(fileName)) {
+        return { width: 320, height: 240 };
+      }
+      return { width: 260, height: 160 };
+    }
+
+    function createFilePlaceholder(parent, extension, label = "FILE") {
+      const placeholder = parent.createDiv({ cls: "eaglebridge-file-placeholder" });
+      placeholder.createDiv({ cls: "eaglebridge-file-placeholder-icon", text: label });
+      placeholder.createDiv({
+        cls: "eaglebridge-file-placeholder-ext",
+        text: String(extension || "file").replace(/^\./, "").toUpperCase()
+      });
+      return placeholder;
+    }
+
+    function createNotePlaceholder(parent, fileName, label = "NOTE") {
+      const placeholder = parent.createDiv({ cls: "eaglebridge-file-placeholder eaglebridge-note-placeholder" });
+      placeholder.createDiv({ cls: "eaglebridge-file-placeholder-icon", text: label });
+      placeholder.createDiv({
+        cls: "eaglebridge-file-placeholder-ext eaglebridge-note-placeholder-name",
+        text: String(fileName || "").trim() || "note.md"
+      });
+      return placeholder;
+    }
+
+    function getAssetDisplayName(item) {
+      return item.__noteLinkName || item.name || item.filename || item.fileName || item.title || item.id || "";
+    }
+
+    function isStableEagleItem(item) {
+      if (!item || isEagleItemTrashed(item)) return false;
+      return !!(item.fileURL || item.thumbnailURL || item.url);
+    }
+
+    function isLikelySameAssetByName(item, expectedName) {
+      const expected = normalizeMatchName(expectedName);
+      if (!expected) return false;
+      return getEagleItemNameCandidates(item).some(name => normalizeMatchName(name) === expected);
+    }
+
+    function isLikelySameAssetByAnyName(item, expectedNames) {
+      return (expectedNames || []).some(name => isLikelySameAssetByName(item, name));
+    }
+
+    function getDuplicateRepairSearchNames(value) {
+      const label = cleanEagleBridgeLabel(value).trim();
+      const names = [stripExtension(label), label].filter(Boolean);
+      return Array.from(new Set(names));
+    }
+
+    function getDuplicateRepairExpectedExtension(...values) {
+      for (const value of values) {
+        const extension = getExtensionFromDisplayName(value);
+        if (extension) return extension;
+        const direct = normalizeExtension(value);
+        if (direct) return direct;
+      }
+      return "";
+    }
+
+    function uniqueItemsById(items) {
+      const seen = new Set();
+      const unique = [];
+      for (const item of items || []) {
+        const id = getEagleItemId(item);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        unique.push(item);
+      }
+      return unique;
+    }
+
+    async function mapWithConcurrency(values, limit, mapper) {
+      const source = Array.isArray(values) ? values : [];
+      const results = new Array(source.length);
+      let nextIndex = 0;
+      const workerCount = Math.min(Math.max(1, Number(limit) || 1), source.length);
+      const workers = Array.from({ length: workerCount }, async () => {
+        while (nextIndex < source.length) {
+          const index = nextIndex;
+          nextIndex += 1;
+          results[index] = await mapper(source[index], index);
+        }
+      });
+      await Promise.all(workers);
+      return results;
+    }
+
+    function getEagleItemNameCandidates(item) {
+      if (!item) return [];
+      const values = [
+        item.name,
+        item.filename,
+        item.fileName,
+        item.title,
+        getFileNameFromUrl(item.fileURL),
+        getFileNameFromUrl(item.url)
+      ];
+      return Array.from(new Set(values.map(value => String(value || "").trim()).filter(Boolean)));
+    }
+
+    function normalizeMatchName(value) {
+      const text = cleanEagleBridgeLabel(value)
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      return stripExtension(text);
+    }
+
+    function getEagleItemMatchSignature(item) {
+      if (!item) return null;
+      const width = firstNumberValue(
+        item.width, item.imageWidth, item.naturalWidth, item.w,
+        getNestedNumberValue(item, "metadata.width", "meta.width", "props.width", "dimensions.width")
+      );
+      const height = firstNumberValue(
+        item.height, item.imageHeight, item.naturalHeight, item.h,
+        getNestedNumberValue(item, "metadata.height", "meta.height", "props.height", "dimensions.height")
+      );
+      const size = firstNumberValue(
+        item.size, item.fileSize, item.bytes, item.length,
+        getNestedNumberValue(item, "metadata.size", "meta.size", "props.size", "file.size")
+      );
+      if (!width && !height && !size) return null;
+      return { width, height, size };
+    }
+
+    function isSameEagleAssetSignature(a, b) {
+      if (!a || !b) return false;
+      if (a.width && b.width && a.width !== b.width) return false;
+      if (a.height && b.height && a.height !== b.height) return false;
+      if (a.size && b.size && a.size !== b.size) return false;
+      return !!((a.width && b.width) || (a.height && b.height) || (a.size && b.size));
+    }
+
+    function firstNumberValue(...values) {
+      for (const value of values) {
+        const number = Number(value);
+        if (Number.isFinite(number) && number > 0) return number;
+      }
+      return 0;
+    }
+
+    function getNestedNumberValue(object, ...paths) {
+      for (const pathText of paths) {
+        const value = String(pathText || "").split(".").reduce((current, key) => current && current[key], object);
+        const number = Number(value);
+        if (Number.isFinite(number) && number > 0) return number;
+      }
+      return 0;
+    }
+
+    function getAssetExtension(item) {
+      const displayName = getAssetDisplayName(item);
+      const candidates = [
+        item.__extension,
+        item.ext,
+        item.extension,
+        getExtensionFromDisplayName(displayName || ""),
+        nodePath.extname(String(item.fileURL || "").split("?")[0]),
+        nodePath.extname(String(item.url || "").split("?")[0])
+      ].filter(Boolean);
+      return candidates[0] || "file";
+    }
+
+    function getWikiAttachmentTarget(value) {
+      const text = String(value || "");
+      let target = "";
+      for (let index = 0; index < text.length; index += 1) {
+        const char = text[index];
+        const next = text[index + 1];
+        if (char === "\\" && next === "|") {
+          break;
+        }
+        if (char === "|" || char === "#") {
+          break;
+        }
+        target += char;
+      }
+      return target.replace(/\\\|/g, "|").trim();
+    }
+
+    function cleanEagleBridgeLabel(value) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      return getWikiAttachmentTarget(text) || text;
+    }
+
+    function sanitizeEagleBridgeEmbedLabel(value) {
+      const label = cleanEagleBridgeLabel(value).trim();
+      if (!label) return "";
+      // Older bridge templates emitted "name|undefined|width". Keep only the
+      // actual filename and repair the accidental double dot before extensions.
+      return label
+        .replace(/\\\|/g, "|")
+        .split("|")[0]
+        .trim()
+        .replace(/\.{2,}([A-Za-z0-9]{1,12})$/, ".$1");
+    }
+
+    function getDisplayNameWithoutObsidianSize(value) {
+      return sanitizeEagleBridgeEmbedLabel(value);
+    }
+
+    function getExtensionFromDisplayName(value) {
+      return normalizeExtension(nodePath.extname(getDisplayNameWithoutObsidianSize(value)));
+    }
+
+    function getInternetAttachmentDisplayName(label, url) {
+      const cleanLabel = sanitizeEagleBridgeEmbedLabel(label);
+      const urlName = nodePath.basename(safeDecode(String(url || "").split("?")[0]).replace(/\\/g, "/"));
+      const labelExtension = normalizeExtension(nodePath.extname(cleanLabel));
+      // A 6060 EagleBridge URL deliberately ends in .info. Its label is the real
+      // attachment filename, so never replace it with the transport filename.
+      if (urlName.toLowerCase().endsWith(".info") && labelExtension) return cleanLabel;
+      // Labels such as "271" are frequently Obsidian display widths. When the
+      // URL has a filename, it is the dependable name for a remote attachment.
+      if (urlName && normalizeExtension(nodePath.extname(urlName))) return urlName;
+      if (cleanLabel && !isLikelyImageSizeLabel(cleanLabel)) return cleanLabel;
+      return urlName || cleanLabel || url;
+    }
+
+    // Normalize every Markdown attachment reference once. Consumers can still use
+    // the original fields, while names no longer inherit legacy width/undefined metadata.
+    function parseAttachmentReference(reference) {
+      const raw = reference || {};
+      const target = cleanAttachmentTarget(raw.target || "");
+      const external = isExternalLink(target);
+      const displayName = external
+        ? getInternetAttachmentDisplayName(raw.label, target)
+        : cleanLocalCopyCandidateName(target || raw.label);
+      return Object.assign({}, raw, {
+        target,
+        displayName,
+        extension: normalizeExtension(nodePath.extname(displayName || target)),
+        isExternal: external,
+        eagleItemId: extractEagleBridgeItemIdFromText(target)
+      });
+    }
+
+    function getFileNameFromUrl(value) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      const withoutQuery = text.split("?")[0].split("#")[0];
+      return nodePath.basename(safeDecode(withoutQuery).replace(/\\/g, "/"));
+    }
+
+    function isLikelyImageSizeLabel(value) {
+      const text = String(value || "").trim();
+      if (!text) return false;
+      return /^\d{1,5}$/.test(text) || /^\d{1,5}\s*[x×]\s*\d{1,5}$/i.test(text);
+    }
+
+    function cleanLocalCopyCandidateName(value) {
+      const text = cleanEagleBridgeLabel(value);
+      if (!text) return "";
+      const cleaned = stripMarkdownLinkTitle(stripAttachmentSubpath(safeDecode(text))).trim();
+      return nodePath.basename(cleaned.replace(/\\/g, "/"));
+    }
+
+    function normalizeExtension(value) {
+      const text = String(value || "").trim().toLowerCase();
+      if (!text || text === "file") return "";
+      return text.startsWith(".") ? text : `.${text}`;
+    }
+
+    function cleanAttachmentTarget(value) {
+      let decoded = decodeAttachmentPath(value)
+        .replace(/\\([|()[\]])/g, "$1")
+        .trim();
+      if (decoded.startsWith("<")) {
+        const end = decoded.indexOf(">");
+        if (end > 0) decoded = decoded.slice(1, end).trim();
+      }
+      if (isExternalLink(decoded)) return cleanExternalAttachmentUrl(decoded);
+      return stripMarkdownLinkTitle(stripAttachmentSubpath(decoded));
+    }
+
+    function cleanExternalAttachmentUrl(value) {
+      let text = decodeAttachmentPath(value)
+        .replace(/\\([|()[\]])/g, "$1")
+        .trim();
+      if (text.startsWith("<")) {
+        const end = text.indexOf(">");
+        if (end > 0) text = text.slice(1, end).trim();
+      }
+      // Markdown permits an optional quoted title after the URL. Keep query/hash
+      // intact: signed and image-service URLs frequently depend on both.
+      const titled = text.match(/^(\S+)(?:\s+(?:"[^"]*"|'[^']*'))?$/);
+      text = titled ? titled[1] : text;
+      try {
+        const parsed = new URL(text);
+        if (/^\/__eaglebridge__\/canvas-(?:image|resource)\/?$/i.test(parsed.pathname)) {
+          const source = parsed.searchParams.get("src");
+          if (/^https?:\/\//i.test(source || "")) return source;
+        }
+      } catch (_) {}
+      return text;
+    }
+
+    function stripAttachmentSubpath(value) {
+      const text = String(value || "").trim();
+      const extEnd = findSupportedAttachmentExtensionEnd(text);
+      if (extEnd > 0) return text.slice(0, extEnd);
+      return text.split("?")[0].split("#")[0].trim();
+    }
+
+    function stripMarkdownLinkTitle(value) {
+      const text = String(value || "").trim();
+      const extEnd = findSupportedAttachmentExtensionEnd(text);
+      if (extEnd <= 0) return text;
+      return text.slice(0, extEnd);
+    }
+
+    function findSupportedAttachmentExtensionEnd(value) {
+      const lower = String(value || "").toLowerCase();
+      let bestEnd = -1;
+      for (const ext of supportedAttachmentExtensions()) {
+        let from = 0;
+        while (from < lower.length) {
+          const index = lower.indexOf(ext, from);
+          if (index < 0) break;
+          const end = index + ext.length;
+          const next = lower[end] || "";
+          if (!next || /[\s?#)'">]/.test(next)) {
+            bestEnd = Math.max(bestEnd, end);
+          }
+          from = end;
+        }
+      }
+      return bestEnd;
+    }
+
+    function findMarkdownAttachmentReferences(text) {
+      const links = [];
+      const source = String(text || "");
+      for (let index = 0; index < source.length; index += 1) {
+        const imagePrefix = source[index] === "!" && source[index + 1] === "[";
+        const linkPrefix = source[index] === "[";
+        if (!imagePrefix && !linkPrefix) continue;
+
+        const labelStart = imagePrefix ? index + 1 : index;
+        const labelEnd = findClosingBracket(source, labelStart, "[", "]");
+        if (labelEnd < 0 || source[labelEnd + 1] !== "(") continue;
+
+        const targetStart = labelEnd + 2;
+        const targetEnd = findMarkdownTargetEnd(source, targetStart);
+        if (targetEnd < 0) continue;
+
+        const reference = parseAttachmentReference({
+          original: source.slice(index, targetEnd + 1),
+          label: source.slice(labelStart + 1, labelEnd),
+          target: source.slice(targetStart, targetEnd),
+          start: index,
+          end: targetEnd + 1
+        });
+        reference.isEmbed = imagePrefix;
+        links.push(reference);
+        index = targetEnd;
+      }
+      return links;
+    }
+
+    function getAttachmentReferenceSignature(text, extension = "md") {
+      const source = String(text || "");
+      if (String(extension || "").toLowerCase() === "canvas") {
+        try {
+          const canvas = JSON.parse(source);
+          return JSON.stringify((Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [])
+            .filter(node => node && (node.file || node.url))
+            .map(node => [String(node.id || ""), String(node.file || node.url || "")]));
+        } catch (_) {
+          return source;
+        }
+      }
+      const references = findMarkdownAttachmentReferences(source)
+        .map(reference => `${reference.isEmbed ? "!" : ""}${reference.target}`);
+      const wiki = Array.from(source.matchAll(/!\[\[([^\]]+)\]\]/g), match => {
+        const parts = String(match[1] || "").split("|");
+        if (parts.length > 1 && isLikelyImageSizeLabel(parts.at(-1))) parts.pop();
+        return `wiki:${parts.join("|")}`;
+      });
+      const htmlImages = Array.from(source.matchAll(/<img\b[^>]*?\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/gi), match => `html:${match[2]}`);
+      return JSON.stringify([...references, ...wiki, ...htmlImages]);
+    }
+
+    function preserveAttachmentDisplaySize(original, replacement) {
+      const source = String(original || "");
+      let next = String(replacement || "");
+      const htmlWidth = source.match(/\bwidth\s*=\s*["']?(\d{1,5})["']?/i);
+      const label = source.match(/^!?\[([^\]]*)\]/);
+      const markdownSize = label && String(label[1] || "").split("|").find(isLikelyImageSizeLabel);
+      const size = String(markdownSize || (htmlWidth && htmlWidth[1]) || "").trim();
+      if (!size) return next;
+      if (/^<img\b/i.test(next)) {
+        const width = String(size).split("x")[0];
+        return /\bwidth\s*=/i.test(next)
+          ? next.replace(/\bwidth\s*=\s*(["']?)\d{1,5}\1/i, `width="${width}"`)
+          : next.replace(/^<img\b/i, `<img width="${width}"`);
+      }
+      return next.replace(/^(!?\[)([^\]]*)(\])/, (full, open, value, close) => {
+        const parts = String(value || "").split("|").filter(part => !isLikelyImageSizeLabel(part));
+        return `${open}${[...parts, size].join("|")}${close}`;
+      });
+    }
+
+    function findClosingBracket(text, start, openChar, closeChar) {
+      let escaped = false;
+      for (let index = start + 1; index < text.length; index += 1) {
+        const char = text[index];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (char === closeChar) return index;
+        if (char === openChar) return -1;
+      }
+      return -1;
+    }
+
+    function findMarkdownTargetEnd(text, start) {
+      let depth = 0;
+      let escaped = false;
+      let inAngle = false;
+      for (let index = start; index < text.length; index += 1) {
+        const char = text[index];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (char === "<") inAngle = true;
+        if (char === ">" && inAngle) inAngle = false;
+        if (inAngle) continue;
+        if (char === "(") {
+          depth += 1;
+          continue;
+        }
+        if (char === ")") {
+          if (depth === 0) return index;
+          depth -= 1;
+        }
+      }
+      return -1;
+    }
+
+    function decodeAttachmentPath(value) {
+      const withoutAngleBrackets = String(value || "").trim().replace(/^<(.+)>$/, "$1");
+      try {
+        return decodeURIComponent(withoutAngleBrackets);
+      } catch (error) {
+        return withoutAngleBrackets;
+      }
+    }
+
+    function getItemTime(item) {
+      return Number(item.modificationTime || item.lastModified || item.createdAt || item.createTime || 0);
+    }
+
+    function getEagleItemId(item) {
+      if (!item) return "";
+      const id = item.id || item.itemId || item.itemID || item._id || "";
+      if (id) return stripInfoSuffix(String(id));
+      const folder = item.folderName || item.resourceDir || item.path || item.fileURL || "";
+      const match = String(folder).match(/\/([^/\\]+)\.info(?:\/|\\|$)/i);
+      return match ? stripInfoSuffix(match[1]) : "";
+    }
+
+    function extractEagleBridgeItemIdFromText(value) {
+      const match = String(value || "").match(/https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info/i);
+      return match ? stripInfoSuffix(safeDecode(match[1])) : "";
+    }
+
+    function isEagleItemTrashed(item) {
+      if (!item) return false;
+      const flags = [
+        item.isDeleted,
+        item.deleted,
+        item.isTrash,
+        item.isTrashed,
+        item.trashed,
+        item.inTrash,
+        item.isRecycle,
+        item.isRecycled
+      ];
+      if (flags.some(isTruthyFlag)) return true;
+      const status = String(item.status || item.state || item.folderType || "").toLowerCase();
+      if (["trash", "trashed", "deleted", "recycle", "recycled"].includes(status)) return true;
+
+      const fields = [
+        item.folderName,
+        item.folder,
+        item.folderId
+      ].map(value => String(value || "").toLowerCase());
+      return fields.some(value => ["trash", "trashed", "recycle", "recycled"].includes(value));
+    }
+
+    function itemHasEagleFolder(item, folderId) {
+      if (!item || !folderId) return false;
+      const target = String(folderId).trim();
+      const values = [
+        item.folderId,
+        item.folderID,
+        item.folder,
+        item.folder_id
+      ];
+
+      for (const value of values) {
+        if (String(value || "").trim() === target) return true;
+      }
+
+      const arrayFields = [
+        item.folders,
+        item.folderIds,
+        item.folderIDs,
+        item.folder_ids
+      ];
+      for (const field of arrayFields) {
+        if (!Array.isArray(field)) continue;
+        for (const entry of field) {
+          if (String(entry || "").trim() === target) return true;
+          if (entry && typeof entry === "object") {
+            const id = entry.id || entry.folderId || entry.folderID || entry.folder_id;
+            if (String(id || "").trim() === target) return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    function getEagleItemFolderIds(item) {
+      if (!item) return [];
+      const ids = [];
+      const values = [
+        item.folderId,
+        item.folderID,
+        item.folder,
+        item.folder_id
+      ];
+
+      for (const value of values) {
+        const id = String(value || "").trim();
+        if (id) ids.push(id);
+      }
+
+      const arrayFields = [
+        item.folders,
+        item.folderIds,
+        item.folderIDs,
+        item.folder_ids
+      ];
+      for (const field of arrayFields) {
+        if (!Array.isArray(field)) continue;
+        for (const entry of field) {
+          if (entry && typeof entry === "object") {
+            const id = entry.id || entry.folderId || entry.folderID || entry.folder_id;
+            const clean = String(id || "").trim();
+            if (clean) ids.push(clean);
+          } else {
+            const clean = String(entry || "").trim();
+            if (clean) ids.push(clean);
+          }
+        }
+      }
+
+      return Array.from(new Set(ids));
+    }
+
+    function findOriginalFileInEagleInfoDir(infoDir, item) {
+      if (!infoDir) return "";
+      let names = [];
+      try {
+        names = nodeFs.readdirSync(infoDir);
+      } catch (error) {
+        return "";
+      }
+
+      const expectedExtension = normalizeExtension(getAssetExtension(item));
+      const displayName = getAssetDisplayName(item);
+      const expectedBase = normalizeMatchName(stripExtension(displayName));
+      const candidates = [];
+      for (const name of names) {
+        if (!name || /^metadata(?:-|\.)/i.test(name)) continue;
+        if (/_thumbnail\.[^.]+$/i.test(name)) continue;
+        const fullPath = nodePath.join(infoDir, name);
+        let stat = null;
+        try {
+          stat = nodeFs.statSync(fullPath);
+        } catch (error) {
+          continue;
+        }
+        if (!stat || !stat.isFile()) continue;
+        const extension = normalizeExtension(nodePath.extname(name));
+        if (expectedExtension && extension !== expectedExtension) continue;
+        candidates.push({
+          path: fullPath,
+          baseScore: expectedBase && normalizeMatchName(stripExtension(name)) === expectedBase ? 1 : 0,
+          size: stat.size || 0
+        });
+      }
+
+      candidates.sort((a, b) => (b.baseScore - a.baseScore) || (b.size - a.size));
+      return candidates[0] ? candidates[0].path : "";
+    }
+
+    function replaceEagleBridgeIdsInText(text, replacements) {
+      let next = String(text || "");
+      for (const [oldId, newId] of replacements instanceof Map ? replacements.entries() : []) {
+        const cleanOld = stripInfoSuffix(oldId);
+        const cleanNew = stripInfoSuffix(newId);
+        if (!cleanOld || !cleanNew || cleanOld === cleanNew) continue;
+        next = next.replace(
+          new RegExp(`((?:https?:\\\\/\\\\/localhost:\\\\d+\\\\/images\\\\/)|(?:https?:\\/\\/localhost:\\d+\\/images\\/))${escapeRegExp(cleanOld)}(\\.info)`, "g"),
+          `$1${cleanNew}$2`
+        );
+      }
+      return next;
+    }
+
+    function getDefaultEaglePluginsDir() {
+      const appData = process && process.env ? process.env.APPDATA : "";
+      return appData ? nodePath.join(appData, "Eagle", "Plugins") : "";
+    }
+
+    function readJsonFile(filePath) {
+      try {
+        if (!filePath || !nodeFs.existsSync(filePath)) return null;
+        return JSON.parse(nodeFs.readFileSync(filePath, "utf8"));
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function copyDirectory(sourceDir, targetDir) {
+      nodeFs.mkdirSync(targetDir, { recursive: true });
+      for (const entry of nodeFs.readdirSync(sourceDir, { withFileTypes: true })) {
+        const sourcePath = nodePath.join(sourceDir, entry.name);
+        const targetPath = nodePath.join(targetDir, entry.name);
+        if (entry.isDirectory()) {
+          copyDirectory(sourcePath, targetPath);
+        } else if (entry.isFile()) {
+          nodeFs.copyFileSync(sourcePath, targetPath);
+        }
+      }
+    }
+
+    function compareVersions(a, b) {
+      const left = String(a || "").split(".").map(part => Number.parseInt(part, 10) || 0);
+      const right = String(b || "").split(".").map(part => Number.parseInt(part, 10) || 0);
+      const length = Math.max(left.length, right.length);
+      for (let index = 0; index < length; index += 1) {
+        const diff = (left[index] || 0) - (right[index] || 0);
+        if (diff !== 0) return diff > 0 ? 1 : -1;
+      }
+      return 0;
+    }
+
+    function isTruthyFlag(value) {
+      if (value === true || value === 1) return true;
+      const text = String(value || "").trim().toLowerCase();
+      return ["true", "1", "yes", "y"].includes(text);
+    }
+
+    function getTrashBadgeAnchor(image) {
+      if (!image) return null;
+      const embed = image.closest(".image-embed, .internal-embed, .media-embed");
+      if (embed) return embed;
+      return image.parentElement || image;
+    }
+
+    function removeTrashBadgesForImage(image) {
+      const anchor = getTrashBadgeAnchor(image);
+      removeFollowingTrashBadges(anchor);
+      removeFollowingTrashBadges(image);
+    }
+
+    function removeFollowingTrashBadges(anchor) {
+      let next = anchor && anchor.nextElementSibling;
+      while (next && next.classList && next.classList.contains("eaglebridge-trash-badge")) {
+        const current = next;
+        next = next.nextElementSibling;
+        current.remove();
+      }
+    }
+
+    function stripInfoSuffix(value) {
+      return String(value || "").replace(/\.info$/i, "");
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function normalizeFileUrl(value) {
+      const text = String(value || "");
+      if (!text) return "";
+      if (/^file:\/\//i.test(text)) {
+        return normalizeFileUrlPath(text.replace(/^file:\/\/\/?/i, ""));
+      }
+      if (/^[a-z]+:\/\//i.test(text)) return text;
+      if (/^[a-zA-Z]:[\\/]/.test(text) || /^[a-zA-Z]:\//.test(text)) {
+        return normalizeFileUrlPath(text);
+      }
+      return text;
+    }
+
+    function fileUrlToLocalPath(value) {
+      const text = String(value || "");
+      if (!/^file:\/\//i.test(text)) return "";
+      let pathText = text.replace(/^file:\/\/\/?/i, "");
+      try {
+        pathText = decodeURI(pathText);
+      } catch (error) {
+        pathText = pathText.replace(/%25/g, "%");
+        try {
+          pathText = decodeURI(pathText);
+        } catch (innerError) {
+          // Keep best effort path.
+        }
+      }
+      return pathText.replace(/\//g, nodePath.sep);
+    }
+
+    function externalLocalPathFromTarget(value) {
+      const target = cleanAttachmentTarget(value);
+      if (!target) return "";
+      if (/^file:\/\//i.test(target)) return nodePath.normalize(fileUrlToLocalPath(target));
+      if (/^[a-zA-Z]:[\\/]/.test(target) || /^\\\\/.test(target)) return nodePath.normalize(target);
+      return "";
+    }
+
+    function eagleLocalPathToFsPath(value) {
+      let pathText = String(value || "").trim();
+      if (!pathText || /^[a-z]+:\/\//i.test(pathText)) return "";
+      if (!/^[a-zA-Z]:[\\/]/.test(pathText) && !/^[a-zA-Z]:\//.test(pathText)) return "";
+      try {
+        pathText = decodeURI(pathText);
+      } catch (error) {
+        pathText = pathText.replace(/%25/g, "%");
+        try {
+          pathText = decodeURI(pathText);
+        } catch (innerError) {
+          // Keep best effort path.
+        }
+      }
+      return pathText.replace(/\//g, nodePath.sep);
+    }
+
+    function normalizeFileUrlPath(pathText) {
+      let path = String(pathText || "").replace(/\\/g, "/");
+      try {
+        path = decodeURI(path);
+      } catch (error) {
+        path = path.replace(/%25/g, "%");
+        try {
+          path = decodeURI(path);
+        } catch (innerError) {
+          // Keep the best effort path.
+        }
+      }
+      return `file:///${encodeURI(path)}`;
+    }
+
+    function safeDecode(value) {
+      try {
+        return decodeURI(String(value || ""));
+      } catch (error) {
+        return String(value || "");
+      }
+    }
+
+    function escapeRegExp(value) {
+      return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function unescapeHtmlAttr(value) {
+      return String(value || "")
+        .replace(/&quot;/g, "\"")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
+    }
+
+    function normalizeEagleFolderId(value) {
+      let text = String(value || "").trim();
+      const markdownLink = text.match(/^\[[^\]]*\]\(([^)]+)\)$/);
+      if (markdownLink) text = markdownLink[1].trim();
+      const protocolMatch = text.match(/^eagle:\/\/folder\/([^/?#]+)/i);
+      if (protocolMatch) return safeDecode(protocolMatch[1]).trim();
+      try {
+        const url = new URL(text);
+        const queryId = url.searchParams.get("id");
+        if (queryId) return queryId.trim();
+      } catch (_error) {
+        // A plain folder ID is already valid.
+      }
+      return text;
+    }
+
+    module.exports = {
+      SUPPORTED_ATTACHMENT_EXTENSIONS, PREVIEWABLE_IMAGE_EXTENSIONS, getAssetSummary, normalizeAssetViewMode,
+      clampNumber, buildEagleFolderUrl, formatIdentityDate, normalizeIdentityTitle,
+      buildTitleDateIdentity, isIdentityDate, getFileIdentityDate, getStableIdentityDate,
+      isObsidianManagedTag, isProbablyMarkdownTableRow, isProbablyMarkdownTableLine, getLineAtIndex,
+      indexToLineCh, getLineBefore, getLineAfter, hasUnescapedPipe,
+      isMarkdownTableSeparatorLine, escapeMarkdownTablePipes, makeMarkdownTableSafeReference, splitList, stripExtension,
+      getSourceParentPath, getSourceParentPathFromPath, getSourceManagedFolderPath, getSourceManagedFolderPathFromPath,
+      vaultPathBasename, normalizeVaultPath, isInsideEagleLibrary, findEagleFolderById, findEagleFolderWithParentById,
+      normalizeFolderName, normalizeCreatedEagleFolder, collectEagleFolderIds, isSupportedSourceFile,
+      isExternalLink, supportedAttachmentExtensions, isSupportedAttachment, isSupportedCanvasAttachment,
+      isPreviewableImage, normalizeCanvasNodeSize, createFilePlaceholder, createNotePlaceholder,
+      getAssetDisplayName, isStableEagleItem, isLikelySameAssetByName, isLikelySameAssetByAnyName,
+      getDuplicateRepairSearchNames, getDuplicateRepairExpectedExtension, uniqueItemsById, mapWithConcurrency,
+      getEagleItemNameCandidates, normalizeMatchName, getEagleItemMatchSignature, isSameEagleAssetSignature,
+      firstNumberValue, getNestedNumberValue, getAssetExtension, getWikiAttachmentTarget,
+      cleanEagleBridgeLabel, sanitizeEagleBridgeEmbedLabel, getDisplayNameWithoutObsidianSize, getExtensionFromDisplayName, getInternetAttachmentDisplayName, parseAttachmentReference,
+      getFileNameFromUrl, isLikelyImageSizeLabel, cleanLocalCopyCandidateName, normalizeExtension,
+      cleanAttachmentTarget, cleanExternalAttachmentUrl, stripAttachmentSubpath, stripMarkdownLinkTitle, findSupportedAttachmentExtensionEnd,
+      findMarkdownAttachmentReferences, getAttachmentReferenceSignature, preserveAttachmentDisplaySize,
+      findClosingBracket, findMarkdownTargetEnd, decodeAttachmentPath,
+      getItemTime, getEagleItemId, extractEagleBridgeItemIdFromText, isEagleItemTrashed,
+      itemHasEagleFolder, getEagleItemFolderIds, findOriginalFileInEagleInfoDir, replaceEagleBridgeIdsInText,
+      getDefaultEaglePluginsDir, readJsonFile, copyDirectory, compareVersions,
+      isTruthyFlag, getTrashBadgeAnchor, removeTrashBadgesForImage, removeFollowingTrashBadges,
+      stripInfoSuffix, sleep, normalizeFileUrl, fileUrlToLocalPath, externalLocalPathFromTarget,
+      eagleLocalPathToFsPath, normalizeFileUrlPath, safeDecode, escapeRegExp,
+      unescapeHtmlAttr, normalizeEagleFolderId
+    };
+
+  },
+  "./lib/choice-modal": function(module, exports, require, __filename, __dirname) {
+    const { Modal } = require("obsidian");
+
+    function chooseInObsidianModal(app, title, message, options, cancelText) {
+      return new Promise(resolve => {
+        const modal = new ObsidianChoiceModal(app, title, message, options, cancelText, resolve);
+        modal.open();
+      });
+    }
+
+    class ObsidianChoiceModal extends Modal {
+      constructor(app, title, message, options, cancelText, resolve) {
+        super(app);
+        this.title = title;
+        this.message = message;
+        this.options = Array.isArray(options) ? options : [];
+        this.cancelText = cancelText;
+        this.resolve = resolve;
+        this.resolved = false;
+      }
+
+      onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass("eaglebridge-confirm-modal");
+        contentEl.createEl("h3", { text: this.title });
+        contentEl.createEl("p", { text: this.message });
+        const buttons = contentEl.createDiv({ cls: "eaglebridge-confirm-actions" });
+        for (const option of this.options) {
+          const button = buttons.createEl("button", {
+            text: option.label,
+            cls: option.cta ? "mod-cta" : ""
+          });
+          button.addEventListener("click", () => this.finish(option.value));
+        }
+        const cancelButton = buttons.createEl("button", { text: this.cancelText });
+        cancelButton.addEventListener("click", () => this.finish(null));
+        const firstButton = buttons.querySelector("button");
+        if (firstButton && typeof firstButton.focus === "function") firstButton.focus();
+      }
+
+      onClose() {
+        if (!this.resolved) this.finish(null, false);
+      }
+
+      finish(value, shouldClose = true) {
+        if (this.resolved) return;
+        this.resolved = true;
+        this.resolve(value);
+        if (shouldClose) this.close();
+      }
+    }
+
+    module.exports = { chooseInObsidianModal };
+
+  },
+  "./lib/eagle-assets-view": function(module, exports, require, __filename, __dirname) {
+    const { ItemView, Menu, Notice, setTooltip, TFile } = require("obsidian");
+    const nodeFs = require("fs");
+    const { KeyedTaskScheduler } = require("./keyed-task-scheduler");
+    const { chooseInObsidianModal } = require("./choice-modal");
+    const {
+      getAssetSummary, normalizeAssetViewMode, clampNumber, buildEagleFolderUrl, findEagleFolderById,
+      isSupportedSourceFile, isPreviewableImage, createFilePlaceholder, createNotePlaceholder,
+      getAssetDisplayName, getEagleItemMatchSignature, getAssetExtension, normalizeExtension,
+      cleanExternalAttachmentUrl, getEagleItemId, extractEagleBridgeItemIdFromText, isEagleItemTrashed,
+      getEagleItemFolderIds, stripInfoSuffix, normalizeFileUrl
+    } = require("./asset-utils");
+
+    function createEagleAssetsView({ VIEW_TYPE, DEFAULT_SETTINGS }) {
+    const LIBRARY_VIEW_ICONS = {
+      waterfall: `<svg viewBox="0 0 227 227" aria-hidden="true"><rect x="33" y="33" width="69" height="48" rx="12"/><rect x="126" y="33" width="69" height="103" rx="12"/><rect x="33" y="102" width="69" height="93" rx="12"/><rect x="126" y="158" width="69" height="37" rx="12"/></svg>`,
+      list: `<svg viewBox="0 0 227 227" aria-hidden="true"><rect x="36" y="33" width="69" height="69" rx="12"/><rect x="36" y="126" width="69" height="69" rx="12"/><path d="M124 49H191"/><path d="M124 141H191"/><path d="M124 88H191"/><path d="M124 180H191"/></svg>`,
+      normal: `<svg viewBox="0 0 227 227" aria-hidden="true"><rect x="33" y="33" width="69" height="69" rx="12"/><rect x="126" y="33" width="69" height="69" rx="12"/><rect x="33" y="126" width="69" height="69" rx="12"/><rect x="126" y="126" width="69" height="69" rx="12"/></svg>`
+    };
+
     class EagleAssetsView extends ItemView {
       constructor(leaf, plugin) {
         super(leaf);
@@ -7621,19 +8723,19 @@ module.exports = EagleBridgeMobilePlugin;
         this.selectedAssetItems = new Map();
         this.assetSelectionAnchorKey = "";
       }
-    
+
       getViewType() {
         return VIEW_TYPE;
       }
-    
+
       getDisplayText() {
         return "OE Link";
       }
-    
+
       getIcon() {
         return "eagle-outline";
       }
-    
+
       async onOpen() {
         this.registerDomEvent(document, "pointerdown", event => {
           if (event.button !== 0 || !this.selectedAssetItems.size) return;
@@ -7643,13 +8745,13 @@ module.exports = EagleBridgeMobilePlugin;
         }, true);
         await this.loadForCurrentNote(false);
       }
-    
+
       async onClose() {
         this.loadRequestId += 1;
         this.backgroundSyncScheduler.clear();
         this.disposeAssetRendering();
       }
-    
+
       beginLoad(requestId) {
         if (typeof requestId === "number") {
           this.loadRequestId = Math.max(this.loadRequestId, requestId);
@@ -7658,23 +8760,23 @@ module.exports = EagleBridgeMobilePlugin;
         this.loadRequestId += 1;
         return this.loadRequestId;
       }
-    
+
       isCurrentLoad(requestId) {
         return requestId === this.loadRequestId;
       }
-    
+
       invalidateLibraryReferenceSummary() {
         this.libraryReferenceSummary = null;
         this.libraryReferenceSummaryGeneration += 1;
       }
-    
+
       async getLibraryReferenceSummary() {
         while (!this.libraryReferenceSummary) {
           if (this.libraryReferenceSummaryTask) {
             await this.libraryReferenceSummaryTask.promise;
             continue;
           }
-    
+
           const generation = this.libraryReferenceSummaryGeneration;
           const task = { generation, promise: null };
           task.promise = this.plugin.getObsidianLibraryReferenceSummary()
@@ -7694,16 +8796,16 @@ module.exports = EagleBridgeMobilePlugin;
         }
         return this.libraryReferenceSummary;
       }
-    
+
       getAssetViewportKey() {
         if (this.isLibraryMode) return "library";
         return this.currentFilePath ? `context:${this.currentFilePath}` : "";
       }
-    
+
       getAssetScrollArea() {
         return this.containerEl.children[1]?.querySelector(".eaglebridge-note-assets-scroll-area") || null;
       }
-    
+
       captureAssetViewportState(key = this.getAssetViewportKey()) {
         const scrollArea = this.getAssetScrollArea();
         if (!key || !scrollArea) return null;
@@ -7714,13 +8816,13 @@ module.exports = EagleBridgeMobilePlugin;
         this.assetViewportStates.set(key, state);
         return state;
       }
-    
+
       prepareAssetViewportRestore(targetKey) {
         const currentKey = this.getAssetViewportKey();
         const currentState = currentKey === targetKey ? this.captureAssetViewportState(currentKey) : null;
         this.pendingAssetViewportState = currentState || this.assetViewportStates.get(targetKey) || null;
       }
-    
+
       enterContextMode(context, parentContext = null) {
         this.isLibraryMode = false;
         this.libraryControls = null;
@@ -7730,7 +8832,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.parentContext = parentContext;
         this.sourceLeaf = this.plugin.findPreferredMarkdownLeaf(context.file.path, this.sourceLeaf);
       }
-    
+
       enterLibraryMode() {
         this.currentFilePath = "";
         this.currentContext = null;
@@ -7739,7 +8841,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.repairChoice = null;
         this.isLibraryMode = true;
       }
-    
+
       async toggleLibraryMode() {
         if (this.isLibraryMode) {
           this.libraryModePinned = false;
@@ -7749,7 +8851,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.libraryModePinned = true;
         await this.loadObsidianLibrary();
       }
-    
+
       async loadForContext(context, options = {}) {
         const requestId = this.beginLoad(options.requestId);
         const sameContext = this.currentFilePath === context.file.path
@@ -7762,7 +8864,7 @@ module.exports = EagleBridgeMobilePlugin;
         } else {
           this.renderLoading(context);
         }
-    
+
         try {
           const items = await this.plugin.queryEagleItemsForNoteContext(context);
           if (!this.isCurrentLoad(requestId) || this.isLibraryMode || this.currentFilePath !== context.file.path) return;
@@ -7777,7 +8879,7 @@ module.exports = EagleBridgeMobilePlugin;
           if (this.isCurrentLoad(requestId)) this.setLoadingState(false);
         }
       }
-    
+
       syncContextInBackground(context, requestId) {
         this.backgroundSyncScheduler.schedule("context", 0, async () => {
           try {
@@ -7798,7 +8900,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         }, 0);
       }
-    
+
       async loadForCurrentNote(showNotice = true) {
         if (this.libraryModePinned && this.isLibraryMode) return;
         const requestId = this.beginLoad();
@@ -7819,7 +8921,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (!this.isCurrentLoad(requestId)) return;
         this.plugin.scheduleTrashStatusScan(document);
       }
-    
+
       async loadObsidianLibrary(options = {}) {
         const requestId = this.beginLoad(options.requestId);
         if (options.resetReferenceSummary) this.invalidateLibraryReferenceSummary();
@@ -7889,7 +8991,7 @@ module.exports = EagleBridgeMobilePlugin;
           progress.setText(`Failed to read Eagle: ${error.message || error}`);
         }
       }
-    
+
       renderLibraryStats(summary, target = this.libraryStatsEl) {
         if (!target) return;
         target.empty();
@@ -7933,7 +9035,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.renderInlineViewSwitcher(stats, async () => {
           await this.loadObsidianLibrary();
         });
-    
+
         const renderBar = (kind, entries, selected, selectedValues, counts) => {
           const section = target.createDiv({ cls: `eaglebridge-library-filter-bar-section is-${kind}` });
           const bar = section.createDiv({
@@ -7964,13 +9066,13 @@ module.exports = EagleBridgeMobilePlugin;
           }
           return section;
         };
-    
+
         const sourceCounts = Object.fromEntries(sourceItems.map(([key]) => [key, 0]));
         for (const item of summary.items) {
           sourceCounts[this.getLibraryItemSource(item)] += 1;
         }
         renderBar("source", sourceItems, this.librarySourceFilters, activeSources, sourceCounts);
-    
+
         const referenceCounts = Object.fromEntries(referenceItems.map(([key]) => [key, 0]));
         for (const item of summary.items) {
           if (activeSources.size && activeSources.has(this.getLibraryItemSource(item))) {
@@ -7997,11 +9099,11 @@ module.exports = EagleBridgeMobilePlugin;
           await this.loadObsidianLibrary();
         });
       }
-    
+
       getLibraryAssetKey(item) {
         return this.plugin.getLibraryAssetKey(item);
       }
-    
+
       getAssetSelectionKey(item) {
         if (!item) return "";
         const base = this.getLibraryAssetKey(item) || String(item.id || "");
@@ -8118,16 +9220,16 @@ module.exports = EagleBridgeMobilePlugin;
         const refs = summary && summary.assetReferenceFilesByKey && summary.assetReferenceFilesByKey.get(this.getLibraryAssetKey(item));
         return !!(refs && refs.size);
       }
-    
+
       getLibraryItemSource(item) {
         const source = String(item && item.__assetSource || "eagle");
         return source === "local" || source === "external-local" || source === "internet" ? source : "eagle";
       }
-    
+
       getLibraryItemReferenceState(item) {
         return this.isLibraryAssetReferenced(item) ? "referenced" : "unreferenced";
       }
-    
+
       isLibraryItemTrashed(item) {
         return !!(item && item.__inObsidianTrash)
           || String(item && item.__assetSource || "eagle") === "trash"
@@ -8136,7 +9238,7 @@ module.exports = EagleBridgeMobilePlugin;
       getEffectiveLibraryFilterSet(filters, allValues) {
         return filters instanceof Set ? filters : new Set(allValues);
       }
-    
+
       getFilteredLibraryItems(summary) {
         if (!summary || !Array.isArray(summary.items)) return [];
         const sources = this.getEffectiveLibraryFilterSet(this.librarySourceFilters, ["eagle", "local", "external-local", "internet"]);
@@ -8148,7 +9250,7 @@ module.exports = EagleBridgeMobilePlugin;
             && (includeTrash || !this.isLibraryItemTrashed(item));
         });
       }
-    
+
       getAssetStatusMarkerEntries(item, isTrashed) {
         const source = this.getLibraryItemSource(item);
         const sourceLabels = {
@@ -8179,7 +9281,7 @@ module.exports = EagleBridgeMobilePlugin;
           setTooltip(marker, entry.label);
         }
       }
-    
+
       async trashLibraryAssets(itemIds, successMessageKey, logMessage) {
         const ids = Array.from(new Set((itemIds || []).map(id => stripInfoSuffix(id)).filter(Boolean)));
         if (!ids.length) return 0;
@@ -8197,7 +9299,7 @@ module.exports = EagleBridgeMobilePlugin;
           return 0;
         }
       }
-    
+
       getReferencedFilesForLibraryItem(itemOrId) {
         const summary = this.libraryReferenceSummary;
         const key = typeof itemOrId === "string"
@@ -8210,26 +9312,26 @@ module.exports = EagleBridgeMobilePlugin;
           .map(path => this.plugin.app.vault.getAbstractFileByPath(path))
           .filter(file => file instanceof TFile);
       }
-    
+
       async getReferencedFilesForPreview(item) {
         const known = this.getReferencedFilesForLibraryItem(item);
         if (known.length || this.libraryReferenceSummary) return known;
-    
+
         const collected = await this.plugin.collectObsidianLibrarySourceAssets();
         const key = this.getLibraryAssetKey(item);
         const source = String(item && item.__assetSource || "eagle");
         let paths = collected.sourceReferences.get(key);
-    
+
         if ((!paths || !paths.size) && source !== "local" && source !== "external-local" && source !== "internet") {
           const itemId = stripInfoSuffix(getEagleItemId(item));
           paths = itemId ? collected.eagleReferenceFilesById.get(itemId) : null;
         }
-    
+
         return Array.from(paths || [])
           .map(path => this.plugin.app.vault.getAbstractFileByPath(path))
           .filter(file => file instanceof TFile);
       }
-    
+
       async openSourceFileInNewTab(file) {
         if (!(file instanceof TFile)) return;
         const leaf = this.plugin.app.workspace.getLeaf("tab");
@@ -8249,7 +9351,7 @@ module.exports = EagleBridgeMobilePlugin;
         const result = await electron.shell.openPath(fullPath);
         if (result) throw new Error(result);
       }
-    
+
       async copyAssetImageToClipboard(item) {
         const { clipboard, nativeImage } = require("electron");
         const paths = [];
@@ -8301,7 +9403,7 @@ module.exports = EagleBridgeMobilePlugin;
           error => error ? reject(error) : resolve()
         ));
       }
-    
+
       isPreviewableAssetItem(item) {
         if (item && item.__isImage) return true;
         const extension = normalizeExtension(getAssetExtension(item));
@@ -8314,7 +9416,7 @@ module.exports = EagleBridgeMobilePlugin;
         ];
         return candidates.some(candidate => isPreviewableImage(candidate));
       }
-    
+
       async openAssetPreview(item) {
         if (!this.isPreviewableAssetItem(item)) return;
         const itemSource = String(item && item.__assetSource || "eagle");
@@ -8330,7 +9432,7 @@ module.exports = EagleBridgeMobilePlugin;
           new Notice("\u65e0\u6cd5\u8bfb\u53d6\u6b64\u9644\u4ef6\u7684\u9884\u89c8\u3002");
           return;
         }
-    
+
         // Prefer the actual action attached to the currently rendered editor
         // image. Off-screen embeds do not receive Obsidian's native lightbox.
         try {
@@ -8378,7 +9480,7 @@ module.exports = EagleBridgeMobilePlugin;
             if (actions.length !== 1) return null;
             return actions[0].action;
           };
-    
+
           if (tableCell && matchingImage) {
             // Table cells use their own editor. A complete pointer sequence activates
             // that editor, after which Obsidian creates the native image-preview action.
@@ -8418,7 +9520,7 @@ module.exports = EagleBridgeMobilePlugin;
               return;
             }
           }
-    
+
           let nativeZoomAction = findNativeZoomAction();
           if (nativeZoomAction) {
             nativeZoomAction.click();
@@ -8427,10 +9529,10 @@ module.exports = EagleBridgeMobilePlugin;
         } catch (error) {
           console.warn("Failed to access the active editor image zoom action.", error);
         }
-    
+
         new Notice("Obsidian 当前无法为这个附件调用原生放大预览。");
       }
-    
+
       async getAssetReferenceLink(item) {
         let link = "";
         if (item && item.__localFile instanceof TFile) {
@@ -8471,7 +9573,7 @@ module.exports = EagleBridgeMobilePlugin;
       async copyAssetReferenceLink(item) {
         return this.copyAssetReferenceLinks([item]);
       }
-    
+
       async trashSingleUnreferencedLibraryAsset(itemId) {
         const cleanId = stripInfoSuffix(itemId);
         if (!cleanId) return;
@@ -8481,7 +9583,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         await this.trashLibraryAssets([cleanId], "trashedSingleUnreferencedAsset", "Failed to move Eagle asset to trash");
       }
-    
+
       async reloadDisplayedContext(showNotice = false) {
         if (this.isLibraryMode) {
           await this.loadObsidianLibrary({ resetReferenceSummary: true });
@@ -8493,7 +9595,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         await this.loadForCurrentNote(showNotice);
       }
-    
+
       async drillIntoCanvasNote(item) {
         const noteFile = item && item.__noteFile;
         const parentContext = this.currentContext && this.currentContext.kind === "canvas"
@@ -8504,14 +9606,14 @@ module.exports = EagleBridgeMobilePlugin;
         this.repairChoice = null;
         await this.loadForContext(context, { parentContext });
       }
-    
+
       async returnToParentContext() {
         if (!this.parentContext) return;
         const context = this.parentContext;
         this.repairChoice = null;
         await this.loadForContext(context);
       }
-    
+
       getRoot() {
         this.disposeAssetRendering();
         const root = this.containerEl.children[1];
@@ -8519,7 +9621,7 @@ module.exports = EagleBridgeMobilePlugin;
         root.addClass("eaglebridge-note-assets-view");
         return root;
       }
-    
+
       getContentRoot(root = this.containerEl.children[1]) {
         this.disposeAssetRendering();
         this.selectedAssetItems.clear();
@@ -8529,7 +9631,7 @@ module.exports = EagleBridgeMobilePlugin;
         content.empty();
         return content;
       }
-    
+
       disposeAssetRendering() {
         this.assetRenderGeneration += 1;
         if (typeof this.assetInfiniteScrollCleanup === "function") {
@@ -8538,7 +9640,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.assetInfiniteScrollCleanup = null;
         this.assetRenderNextBatch = null;
       }
-    
+
       renderLoading(context) {
         const root = this.getRoot();
         this.renderToolbar(root, context, context.file);
@@ -8547,18 +9649,18 @@ module.exports = EagleBridgeMobilePlugin;
           text: this.plugin.t("readingLinks", { name: context.file.basename })
         });
       }
-    
+
       setLoadingState(loading) {
         const root = this.containerEl.children[1];
         if (root && root.classList) root.toggleClass("is-loading", !!loading);
       }
-    
+
       renderEmpty(message, file = null) {
         const root = this.getRoot();
         this.renderToolbar(root, null, file);
         root.createEl("div", { cls: "eaglebridge-note-assets-empty", text: message });
       }
-    
+
       renderLibraryHeader(root) {
         const header = root.createDiv({ cls: "eaglebridge-library-header" });
         header.createEl("div", {
@@ -8567,7 +9669,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
         return header;
       }
-    
+
       renderInlineViewSwitcher(parent, onChange) {
         const switcher = parent.createDiv({ cls: "eaglebridge-library-view-switcher" });
         const currentMode = normalizeAssetViewMode(this.plugin.settings.assetViewMode);
@@ -8598,7 +9700,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
         return switcher;
       }
-    
+
       renderToolbar(root, context = null, file = null, options = {}) {
         const toolbar = root.createDiv({ cls: "eaglebridge-note-assets-toolbar" });
         const getActiveContext = () => this.currentContext || context;
@@ -8659,14 +9761,14 @@ module.exports = EagleBridgeMobilePlugin;
           });
           return { control, primaryButton, autoButton, update };
         };
-    
+
         if (options.libraryMode) {
           toolbar.addClass("is-library-mode");
           createLibraryModeToggle();
           this.libraryControls = null;
           return toolbar;
         }
-    
+
         const tagRow = toolbar.createDiv({ cls: "eaglebridge-toolbar-row" });
         const tagGroup = tagRow.createDiv({ cls: "eaglebridge-tag-group eaglebridge-segmented-group" });
         const tagManagementDisabled = this.plugin.settings.tagManagementEnabled === false;
@@ -8727,7 +9829,7 @@ module.exports = EagleBridgeMobilePlugin;
           new Notice(this.plugin.t("noticeCopied", { value: activeContext.tags[0] }));
         });
         createLibraryModeToggle();
-    
+
         const folderRow = toolbar.createDiv({ cls: "eaglebridge-toolbar-row" });
         const folderGroup = folderRow.createDiv({ cls: "eaglebridge-folder-group eaglebridge-segmented-group" });
         const folderManagementDisabled = this.plugin.settings.folderManagementEnabled === false;
@@ -8824,19 +9926,19 @@ module.exports = EagleBridgeMobilePlugin;
         });
         return toolbar;
       }
-    
+
       renderItems(context, items, options = {}) {
         const root = options.preserveToolbar ? this.containerEl.children[1] : this.getRoot();
         if (!options.preserveToolbar) this.renderToolbar(root, context, context.file);
         const content = this.getContentRoot(root);
-    
+
         const visibleItems = this.getFilteredContextItems(items);
         this.renderAssetSummary(content, items, context, visibleItems);
         this.renderDrilldownHeader(content);
         this.renderRepairChoice(content);
         this.renderAssetGrid(content, visibleItems);
       }
-    
+
       renderDrilldownHeader(root) {
         if (!this.parentContext || !this.currentContext) return;
         const header = root.createDiv({ cls: "eaglebridge-drilldown-header" });
@@ -8854,17 +9956,17 @@ module.exports = EagleBridgeMobilePlugin;
           text: this.plugin.t("viewingEmbeddedNote", { name: this.currentContext.file.name })
         });
       }
-    
+
       renderRepairChoice(root) {
         const choice = this.repairChoice;
         if (!choice || !Array.isArray(choice.candidates) || !choice.candidates.length) return;
-    
+
         const panel = root.createDiv({ cls: "eaglebridge-repair-choice-panel" });
         panel.createEl("div", {
           cls: "eaglebridge-repair-choice-title",
           text: "请选择要替换成哪个 Eagle 素材："
         });
-    
+
         const list = panel.createDiv({ cls: "eaglebridge-repair-choice-list" });
         for (const candidate of choice.candidates) {
           const itemId = getEagleItemId(candidate);
@@ -8903,7 +10005,7 @@ module.exports = EagleBridgeMobilePlugin;
             }
           });
         }
-    
+
         const cancelButton = panel.createEl("button", {
           cls: "eaglebridge-repair-choice-cancel",
           text: "取消"
@@ -8915,7 +10017,7 @@ module.exports = EagleBridgeMobilePlugin;
           await this.reloadDisplayedContext(false);
         });
       }
-    
+
       async handleMissingItemRepair(item, displayName) {
         if (item.__missingReason !== "eagle") {
           new Notice("这个缺失素材不是 OE Link 链接，暂时无法自动修复。");
@@ -8950,19 +10052,19 @@ module.exports = EagleBridgeMobilePlugin;
         this.repairChoice = result;
         await this.reloadDisplayedContext(false);
       }
-    
+
       async trashLocalUnreferencedLibraryAttachment(item) {
         const localFile = item && item.__localFile;
         if (!(localFile instanceof TFile)) {
           new Notice(this.plugin.t("noticeNoAttachmentAtCursor"));
           return;
         }
-    
+
         if (this.isLibraryAssetReferenced(item)) {
           new Notice(this.plugin.t("localAttachmentStillReferenced"));
           return;
         }
-    
+
         const choice = await chooseInObsidianModal(
           this.plugin.app,
           this.plugin.t("trashLocalAttachmentTitle"),
@@ -8971,14 +10073,14 @@ module.exports = EagleBridgeMobilePlugin;
           this.plugin.t("cancel")
         );
         if (choice !== "trash") return;
-    
+
         const currentFile = this.plugin.app.vault.getAbstractFileByPath(localFile.path);
         if (!(currentFile instanceof TFile)) {
           new Notice(this.plugin.t("localAttachmentNoLongerExists"));
           await this.reloadDisplayedContext(false);
           return;
         }
-    
+
         try {
           await this.plugin.trashLocalFile(currentFile);
           new Notice(this.plugin.t("trashedLocalUnreferencedAttachment", { name: currentFile.name }));
@@ -8996,7 +10098,7 @@ module.exports = EagleBridgeMobilePlugin;
           }));
         }
       }
-    
+
       async trashSelectedLocalAttachments(items) {
         const files = items.map(item => item.__localFile).filter(file => file instanceof TFile);
         const choice = await chooseInObsidianModal(
@@ -9026,7 +10128,7 @@ module.exports = EagleBridgeMobilePlugin;
         event.preventDefault();
         event.stopPropagation();
         this.selectAssetForContextMenu(item);
-    
+
         const menu = new Menu();
         const source = String(item && item.__assetSource || "eagle");
         const isLocalItem = source === "local" && item.__localFile instanceof TFile;
@@ -9079,7 +10181,7 @@ module.exports = EagleBridgeMobilePlugin;
             }
           });
         };
-    
+
         const selectedItems = Array.from(this.selectedAssetItems.values());
         if (selectedItems.length > 1) {
           run(this.plugin.t("copyAttachment"), () => this.copyAssetsToClipboard(selectedItems), "copy");
@@ -9132,11 +10234,11 @@ module.exports = EagleBridgeMobilePlugin;
           await this.copyAssetReferenceLink(item);
           new Notice(this.plugin.t("copiedAttachmentReferences", { count: 1 }));
         }, "copy");
-    
+
         if (isMissingItem) {
           run("尝试修复", () => this.handleMissingItemRepair(item, displayName), "wrench");
         }
-    
+
         if (isLocalItem) {
           if (this.isLibraryMode && !this.isLibraryAssetReferenced(item)) {
             run(this.plugin.t("moveToObsidianTrash"), () => this.trashLocalUnreferencedLibraryAttachment(item), "trash-2");
@@ -9171,11 +10273,11 @@ module.exports = EagleBridgeMobilePlugin;
         } else if (isEagleItem && this.isLibraryMode && !isTrashed && !this.isLibraryAssetReferenced(item)) {
           run(this.plugin.t("moveToEagleTrash"), () => this.trashSingleUnreferencedLibraryAsset(itemId), "trash-2");
         }
-    
+
         if ((isLocalItem || isExternalLocalItem || isEagleItem) && !isPreviewableImage(displayName)) {
           run("用默认应用打开", () => this.openLibraryAssetWithDefaultApp(item), "external-link");
         }
-    
+
         if (isLocalItem) {
           run("打开文件所在位置", () => {
             const fullPath = this.plugin.getFullPath(item.__localFile);
@@ -9201,7 +10303,7 @@ module.exports = EagleBridgeMobilePlugin;
           run("在 Eagle 中打开", () => this.plugin.openEagleItem(itemId), "eagle-outline");
           await addEagleFolderMenu(getEagleItemFolderIds(item));
         }
-    
+
         const currentFile = !this.isLibraryMode && this.currentFilePath
           ? this.plugin.app.vault.getAbstractFileByPath(this.currentFilePath)
           : null;
@@ -9209,12 +10311,12 @@ module.exports = EagleBridgeMobilePlugin;
           ? [currentFile]
           : await this.getReferencedFilesForPreview(item);
         addReferenceMenu(references, item);
-    
+
         if (menu.items.length) {
           menu.showAtMouseEvent(event);
         }
       }
-    
+
       renderWaterfallOverlay(card, item, displayName, statusText, statusClass) {
         const overlay = card.createDiv({ cls: "eaglebridge-waterfall-overlay" });
         overlay.createDiv({
@@ -9233,7 +10335,7 @@ module.exports = EagleBridgeMobilePlugin;
           });
         }
       }
-    
+
       applyAssetCardSize(grid, viewMode) {
         if (!grid) return;
         if (viewMode === "list") {
@@ -9245,7 +10347,7 @@ module.exports = EagleBridgeMobilePlugin;
         const size = clampNumber(this.plugin.settings.assetCardSize, 64, 260, DEFAULT_SETTINGS.assetCardSize);
         grid.style.setProperty("--eaglebridge-asset-card-size", `${size}px`);
       }
-    
+
       registerAssetZoomHandler(grid, viewMode) {
         if (!grid) return;
         grid.addEventListener("wheel", event => {
@@ -9270,7 +10372,7 @@ module.exports = EagleBridgeMobilePlugin;
           }, 250);
         }, { passive: false });
       }
-    
+
       getContextItemSource(item) {
         const source = String(item && item.__assetSource || "eagle");
         if (source === "note") return "note";
@@ -9278,7 +10380,7 @@ module.exports = EagleBridgeMobilePlugin;
         if (source === "local" || source === "external-local" || source === "internet") return source;
         return "eagle";
       }
-    
+
       getFilteredContextItems(items) {
         const filters = this.getEffectiveLibraryFilterSet(this.contextSourceFilters, ["eagle", "local", "external-local", "internet"]);
         return (items || []).filter(item => {
@@ -9286,7 +10388,7 @@ module.exports = EagleBridgeMobilePlugin;
           return source === "note" || filters.has(source);
         });
       }
-    
+
       renderAssetSummary(root, items, context = null, visibleItems = items) {
         const summary = getAssetSummary(items);
         const visibleSummary = getAssetSummary(visibleItems);
@@ -9303,7 +10405,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
         this.renderContextSourceBar(root, summary, context, items);
       }
-    
+
       renderContextSourceBar(root, summary, context, items) {
         const entries = [
           ["eagle", "Eagle 库内", "is-eagle", summary.inEagle + summary.trash],
@@ -9338,7 +10440,7 @@ module.exports = EagleBridgeMobilePlugin;
           });
         }
       }
-    
+
       renderAssetGrid(root, items, options = {}) {
         const renderGeneration = ++this.assetRenderGeneration;
         const isCurrentRender = () => renderGeneration === this.assetRenderGeneration;
@@ -9349,7 +10451,7 @@ module.exports = EagleBridgeMobilePlugin;
           });
           return;
         }
-    
+
         const restoreState = this.pendingAssetViewportState;
         this.pendingAssetViewportState = null;
         const scrollArea = root.createDiv({ cls: "eaglebridge-note-assets-scroll-area" });
@@ -9689,7 +10791,7 @@ module.exports = EagleBridgeMobilePlugin;
         const restoreRenderedCount = Math.max(batchSize, Number(restoreState?.renderedCount) || 0);
         while (renderedCount < restoreRenderedCount && renderNextBatch()) {}
         updateLoadMoreHint();
-    
+
         const scrollRoot = scrollArea;
         const loadMoreWhenNeeded = async () => {
           if (!isCurrentRender()) return;
@@ -9739,7 +10841,7 @@ module.exports = EagleBridgeMobilePlugin;
         }
         this.assetRenderNextBatch = renderNextBatch;
       }
-    
+
       async scrollToAssetRange(filePath, range) {
         if (!filePath || !range) return false;
         if (filePath !== this.currentFilePath) {
@@ -9767,7 +10869,7 @@ module.exports = EagleBridgeMobilePlugin;
           card = findCard();
         }
         if (!card) return false;
-    
+
         card.scrollIntoView({ block: "center", behavior: "smooth" });
         card.addClass("eaglebridge-card-source-highlight");
         window.setTimeout(() => {
@@ -9776,1256 +10878,12 @@ module.exports = EagleBridgeMobilePlugin;
         return true;
       }
     }
-    
-  },
-  "./lib/asset-utils": function(module, exports, require, __filename, __dirname) {
-    const { TFile } = require("obsidian");
-    const nodePath = require("path");
-    const nodeFs = require("fs");
-    
-    const SUPPORTED_ATTACHMENT_EXTENSIONS = [
-      ".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".png", ".apng", ".gif", ".webp", ".avif", ".bmp", ".svg", ".tif", ".tiff", ".heic", ".heif", ".ico", ".raw",
-      ".psd", ".psb", ".ai", ".eps", ".cdr", ".sketch", ".fig", ".xd", ".indd", ".idml", ".afdesign", ".afphoto", ".afpub", ".kra", ".clip", ".ora", ".exr", ".hdr", ".dng", ".cr2", ".nef", ".arw", ".rw2", ".raf",
-      ".pdf",
-      ".mp4", ".mov", ".webm", ".mkv", ".avi", ".wmv", ".m4v", ".flv",
-      ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma",
-      ".doc", ".docx", ".docm", ".dot", ".dotx", ".rtf", ".odt", ".pages",
-      ".ppt", ".pptx", ".pptm", ".pps", ".ppsx", ".pot", ".potx", ".odp", ".key",
-      ".xls", ".xlsx", ".xlsm", ".xlsb", ".xlt", ".xltx", ".csv", ".ods", ".numbers",
-      ".txt", ".md",
-      ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso", ".dmg", ".pkg", ".apk",
-      ".obj", ".fbx", ".blend", ".stl", ".glb", ".gltf", ".3ds", ".dae"
-    ];
-    
-    const PREVIEWABLE_IMAGE_EXTENSIONS = [
-      ".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".png", ".apng", ".gif", ".webp", ".avif", ".bmp", ".svg", ".tif", ".tiff", ".heic", ".heif", ".ico"
-    ];
-    
-    function getAssetSummary(items) {
-      const assets = (items || []).filter(item => item && item.__assetSource !== "note");
-      const summary = {
-        total: assets.length,
-        inEagle: 0,
-        local: 0,
-        externalLocal: 0,
-        internet: 0,
-        trash: 0,
-        failed: 0
-      };
-      for (const item of assets) {
-        if (item.__assetSource === "missing" || item.__missingAttachment) {
-          summary.failed += 1;
-        } else if (item.__assetSource === "local") {
-          summary.local += 1;
-        } else if (item.__assetSource === "external-local") {
-          summary.externalLocal += 1;
-        } else if (item.__assetSource === "internet") {
-          summary.internet += 1;
-        } else if (isEagleItemTrashed(item)) {
-          summary.trash += 1;
-        } else {
-          summary.inEagle += 1;
-        }
-      }
-      return summary;
-    }
-    
-    function normalizeAssetViewMode(value) {
-      if (value === "compact") return "normal";
-      return ["normal", "list", "waterfall"].includes(value) ? value : "normal";
-    }
-    
-    function clampNumber(value, min, max, fallback) {
-      const number = Number(value);
-      if (!Number.isFinite(number)) return fallback;
-      return Math.min(max, Math.max(min, number));
-    }
-    
-    function buildEagleFolderUrl(baseUrl, folderId) {
-      const rawBase = String(baseUrl || "eagle://").trim() || "eagle://";
-      const base = /^eagle:\/+$/i.test(rawBase) ? "eagle://" : rawBase;
-      const prefix = base.endsWith("://") ? base : `${base.replace(/\/+$/, "")}/`;
-      return `${prefix}folder/${encodeURIComponent(String(folderId || "").trim())}`;
-    }
-    
-    function formatIdentityDate(date) {
-      const year = String(date.getFullYear());
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      return `${year}${month}${day}`;
-    }
-    
-    function normalizeIdentityTitle(title) {
-      return String(title || "")
-        .normalize("NFKC")
-        .trim()
-        // Preserve normal spaces and supported punctuation for direct Eagle search.
-        .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/[. ]+$/g, "")
-        .replace(/^-+|-+$/g, "");
-    }
-    
-    function buildTitleDateIdentity(title, date) {
-      const cleanTitle = normalizeIdentityTitle(title) || "note";
-      const cleanDate = isIdentityDate(date) ? date : formatIdentityDate(new Date());
-      return `${cleanTitle}-${cleanDate}`;
-    }
-    
-    function isIdentityDate(value) {
-      return /^\d{8}$/.test(String(value || "").trim());
-    }
-    
-    function getFileIdentityDate(file) {
-      const ctime = file && file.stat && Number.isFinite(file.stat.ctime) ? file.stat.ctime : Date.now();
-      return formatIdentityDate(new Date(ctime));
-    }
-    
-    function getStableIdentityDate(file, existingDate = "") {
-      return isIdentityDate(existingDate) ? existingDate : getFileIdentityDate(file);
-    }
-    
-    function isObsidianManagedTag(tag) {
-      return /^obsidian/i.test(String(tag || "").trim());
-    }
-    
-    function isProbablyMarkdownTableRow(text, index) {
-      const current = getLineAtIndex(text, index);
-      if (!isProbablyMarkdownTableLine(current.line)) return false;
-      const previous = getLineBefore(text, current.start);
-      const next = getLineAfter(text, current.end);
-      return isMarkdownTableSeparatorLine(previous) || isMarkdownTableSeparatorLine(next) || /^\s*\|/.test(current.line) || /\|\s*$/.test(current.line);
-    }
-    
-    function isProbablyMarkdownTableLine(line) {
-      return hasUnescapedPipe(line);
-    }
-    
-    function getLineAtIndex(text, index) {
-      const value = String(text || "");
-      const safeIndex = Math.max(0, Math.min(index, value.length));
-      const start = value.lastIndexOf("\n", safeIndex - 1) + 1;
-      const nextBreak = value.indexOf("\n", safeIndex);
-      const end = nextBreak === -1 ? value.length : nextBreak;
-      return { line: value.slice(start, end), start, end };
-    }
-    
-    function indexToLineCh(text, index) {
-      const value = String(text || "");
-      const safeIndex = Math.max(0, Math.min(index, value.length));
-      const before = value.slice(0, safeIndex);
-      const lines = before.split("\n");
-      return {
-        line: lines.length - 1,
-        ch: lines[lines.length - 1].length
-      };
-    }
-    
-    function getLineBefore(text, lineStart) {
-      const value = String(text || "");
-      if (lineStart <= 0) return "";
-      const previousEnd = lineStart - 1;
-      const previousStart = value.lastIndexOf("\n", previousEnd - 1) + 1;
-      return value.slice(previousStart, previousEnd);
-    }
-    
-    function getLineAfter(text, lineEnd) {
-      const value = String(text || "");
-      if (lineEnd >= value.length) return "";
-      const start = lineEnd + 1;
-      const nextBreak = value.indexOf("\n", start);
-      const end = nextBreak === -1 ? value.length : nextBreak;
-      return value.slice(start, end);
-    }
-    
-    function hasUnescapedPipe(line) {
-      const value = String(line || "");
-      for (let index = 0; index < value.length; index += 1) {
-        if (value[index] !== "|") continue;
-        let slashCount = 0;
-        for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
-          slashCount += 1;
-        }
-        if (slashCount % 2 === 0) return true;
-      }
-      return false;
-    }
-    
-    function isMarkdownTableSeparatorLine(line) {
-      const value = String(line || "").trim();
-      if (!value || !hasUnescapedPipe(value)) return false;
-      const cells = value.split("|").map(cell => cell.trim()).filter(Boolean);
-      return cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
-    }
-    
-    function escapeMarkdownTablePipes(value) {
-      return String(value || "").replace(/(^|[^\\])\|/g, "$1\\|");
-    }
-    
-    function makeMarkdownTableSafeReference(source, index, reference) {
-      return isProbablyMarkdownTableRow(source, index)
-        ? escapeMarkdownTablePipes(reference)
-        : reference;
-    }
-    
-    function splitList(value) {
-      return String(value || "")
-        .split(",")
-        .map(item => item.trim())
-        .filter((item, index, list) => item || list.length > 1);
-    }
-    
-    function stripExtension(fileName) {
-      return fileName.replace(/\.[^.]+$/, "");
-    }
-    
-    function getSourceParentPath(file) {
-      const path = String(file && file.path || "").replace(/\\/g, "/");
-      const index = path.lastIndexOf("/");
-      return index > 0 ? path.slice(0, index) : "";
-    }
-    
-    function getSourceParentPathFromPath(path) {
-      const normalized = normalizeVaultPath(path);
-      const index = normalized.lastIndexOf("/");
-      return index > 0 ? normalized.slice(0, index) : "";
-    }
-    
-    function getSourceManagedFolderPath(file, useObsidianFolderTree = false) {
-      return getSourceManagedFolderPathFromPath(file && file.path, useObsidianFolderTree);
-    }
-    
-    function getSourceManagedFolderPathFromPath(path, useObsidianFolderTree = false) {
-      const normalized = normalizeVaultPath(path);
-      if (!normalized) return "";
-      const sourcePath = useObsidianFolderTree ? normalized : vaultPathBasename(normalized);
-      return stripExtension(sourcePath);
-    }
-    
-    function vaultPathBasename(path) {
-      const normalized = normalizeVaultPath(path);
-      const parts = normalized.split("/").filter(Boolean);
-      return parts.length ? parts[parts.length - 1] : "";
-    }
-    
-    function normalizeVaultPath(value) {
-      return String(value || "")
-        .replace(/\\/g, "/")
-        .replace(/^\/+|\/+$/g, "")
-        .replace(/\/{2,}/g, "/");
-    }
-    
-    function isInsideEagleLibrary(value) {
-      return /(^|\/)[^/]+\.library(?:\/|$)/i.test(normalizeVaultPath(value));
-    }
-    
-    function findEagleFolderById(folders, id) {
-      const targetId = String(id || "");
-      for (const folder of Array.isArray(folders) ? folders : []) {
-        if (!folder || typeof folder !== "object") continue;
-        if (String(folder.id || "") === targetId) return folder;
-        const child = findEagleFolderById(folder.children, targetId);
-        if (child) return child;
-      }
-      return null;
-    }
-    
-    function findEagleFolderWithParentById(folders, id, parent = null) {
-      const targetId = String(id || "");
-      for (const folder of Array.isArray(folders) ? folders : []) {
-        if (!folder || typeof folder !== "object") continue;
-        if (String(folder.id || "") === targetId) {
-          return {
-            folder,
-            parent,
-            parentId: parent && parent.id ? String(parent.id) : ""
-          };
-        }
-        const child = findEagleFolderWithParentById(folder.children, targetId, folder);
-        if (child) return child;
-      }
-      return null;
-    }
-    
-    function normalizeFolderName(value) {
-      return String(value || "").trim().toLowerCase();
-    }
-    
-    function normalizeCreatedEagleFolder(folder, fallbackName) {
-      if (!folder || typeof folder !== "object") return null;
-      if (folder.name) return folder;
-      return Object.assign({}, folder, {
-        name: fallbackName
-      });
-    }
-    
-    function collectEagleFolderIds(folder) {
-      const ids = [];
-      const visit = current => {
-        if (!current || typeof current !== "object") return;
-        const id = String(current.id || current.folderId || current.folderID || "").trim();
-        if (id) ids.push(id);
-        for (const child of Array.isArray(current.children) ? current.children : []) {
-          visit(child);
-        }
-      };
-      visit(folder);
-      return Array.from(new Set(ids));
-    }
-    
-    function isSupportedSourceFile(file) {
-      return file instanceof TFile && ["md", "canvas"].includes(file.extension);
-    }
-    
-    function isExternalLink(value) {
-      return /^(https?:|file:|obsidian:|eagle:|data:)/i.test(value);
-    }
-    
-    function supportedAttachmentExtensions() {
-      return SUPPORTED_ATTACHMENT_EXTENSIONS;
-    }
-    
-    function isSupportedAttachment(value) {
-      const ext = nodePath.extname(stripAttachmentSubpath(value)).toLowerCase();
-      return supportedAttachmentExtensions().includes(ext);
-    }
-    
-    function isSupportedCanvasAttachment(value) {
-      const ext = nodePath.extname(stripAttachmentSubpath(value)).toLowerCase();
-      return ext !== ".md" && supportedAttachmentExtensions().includes(ext);
-    }
-    
-    function isPreviewableImage(value) {
-      const ext = nodePath.extname(String(value || "").split("?")[0]).toLowerCase();
-      return PREVIEWABLE_IMAGE_EXTENSIONS.includes(ext);
-    }
-    
-    function normalizeCanvasNodeSize(node, fileName) {
-      const width = Number(node && node.width);
-      const height = Number(node && node.height);
-      const validWidth = Number.isFinite(width) && width > 0;
-      const validHeight = Number.isFinite(height) && height > 0;
-      if (validWidth && validHeight) {
-        return {
-          width: Math.round(width),
-          height: Math.round(height)
-        };
-      }
-      if (isPreviewableImage(fileName)) {
-        return { width: 320, height: 240 };
-      }
-      return { width: 260, height: 160 };
-    }
-    
-    function createFilePlaceholder(parent, extension, label = "FILE") {
-      const placeholder = parent.createDiv({ cls: "eaglebridge-file-placeholder" });
-      placeholder.createDiv({ cls: "eaglebridge-file-placeholder-icon", text: label });
-      placeholder.createDiv({
-        cls: "eaglebridge-file-placeholder-ext",
-        text: String(extension || "file").replace(/^\./, "").toUpperCase()
-      });
-      return placeholder;
-    }
-    
-    function createNotePlaceholder(parent, fileName, label = "NOTE") {
-      const placeholder = parent.createDiv({ cls: "eaglebridge-file-placeholder eaglebridge-note-placeholder" });
-      placeholder.createDiv({ cls: "eaglebridge-file-placeholder-icon", text: label });
-      placeholder.createDiv({
-        cls: "eaglebridge-file-placeholder-ext eaglebridge-note-placeholder-name",
-        text: String(fileName || "").trim() || "note.md"
-      });
-      return placeholder;
-    }
-    
-    function getAssetDisplayName(item) {
-      return item.__noteLinkName || item.name || item.filename || item.fileName || item.title || item.id || "";
-    }
-    
-    function isStableEagleItem(item) {
-      if (!item || isEagleItemTrashed(item)) return false;
-      return !!(item.fileURL || item.thumbnailURL || item.url);
-    }
-    
-    function isLikelySameAssetByName(item, expectedName) {
-      const expected = normalizeMatchName(expectedName);
-      if (!expected) return false;
-      return getEagleItemNameCandidates(item).some(name => normalizeMatchName(name) === expected);
-    }
-    
-    function isLikelySameAssetByAnyName(item, expectedNames) {
-      return (expectedNames || []).some(name => isLikelySameAssetByName(item, name));
-    }
-    
-    function getDuplicateRepairSearchNames(value) {
-      const label = cleanEagleBridgeLabel(value).trim();
-      const names = [stripExtension(label), label].filter(Boolean);
-      return Array.from(new Set(names));
-    }
-    
-    function getDuplicateRepairExpectedExtension(...values) {
-      for (const value of values) {
-        const extension = getExtensionFromDisplayName(value);
-        if (extension) return extension;
-        const direct = normalizeExtension(value);
-        if (direct) return direct;
-      }
-      return "";
-    }
-    
-    function uniqueItemsById(items) {
-      const seen = new Set();
-      const unique = [];
-      for (const item of items || []) {
-        const id = getEagleItemId(item);
-        if (!id || seen.has(id)) continue;
-        seen.add(id);
-        unique.push(item);
-      }
-      return unique;
-    }
-    
-    async function mapWithConcurrency(values, limit, mapper) {
-      const source = Array.isArray(values) ? values : [];
-      const results = new Array(source.length);
-      let nextIndex = 0;
-      const workerCount = Math.min(Math.max(1, Number(limit) || 1), source.length);
-      const workers = Array.from({ length: workerCount }, async () => {
-        while (nextIndex < source.length) {
-          const index = nextIndex;
-          nextIndex += 1;
-          results[index] = await mapper(source[index], index);
-        }
-      });
-      await Promise.all(workers);
-      return results;
-    }
-    
-    function getEagleItemNameCandidates(item) {
-      if (!item) return [];
-      const values = [
-        item.name,
-        item.filename,
-        item.fileName,
-        item.title,
-        getFileNameFromUrl(item.fileURL),
-        getFileNameFromUrl(item.url)
-      ];
-      return Array.from(new Set(values.map(value => String(value || "").trim()).filter(Boolean)));
-    }
-    
-    function normalizeMatchName(value) {
-      const text = cleanEagleBridgeLabel(value)
-        .replace(/\s+/g, " ")
-        .trim()
-        .toLowerCase();
-      return stripExtension(text);
-    }
-    
-    function getEagleItemMatchSignature(item) {
-      if (!item) return null;
-      const width = firstNumberValue(
-        item.width, item.imageWidth, item.naturalWidth, item.w,
-        getNestedNumberValue(item, "metadata.width", "meta.width", "props.width", "dimensions.width")
-      );
-      const height = firstNumberValue(
-        item.height, item.imageHeight, item.naturalHeight, item.h,
-        getNestedNumberValue(item, "metadata.height", "meta.height", "props.height", "dimensions.height")
-      );
-      const size = firstNumberValue(
-        item.size, item.fileSize, item.bytes, item.length,
-        getNestedNumberValue(item, "metadata.size", "meta.size", "props.size", "file.size")
-      );
-      if (!width && !height && !size) return null;
-      return { width, height, size };
-    }
-    
-    function isSameEagleAssetSignature(a, b) {
-      if (!a || !b) return false;
-      if (a.width && b.width && a.width !== b.width) return false;
-      if (a.height && b.height && a.height !== b.height) return false;
-      if (a.size && b.size && a.size !== b.size) return false;
-      return !!((a.width && b.width) || (a.height && b.height) || (a.size && b.size));
-    }
-    
-    function firstNumberValue(...values) {
-      for (const value of values) {
-        const number = Number(value);
-        if (Number.isFinite(number) && number > 0) return number;
-      }
-      return 0;
-    }
-    
-    function getNestedNumberValue(object, ...paths) {
-      for (const pathText of paths) {
-        const value = String(pathText || "").split(".").reduce((current, key) => current && current[key], object);
-        const number = Number(value);
-        if (Number.isFinite(number) && number > 0) return number;
-      }
-      return 0;
-    }
-    
-    function getAssetExtension(item) {
-      const displayName = getAssetDisplayName(item);
-      const candidates = [
-        item.__extension,
-        item.ext,
-        item.extension,
-        getExtensionFromDisplayName(displayName || ""),
-        nodePath.extname(String(item.fileURL || "").split("?")[0]),
-        nodePath.extname(String(item.url || "").split("?")[0])
-      ].filter(Boolean);
-      return candidates[0] || "file";
-    }
-    
-    function getWikiAttachmentTarget(value) {
-      const text = String(value || "");
-      let target = "";
-      for (let index = 0; index < text.length; index += 1) {
-        const char = text[index];
-        const next = text[index + 1];
-        if (char === "\\" && next === "|") {
-          break;
-        }
-        if (char === "|" || char === "#") {
-          break;
-        }
-        target += char;
-      }
-      return target.replace(/\\\|/g, "|").trim();
-    }
-    
-    function cleanEagleBridgeLabel(value) {
-      const text = String(value || "").trim();
-      if (!text) return "";
-      return getWikiAttachmentTarget(text) || text;
-    }
-    
-    function sanitizeEagleBridgeEmbedLabel(value) {
-      const label = cleanEagleBridgeLabel(value).trim();
-      if (!label) return "";
-      // Older bridge templates emitted "name|undefined|width". Keep only the
-      // actual filename and repair the accidental double dot before extensions.
-      return label
-        .replace(/\\\|/g, "|")
-        .split("|")[0]
-        .trim()
-        .replace(/\.{2,}([A-Za-z0-9]{1,12})$/, ".$1");
-    }
-    
-    function getDisplayNameWithoutObsidianSize(value) {
-      return sanitizeEagleBridgeEmbedLabel(value);
-    }
-    
-    function getExtensionFromDisplayName(value) {
-      return normalizeExtension(nodePath.extname(getDisplayNameWithoutObsidianSize(value)));
-    }
-    
-    function getInternetAttachmentDisplayName(label, url) {
-      const cleanLabel = sanitizeEagleBridgeEmbedLabel(label);
-      const urlName = nodePath.basename(safeDecode(String(url || "").split("?")[0]).replace(/\\/g, "/"));
-      const labelExtension = normalizeExtension(nodePath.extname(cleanLabel));
-      // A 6060 EagleBridge URL deliberately ends in .info. Its label is the real
-      // attachment filename, so never replace it with the transport filename.
-      if (urlName.toLowerCase().endsWith(".info") && labelExtension) return cleanLabel;
-      // Labels such as "271" are frequently Obsidian display widths. When the
-      // URL has a filename, it is the dependable name for a remote attachment.
-      if (urlName && normalizeExtension(nodePath.extname(urlName))) return urlName;
-      if (cleanLabel && !isLikelyImageSizeLabel(cleanLabel)) return cleanLabel;
-      return urlName || cleanLabel || url;
-    }
-    
-    // Normalize every Markdown attachment reference once. Consumers can still use
-    // the original fields, while names no longer inherit legacy width/undefined metadata.
-    function parseAttachmentReference(reference) {
-      const raw = reference || {};
-      const target = cleanAttachmentTarget(raw.target || "");
-      const external = isExternalLink(target);
-      const displayName = external
-        ? getInternetAttachmentDisplayName(raw.label, target)
-        : cleanLocalCopyCandidateName(target || raw.label);
-      return Object.assign({}, raw, {
-        target,
-        displayName,
-        extension: normalizeExtension(nodePath.extname(displayName || target)),
-        isExternal: external,
-        eagleItemId: extractEagleBridgeItemIdFromText(target)
-      });
-    }
-    
-    function getFileNameFromUrl(value) {
-      const text = String(value || "").trim();
-      if (!text) return "";
-      const withoutQuery = text.split("?")[0].split("#")[0];
-      return nodePath.basename(safeDecode(withoutQuery).replace(/\\/g, "/"));
-    }
-    
-    function isLikelyImageSizeLabel(value) {
-      const text = String(value || "").trim();
-      if (!text) return false;
-      return /^\d{1,5}$/.test(text) || /^\d{1,5}\s*[x×]\s*\d{1,5}$/i.test(text);
-    }
-    
-    function cleanLocalCopyCandidateName(value) {
-      const text = cleanEagleBridgeLabel(value);
-      if (!text) return "";
-      const cleaned = stripMarkdownLinkTitle(stripAttachmentSubpath(safeDecode(text))).trim();
-      return nodePath.basename(cleaned.replace(/\\/g, "/"));
-    }
-    
-    function normalizeExtension(value) {
-      const text = String(value || "").trim().toLowerCase();
-      if (!text || text === "file") return "";
-      return text.startsWith(".") ? text : `.${text}`;
-    }
-    
-    function cleanAttachmentTarget(value) {
-      let decoded = decodeAttachmentPath(value)
-        .replace(/\\([|()[\]])/g, "$1")
-        .trim();
-      if (decoded.startsWith("<")) {
-        const end = decoded.indexOf(">");
-        if (end > 0) decoded = decoded.slice(1, end).trim();
-      }
-      if (isExternalLink(decoded)) return cleanExternalAttachmentUrl(decoded);
-      return stripMarkdownLinkTitle(stripAttachmentSubpath(decoded));
-    }
-    
-    function cleanExternalAttachmentUrl(value) {
-      let text = decodeAttachmentPath(value)
-        .replace(/\\([|()[\]])/g, "$1")
-        .trim();
-      if (text.startsWith("<")) {
-        const end = text.indexOf(">");
-        if (end > 0) text = text.slice(1, end).trim();
-      }
-      // Markdown permits an optional quoted title after the URL. Keep query/hash
-      // intact: signed and image-service URLs frequently depend on both.
-      const titled = text.match(/^(\S+)(?:\s+(?:"[^"]*"|'[^']*'))?$/);
-      text = titled ? titled[1] : text;
-      try {
-        const parsed = new URL(text);
-        if (/^\/__eaglebridge__\/canvas-(?:image|resource)\/?$/i.test(parsed.pathname)) {
-          const source = parsed.searchParams.get("src");
-          if (/^https?:\/\//i.test(source || "")) return source;
-        }
-      } catch (_) {}
-      return text;
-    }
-    
-    function stripAttachmentSubpath(value) {
-      const text = String(value || "").trim();
-      const extEnd = findSupportedAttachmentExtensionEnd(text);
-      if (extEnd > 0) return text.slice(0, extEnd);
-      return text.split("?")[0].split("#")[0].trim();
-    }
-    
-    function stripMarkdownLinkTitle(value) {
-      const text = String(value || "").trim();
-      const extEnd = findSupportedAttachmentExtensionEnd(text);
-      if (extEnd <= 0) return text;
-      return text.slice(0, extEnd);
-    }
-    
-    function findSupportedAttachmentExtensionEnd(value) {
-      const lower = String(value || "").toLowerCase();
-      let bestEnd = -1;
-      for (const ext of supportedAttachmentExtensions()) {
-        let from = 0;
-        while (from < lower.length) {
-          const index = lower.indexOf(ext, from);
-          if (index < 0) break;
-          const end = index + ext.length;
-          const next = lower[end] || "";
-          if (!next || /[\s?#)'">]/.test(next)) {
-            bestEnd = Math.max(bestEnd, end);
-          }
-          from = end;
-        }
-      }
-      return bestEnd;
-    }
-    
-    function findMarkdownAttachmentReferences(text) {
-      const links = [];
-      const source = String(text || "");
-      for (let index = 0; index < source.length; index += 1) {
-        const imagePrefix = source[index] === "!" && source[index + 1] === "[";
-        const linkPrefix = source[index] === "[";
-        if (!imagePrefix && !linkPrefix) continue;
-    
-        const labelStart = imagePrefix ? index + 1 : index;
-        const labelEnd = findClosingBracket(source, labelStart, "[", "]");
-        if (labelEnd < 0 || source[labelEnd + 1] !== "(") continue;
-    
-        const targetStart = labelEnd + 2;
-        const targetEnd = findMarkdownTargetEnd(source, targetStart);
-        if (targetEnd < 0) continue;
-    
-        const reference = parseAttachmentReference({
-          original: source.slice(index, targetEnd + 1),
-          label: source.slice(labelStart + 1, labelEnd),
-          target: source.slice(targetStart, targetEnd),
-          start: index,
-          end: targetEnd + 1
-        });
-        reference.isEmbed = imagePrefix;
-        links.push(reference);
-        index = targetEnd;
-      }
-      return links;
-    }
-    
-    function getAttachmentReferenceSignature(text, extension = "md") {
-      const source = String(text || "");
-      if (String(extension || "").toLowerCase() === "canvas") {
-        try {
-          const canvas = JSON.parse(source);
-          return JSON.stringify((Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [])
-            .filter(node => node && (node.file || node.url))
-            .map(node => [String(node.id || ""), String(node.file || node.url || "")]));
-        } catch (_) {
-          return source;
-        }
-      }
-      const references = findMarkdownAttachmentReferences(source)
-        .map(reference => `${reference.isEmbed ? "!" : ""}${reference.target}`);
-      const wiki = Array.from(source.matchAll(/!\[\[([^\]]+)\]\]/g), match => {
-        const parts = String(match[1] || "").split("|");
-        if (parts.length > 1 && isLikelyImageSizeLabel(parts.at(-1))) parts.pop();
-        return `wiki:${parts.join("|")}`;
-      });
-      const htmlImages = Array.from(source.matchAll(/<img\b[^>]*?\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/gi), match => `html:${match[2]}`);
-      return JSON.stringify([...references, ...wiki, ...htmlImages]);
-    }
-    
-    function preserveAttachmentDisplaySize(original, replacement) {
-      const source = String(original || "");
-      let next = String(replacement || "");
-      const htmlWidth = source.match(/\bwidth\s*=\s*["']?(\d{1,5})["']?/i);
-      const label = source.match(/^!?\[([^\]]*)\]/);
-      const markdownSize = label && String(label[1] || "").split("|").find(isLikelyImageSizeLabel);
-      const size = String(markdownSize || (htmlWidth && htmlWidth[1]) || "").trim();
-      if (!size) return next;
-      if (/^<img\b/i.test(next)) {
-        const width = String(size).split("x")[0];
-        return /\bwidth\s*=/i.test(next)
-          ? next.replace(/\bwidth\s*=\s*(["']?)\d{1,5}\1/i, `width="${width}"`)
-          : next.replace(/^<img\b/i, `<img width="${width}"`);
-      }
-      return next.replace(/^(!?\[)([^\]]*)(\])/, (full, open, value, close) => {
-        const parts = String(value || "").split("|").filter(part => !isLikelyImageSizeLabel(part));
-        return `${open}${[...parts, size].join("|")}${close}`;
-      });
-    }
-    
-    function findClosingBracket(text, start, openChar, closeChar) {
-      let escaped = false;
-      for (let index = start + 1; index < text.length; index += 1) {
-        const char = text[index];
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (char === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (char === closeChar) return index;
-        if (char === openChar) return -1;
-      }
-      return -1;
-    }
-    
-    function findMarkdownTargetEnd(text, start) {
-      let depth = 0;
-      let escaped = false;
-      let inAngle = false;
-      for (let index = start; index < text.length; index += 1) {
-        const char = text[index];
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (char === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (char === "<") inAngle = true;
-        if (char === ">" && inAngle) inAngle = false;
-        if (inAngle) continue;
-        if (char === "(") {
-          depth += 1;
-          continue;
-        }
-        if (char === ")") {
-          if (depth === 0) return index;
-          depth -= 1;
-        }
-      }
-      return -1;
-    }
-    
-    function decodeAttachmentPath(value) {
-      const withoutAngleBrackets = String(value || "").trim().replace(/^<(.+)>$/, "$1");
-      try {
-        return decodeURIComponent(withoutAngleBrackets);
-      } catch (error) {
-        return withoutAngleBrackets;
-      }
-    }
-    
-    function getItemTime(item) {
-      return Number(item.modificationTime || item.lastModified || item.createdAt || item.createTime || 0);
-    }
-    
-    function getEagleItemId(item) {
-      if (!item) return "";
-      const id = item.id || item.itemId || item.itemID || item._id || "";
-      if (id) return stripInfoSuffix(String(id));
-      const folder = item.folderName || item.resourceDir || item.path || item.fileURL || "";
-      const match = String(folder).match(/\/([^/\\]+)\.info(?:\/|\\|$)/i);
-      return match ? stripInfoSuffix(match[1]) : "";
-    }
-    
-    function extractEagleBridgeItemIdFromText(value) {
-      const match = String(value || "").match(/https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info/i);
-      return match ? stripInfoSuffix(safeDecode(match[1])) : "";
-    }
-    
-    function isEagleItemTrashed(item) {
-      if (!item) return false;
-      const flags = [
-        item.isDeleted,
-        item.deleted,
-        item.isTrash,
-        item.isTrashed,
-        item.trashed,
-        item.inTrash,
-        item.isRecycle,
-        item.isRecycled
-      ];
-      if (flags.some(isTruthyFlag)) return true;
-      const status = String(item.status || item.state || item.folderType || "").toLowerCase();
-      if (["trash", "trashed", "deleted", "recycle", "recycled"].includes(status)) return true;
-    
-      const fields = [
-        item.folderName,
-        item.folder,
-        item.folderId
-      ].map(value => String(value || "").toLowerCase());
-      return fields.some(value => ["trash", "trashed", "recycle", "recycled"].includes(value));
-    }
-    
-    function itemHasEagleFolder(item, folderId) {
-      if (!item || !folderId) return false;
-      const target = String(folderId).trim();
-      const values = [
-        item.folderId,
-        item.folderID,
-        item.folder,
-        item.folder_id
-      ];
-    
-      for (const value of values) {
-        if (String(value || "").trim() === target) return true;
-      }
-    
-      const arrayFields = [
-        item.folders,
-        item.folderIds,
-        item.folderIDs,
-        item.folder_ids
-      ];
-      for (const field of arrayFields) {
-        if (!Array.isArray(field)) continue;
-        for (const entry of field) {
-          if (String(entry || "").trim() === target) return true;
-          if (entry && typeof entry === "object") {
-            const id = entry.id || entry.folderId || entry.folderID || entry.folder_id;
-            if (String(id || "").trim() === target) return true;
-          }
-        }
-      }
-    
-      return false;
-    }
-    
-    function getEagleItemFolderIds(item) {
-      if (!item) return [];
-      const ids = [];
-      const values = [
-        item.folderId,
-        item.folderID,
-        item.folder,
-        item.folder_id
-      ];
-    
-      for (const value of values) {
-        const id = String(value || "").trim();
-        if (id) ids.push(id);
-      }
-    
-      const arrayFields = [
-        item.folders,
-        item.folderIds,
-        item.folderIDs,
-        item.folder_ids
-      ];
-      for (const field of arrayFields) {
-        if (!Array.isArray(field)) continue;
-        for (const entry of field) {
-          if (entry && typeof entry === "object") {
-            const id = entry.id || entry.folderId || entry.folderID || entry.folder_id;
-            const clean = String(id || "").trim();
-            if (clean) ids.push(clean);
-          } else {
-            const clean = String(entry || "").trim();
-            if (clean) ids.push(clean);
-          }
-        }
-      }
-    
-      return Array.from(new Set(ids));
-    }
-    
-    function findOriginalFileInEagleInfoDir(infoDir, item) {
-      if (!infoDir) return "";
-      let names = [];
-      try {
-        names = nodeFs.readdirSync(infoDir);
-      } catch (error) {
-        return "";
-      }
-    
-      const expectedExtension = normalizeExtension(getAssetExtension(item));
-      const displayName = getAssetDisplayName(item);
-      const expectedBase = normalizeMatchName(stripExtension(displayName));
-      const candidates = [];
-      for (const name of names) {
-        if (!name || /^metadata(?:-|\.)/i.test(name)) continue;
-        if (/_thumbnail\.[^.]+$/i.test(name)) continue;
-        const fullPath = nodePath.join(infoDir, name);
-        let stat = null;
-        try {
-          stat = nodeFs.statSync(fullPath);
-        } catch (error) {
-          continue;
-        }
-        if (!stat || !stat.isFile()) continue;
-        const extension = normalizeExtension(nodePath.extname(name));
-        if (expectedExtension && extension !== expectedExtension) continue;
-        candidates.push({
-          path: fullPath,
-          baseScore: expectedBase && normalizeMatchName(stripExtension(name)) === expectedBase ? 1 : 0,
-          size: stat.size || 0
-        });
-      }
-    
-      candidates.sort((a, b) => (b.baseScore - a.baseScore) || (b.size - a.size));
-      return candidates[0] ? candidates[0].path : "";
-    }
-    
-    function replaceEagleBridgeIdsInText(text, replacements) {
-      let next = String(text || "");
-      for (const [oldId, newId] of replacements instanceof Map ? replacements.entries() : []) {
-        const cleanOld = stripInfoSuffix(oldId);
-        const cleanNew = stripInfoSuffix(newId);
-        if (!cleanOld || !cleanNew || cleanOld === cleanNew) continue;
-        next = next.replace(
-          new RegExp(`((?:https?:\\\\/\\\\/localhost:\\\\d+\\\\/images\\\\/)|(?:https?:\\/\\/localhost:\\d+\\/images\\/))${escapeRegExp(cleanOld)}(\\.info)`, "g"),
-          `$1${cleanNew}$2`
-        );
-      }
-      return next;
-    }
-    
-    function getDefaultEaglePluginsDir() {
-      const appData = process && process.env ? process.env.APPDATA : "";
-      return appData ? nodePath.join(appData, "Eagle", "Plugins") : "";
-    }
-    
-    function readJsonFile(filePath) {
-      try {
-        if (!filePath || !nodeFs.existsSync(filePath)) return null;
-        return JSON.parse(nodeFs.readFileSync(filePath, "utf8"));
-      } catch (error) {
-        return null;
-      }
-    }
-    
-    function copyDirectory(sourceDir, targetDir) {
-      nodeFs.mkdirSync(targetDir, { recursive: true });
-      for (const entry of nodeFs.readdirSync(sourceDir, { withFileTypes: true })) {
-        const sourcePath = nodePath.join(sourceDir, entry.name);
-        const targetPath = nodePath.join(targetDir, entry.name);
-        if (entry.isDirectory()) {
-          copyDirectory(sourcePath, targetPath);
-        } else if (entry.isFile()) {
-          nodeFs.copyFileSync(sourcePath, targetPath);
-        }
-      }
-    }
-    
-    function compareVersions(a, b) {
-      const left = String(a || "").split(".").map(part => Number.parseInt(part, 10) || 0);
-      const right = String(b || "").split(".").map(part => Number.parseInt(part, 10) || 0);
-      const length = Math.max(left.length, right.length);
-      for (let index = 0; index < length; index += 1) {
-        const diff = (left[index] || 0) - (right[index] || 0);
-        if (diff !== 0) return diff > 0 ? 1 : -1;
-      }
-      return 0;
-    }
-    
-    function isTruthyFlag(value) {
-      if (value === true || value === 1) return true;
-      const text = String(value || "").trim().toLowerCase();
-      return ["true", "1", "yes", "y"].includes(text);
-    }
-    
-    function getTrashBadgeAnchor(image) {
-      if (!image) return null;
-      const embed = image.closest(".image-embed, .internal-embed, .media-embed");
-      if (embed) return embed;
-      return image.parentElement || image;
-    }
-    
-    function removeTrashBadgesForImage(image) {
-      const anchor = getTrashBadgeAnchor(image);
-      removeFollowingTrashBadges(anchor);
-      removeFollowingTrashBadges(image);
-    }
-    
-    function removeFollowingTrashBadges(anchor) {
-      let next = anchor && anchor.nextElementSibling;
-      while (next && next.classList && next.classList.contains("eaglebridge-trash-badge")) {
-        const current = next;
-        next = next.nextElementSibling;
-        current.remove();
-      }
-    }
-    
-    function stripInfoSuffix(value) {
-      return String(value || "").replace(/\.info$/i, "");
-    }
-    
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-    
-    function normalizeFileUrl(value) {
-      const text = String(value || "");
-      if (!text) return "";
-      if (/^file:\/\//i.test(text)) {
-        return normalizeFileUrlPath(text.replace(/^file:\/\/\/?/i, ""));
-      }
-      if (/^[a-z]+:\/\//i.test(text)) return text;
-      if (/^[a-zA-Z]:[\\/]/.test(text) || /^[a-zA-Z]:\//.test(text)) {
-        return normalizeFileUrlPath(text);
-      }
-      return text;
-    }
-    
-    function fileUrlToLocalPath(value) {
-      const text = String(value || "");
-      if (!/^file:\/\//i.test(text)) return "";
-      let pathText = text.replace(/^file:\/\/\/?/i, "");
-      try {
-        pathText = decodeURI(pathText);
-      } catch (error) {
-        pathText = pathText.replace(/%25/g, "%");
-        try {
-          pathText = decodeURI(pathText);
-        } catch (innerError) {
-          // Keep best effort path.
-        }
-      }
-      return pathText.replace(/\//g, nodePath.sep);
-    }
-    
-    function externalLocalPathFromTarget(value) {
-      const target = cleanAttachmentTarget(value);
-      if (!target) return "";
-      if (/^file:\/\//i.test(target)) return nodePath.normalize(fileUrlToLocalPath(target));
-      if (/^[a-zA-Z]:[\\/]/.test(target) || /^\\\\/.test(target)) return nodePath.normalize(target);
-      return "";
-    }
-    
-    function eagleLocalPathToFsPath(value) {
-      let pathText = String(value || "").trim();
-      if (!pathText || /^[a-z]+:\/\//i.test(pathText)) return "";
-      if (!/^[a-zA-Z]:[\\/]/.test(pathText) && !/^[a-zA-Z]:\//.test(pathText)) return "";
-      try {
-        pathText = decodeURI(pathText);
-      } catch (error) {
-        pathText = pathText.replace(/%25/g, "%");
-        try {
-          pathText = decodeURI(pathText);
-        } catch (innerError) {
-          // Keep best effort path.
-        }
-      }
-      return pathText.replace(/\//g, nodePath.sep);
-    }
-    
-    function normalizeFileUrlPath(pathText) {
-      let path = String(pathText || "").replace(/\\/g, "/");
-      try {
-        path = decodeURI(path);
-      } catch (error) {
-        path = path.replace(/%25/g, "%");
-        try {
-          path = decodeURI(path);
-        } catch (innerError) {
-          // Keep the best effort path.
-        }
-      }
-      return `file:///${encodeURI(path)}`;
-    }
-    
-    function safeDecode(value) {
-      try {
-        return decodeURI(String(value || ""));
-      } catch (error) {
-        return String(value || "");
-      }
-    }
-    
-    function escapeRegExp(value) {
-      return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    }
-    
-    function buildHtmlImage(label, url) {
-      return `<img src="${escapeHtmlAttr(url)}" alt="${escapeHtmlAttr(label)}" width="200">`;
-    }
-    
-    function buildStandardEagleBridgeEmbed(label, url, width = "200") {
-      const cleanLabel = sanitizeEagleBridgeEmbedLabel(String(label || "Eagle image")
-        .replace(/^!?\[/, "")
-        .replace(/\]$/, "")) || "Eagle image";
-      const normalizedWidth = String(width || "").trim();
-      const widthSuffix = /^\d{1,5}$/.test(normalizedWidth) ? `|${normalizedWidth}` : "";
-      return `![${cleanLabel}${widthSuffix}](${url})`;
-    }
-    
-    function escapeHtmlAttr(value) {
-      return String(value || "")
-        .replace(/&/g, "&amp;")
-        .replace(/"/g, "&quot;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-    }
-    
-    function unescapeHtmlAttr(value) {
-      return String(value || "")
-        .replace(/&quot;/g, "\"")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&amp;/g, "&");
-    }
-    
-    function normalizeEagleFolderId(value) {
-      let text = String(value || "").trim();
-      const markdownLink = text.match(/^\[[^\]]*\]\(([^)]+)\)$/);
-      if (markdownLink) text = markdownLink[1].trim();
-      const protocolMatch = text.match(/^eagle:\/\/folder\/([^/?#]+)/i);
-      if (protocolMatch) return safeDecode(protocolMatch[1]).trim();
-      try {
-        const url = new URL(text);
-        const queryId = url.searchParams.get("id");
-        if (queryId) return queryId.trim();
-      } catch (_error) {
-        // A plain folder ID is already valid.
-      }
-      return text;
-    }
-    
-    module.exports = {
-      SUPPORTED_ATTACHMENT_EXTENSIONS, PREVIEWABLE_IMAGE_EXTENSIONS, getAssetSummary, normalizeAssetViewMode,
-      clampNumber, buildEagleFolderUrl, formatIdentityDate, normalizeIdentityTitle,
-      buildTitleDateIdentity, isIdentityDate, getFileIdentityDate, getStableIdentityDate,
-      isObsidianManagedTag, isProbablyMarkdownTableRow, isProbablyMarkdownTableLine, getLineAtIndex,
-      indexToLineCh, getLineBefore, getLineAfter, hasUnescapedPipe,
-      isMarkdownTableSeparatorLine, escapeMarkdownTablePipes, makeMarkdownTableSafeReference, splitList, stripExtension,
-      getSourceParentPath, getSourceParentPathFromPath, getSourceManagedFolderPath, getSourceManagedFolderPathFromPath,
-      vaultPathBasename, normalizeVaultPath, isInsideEagleLibrary, findEagleFolderById, findEagleFolderWithParentById,
-      normalizeFolderName, normalizeCreatedEagleFolder, collectEagleFolderIds, isSupportedSourceFile,
-      isExternalLink, supportedAttachmentExtensions, isSupportedAttachment, isSupportedCanvasAttachment,
-      isPreviewableImage, normalizeCanvasNodeSize, createFilePlaceholder, createNotePlaceholder,
-      getAssetDisplayName, isStableEagleItem, isLikelySameAssetByName, isLikelySameAssetByAnyName,
-      getDuplicateRepairSearchNames, getDuplicateRepairExpectedExtension, uniqueItemsById, mapWithConcurrency,
-      getEagleItemNameCandidates, normalizeMatchName, getEagleItemMatchSignature, isSameEagleAssetSignature,
-      firstNumberValue, getNestedNumberValue, getAssetExtension, getWikiAttachmentTarget,
-      cleanEagleBridgeLabel, sanitizeEagleBridgeEmbedLabel, getDisplayNameWithoutObsidianSize, getExtensionFromDisplayName, getInternetAttachmentDisplayName, parseAttachmentReference,
-      getFileNameFromUrl, isLikelyImageSizeLabel, cleanLocalCopyCandidateName, normalizeExtension,
-      cleanAttachmentTarget, cleanExternalAttachmentUrl, stripAttachmentSubpath, stripMarkdownLinkTitle, findSupportedAttachmentExtensionEnd,
-      findMarkdownAttachmentReferences, getAttachmentReferenceSignature, preserveAttachmentDisplaySize,
-      findClosingBracket, findMarkdownTargetEnd, decodeAttachmentPath,
-      getItemTime, getEagleItemId, extractEagleBridgeItemIdFromText, isEagleItemTrashed,
-      itemHasEagleFolder, getEagleItemFolderIds, findOriginalFileInEagleInfoDir, replaceEagleBridgeIdsInText,
-      getDefaultEaglePluginsDir, readJsonFile, copyDirectory, compareVersions,
-      isTruthyFlag, getTrashBadgeAnchor, removeTrashBadgesForImage, removeFollowingTrashBadges,
-      stripInfoSuffix, sleep, normalizeFileUrl, fileUrlToLocalPath, externalLocalPathFromTarget,
-      eagleLocalPathToFsPath, normalizeFileUrlPath, safeDecode, escapeRegExp,
-      buildHtmlImage, buildStandardEagleBridgeEmbed, escapeHtmlAttr, unescapeHtmlAttr, normalizeEagleFolderId
-    };
-    
-  },
-  "./lib/choice-modal": function(module, exports, require, __filename, __dirname) {
-    const { Modal } = require("obsidian");
-    
-    function chooseInObsidianModal(app, title, message, options, cancelText) {
-      return new Promise(resolve => {
-        const modal = new ObsidianChoiceModal(app, title, message, options, cancelText, resolve);
-        modal.open();
-      });
-    }
-    
-    class ObsidianChoiceModal extends Modal {
-      constructor(app, title, message, options, cancelText, resolve) {
-        super(app);
-        this.title = title;
-        this.message = message;
-        this.options = Array.isArray(options) ? options : [];
-        this.cancelText = cancelText;
-        this.resolve = resolve;
-        this.resolved = false;
-      }
-    
-      onOpen() {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.addClass("eaglebridge-confirm-modal");
-        contentEl.createEl("h3", { text: this.title });
-        contentEl.createEl("p", { text: this.message });
-        const buttons = contentEl.createDiv({ cls: "eaglebridge-confirm-actions" });
-        for (const option of this.options) {
-          const button = buttons.createEl("button", {
-            text: option.label,
-            cls: option.cta ? "mod-cta" : ""
-          });
-          button.addEventListener("click", () => this.finish(option.value));
-        }
-        const cancelButton = buttons.createEl("button", { text: this.cancelText });
-        cancelButton.addEventListener("click", () => this.finish(null));
-        const firstButton = buttons.querySelector("button");
-        if (firstButton && typeof firstButton.focus === "function") firstButton.focus();
-      }
-    
-      onClose() {
-        if (!this.resolved) this.finish(null, false);
-      }
-    
-      finish(value, shouldClose = true) {
-        if (this.resolved) return;
-        this.resolved = true;
-        this.resolve(value);
-        if (shouldClose) this.close();
-      }
-    }
-    
-    module.exports = { chooseInObsidianModal };
-    
+
+      return EagleAssetsView;
+    }
+
+    module.exports = { createEagleAssetsView };
+
   },
   "./lib/eagle-item-repository": function(module, exports, require, __filename, __dirname) {
     class EagleItemRepository {
@@ -11037,28 +10895,28 @@ module.exports = EagleBridgeMobilePlugin;
         this.cache = new Map();
         this.inFlight = new Map();
       }
-    
+
       invalidate(itemId) {
         const id = this.normalizeId(itemId);
         if (id) this.cache.delete(id);
       }
-    
+
       clear() {
         this.cache.clear();
         this.inFlight.clear();
       }
-    
+
       async get(itemId, options = {}) {
         const id = this.normalizeId(itemId);
         if (!id) return null;
-    
+
         const force = Boolean(options.force);
         const cached = this.cache.get(id);
         if (!force && cached && Date.now() - cached.updatedAt < this.cacheTtlMs) {
           return cached.item;
         }
         if (!force && this.inFlight.has(id)) return this.inFlight.get(id);
-    
+
         const pending = this.fetch(id);
         this.inFlight.set(id, pending);
         const clearPending = () => {
@@ -11067,7 +10925,7 @@ module.exports = EagleBridgeMobilePlugin;
         pending.then(clearPending, clearPending);
         return pending;
       }
-    
+
       async fetch(id) {
         const base = String(this.getBaseUrl() || "").replace(/\/+$/, "");
         const body = await this.request({
@@ -11079,9 +10937,235 @@ module.exports = EagleBridgeMobilePlugin;
         return item;
       }
     }
-    
+
     module.exports = { EagleItemRepository };
-    
+
+  },
+  "./lib/export-package-modal": function(module, exports, require, __filename, __dirname) {
+    const { Modal } = require("obsidian");
+
+    function chooseExportFormat(app, plan, text, preferredFormat = "") {
+      if (preferredFormat && !plan.missing.length && !plan.renames.length) return Promise.resolve(preferredFormat);
+      return new Promise(resolve => new ExportPackageModal(app, plan, text, resolve, preferredFormat).open());
+    }
+
+    class ExportPackageModal extends Modal {
+      constructor(app, plan, text, resolve, preferredFormat) {
+        super(app);
+        this.plan = plan;
+        this.text = text;
+        this.resolve = resolve;
+        this.preferredFormat = preferredFormat;
+        this.done = false;
+      }
+
+      onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass("oe-link-export-modal");
+        contentEl.createEl("h3", { text: this.text.title });
+        contentEl.createEl("p", { text: this.text.summary.replace("{files}", this.plan.entries.length).replace("{links}", this.plan.referenceCount) });
+        this.addIssues(this.text.missingTitle, this.plan.missing.map(item => `${item.label}: ${item.reason}`), "is-error");
+        this.addIssues(this.text.renameTitle, this.plan.renames.map(item => `${item.source} -> ${item.exported}`));
+        const actions = contentEl.createDiv({ cls: "eaglebridge-confirm-actions" });
+        const prefix = this.plan.missing.length ? this.text.ignorePrefix : "";
+        if (this.preferredFormat) {
+          this.addButton(actions, `${prefix}${this.text[this.preferredFormat]}`, this.preferredFormat, true);
+        } else {
+          this.addButton(actions, `${prefix}${this.text.folder}`, "folder", true);
+          this.addButton(actions, `${prefix}${this.text.zip}`, "zip", false);
+        }
+        this.addButton(actions, this.text.cancel, null, false);
+      }
+
+      addIssues(title, items, className = "") {
+        if (!items.length) return;
+        const section = this.contentEl.createDiv({ cls: `oe-link-export-issues ${className}` });
+        section.createEl("h4", { text: `${title} (${items.length})` });
+        const list = section.createEl("ul");
+        for (const item of items) list.createEl("li", { text: item });
+      }
+
+      addButton(parent, label, value, cta) {
+        const button = parent.createEl("button", { text: label, cls: cta ? "mod-cta" : "" });
+        button.addEventListener("click", () => this.finish(value));
+      }
+
+      onClose() { if (!this.done) this.finish(null, false); }
+
+      finish(value, close = true) {
+        if (this.done) return;
+        this.done = true;
+        this.resolve(value);
+        if (close) this.close();
+      }
+    }
+
+    module.exports = { chooseExportFormat };
+
+  },
+  "./lib/export-package": function(module, exports, require, __filename, __dirname) {
+    const fs = require("fs");
+    const path = require("path");
+
+    const CRC_TABLE = Array.from({ length: 256 }, (_, value) => {
+      let crc = value;
+      for (let bit = 0; bit < 8; bit += 1) crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
+      return crc >>> 0;
+    });
+
+    function parseOeLinkReferences(text) {
+      const refs = [];
+      const re = /https?:\/\/localhost:\d+\/images\/([^\s)"'<>]+)\.info/g;
+      let match;
+      while ((match = re.exec(String(text || ""))) !== null) {
+        refs.push({ id: decodeURIComponentSafe(match[1]), original: match[0], start: match.index, end: match.index + match[0].length });
+      }
+      return refs;
+    }
+
+    function decodeURIComponentSafe(value) {
+      try { return decodeURIComponent(value); } catch (_) { return value; }
+    }
+
+    function safeFileName(name, fallback = "attachment") {
+      const parsed = path.parse(path.basename(String(name || fallback)));
+      let base = parsed.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/[. ]+$/g, "").trim() || fallback;
+      if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(base)) base = `_${base}`;
+      const ext = parsed.ext.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/[. ]+$/g, "");
+      return `${base}${ext}`;
+    }
+
+    function assignExportNames(entries) {
+      const used = new Set();
+      const renames = [];
+      for (const entry of entries) {
+        const requested = path.basename(String(entry.desiredName || "attachment"));
+        const safe = safeFileName(requested);
+        let candidate = safe;
+        let number = 2;
+        const parsed = path.parse(safe);
+        const suffix = safeFileName(String(entry.suffix || "").replace(/^[-_. ]+/, ""), "").replace(/\.[^.]*$/, "");
+        if (used.has(candidate.toLowerCase()) && suffix) candidate = `${parsed.name}-${suffix}${parsed.ext}`;
+        while (used.has(candidate.toLowerCase())) candidate = `${parsed.name}-${number++}${parsed.ext}`;
+        used.add(candidate.toLowerCase());
+        entry.exportName = candidate;
+        if (candidate !== requested) renames.push({ source: requested, exported: candidate });
+      }
+      return renames;
+    }
+
+    function rewriteReference(original, newTarget) {
+      const source = String(original || "");
+      const rawTarget = String(newTarget || "").replace(/\\/g, "/");
+      if (/^https?:\/\//i.test(source)) return encodeURI(rawTarget).replace(/#/g, "%23").replace(/\?/g, "%3F");
+      if (/^!?\[\[/.test(source)) {
+        const prefixLength = source.startsWith("![[") ? 3 : 2;
+        const end = source.lastIndexOf("]]");
+        const body = source.slice(prefixLength, end);
+        const pipe = body.indexOf("|");
+        return `${source.slice(0, prefixLength)}${rawTarget}${pipe >= 0 ? body.slice(pipe) : ""}]]`;
+      }
+      const encoded = encodeURI(rawTarget).replace(/#/g, "%23").replace(/\?/g, "%3F");
+      if (/^<[^>]+>$/s.test(source)) {
+        return source.replace(/(\s(?:src|href|data)=["'])[^"']+(["'])/i, `$1${encoded}$2`);
+      }
+      const opener = source.indexOf("](");
+      if (opener >= 0 && source.endsWith(")")) return `${source.slice(0, opener + 2)}${encoded})`;
+      return encoded;
+    }
+
+    function applyReplacements(text, replacements) {
+      let result = String(text || "");
+      for (const item of [...replacements].sort((a, b) => b.start - a.start)) {
+        result = result.slice(0, item.start) + item.replacement + result.slice(item.end);
+      }
+      return result;
+    }
+
+    async function copyPackageFiles(root, noteName, noteText, entries) {
+      const attachmentDir = path.join(root, "attachments");
+      await fs.promises.mkdir(attachmentDir, { recursive: true });
+      await fs.promises.writeFile(path.join(root, safeFileName(noteName, "note.md")), noteText, "utf8");
+      for (const entry of entries) await fs.promises.copyFile(entry.sourcePath, path.join(attachmentDir, entry.exportName));
+    }
+
+    async function listFiles(root, relative = "") {
+      const output = [];
+      for (const dirent of await fs.promises.readdir(path.join(root, relative), { withFileTypes: true })) {
+        const next = path.join(relative, dirent.name);
+        if (dirent.isDirectory()) output.push(...await listFiles(root, next));
+        else if (dirent.isFile()) output.push({ filePath: path.join(root, next), archivePath: next.replace(/\\/g, "/") });
+      }
+      return output;
+    }
+
+    function dosDateTime(date) {
+      const year = Math.max(1980, date.getFullYear());
+      return {
+        time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+        date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate()
+      };
+    }
+
+    function buffer(size, writes) {
+      const value = Buffer.alloc(size);
+      for (const [method, offset, number] of writes) value[method](number >>> 0, offset);
+      return value;
+    }
+
+    async function writeStoredZip(outputPath, files) {
+      const output = await fs.promises.open(outputPath, "w");
+      const central = [];
+      let offset = 0;
+      const write = async value => { await output.write(value); offset += value.length; };
+      try {
+        for (const file of files) {
+          const stat = await fs.promises.stat(file.filePath);
+          if (stat.size > 0xffffffff || offset > 0xffffffff) throw new Error("ZIP32 does not support packages over 4 GiB.");
+          const name = Buffer.from(file.archivePath, "utf8");
+          const stamp = dosDateTime(stat.mtime);
+          const localOffset = offset;
+          await write(Buffer.concat([
+            buffer(30, [["writeUInt32LE", 0, 0x04034b50], ["writeUInt16LE", 4, 20], ["writeUInt16LE", 6, 0x0808], ["writeUInt16LE", 8, 0], ["writeUInt16LE", 10, stamp.time], ["writeUInt16LE", 12, stamp.date], ["writeUInt16LE", 26, name.length]]),
+            name
+          ]));
+          let crc = 0xffffffff;
+          let size = 0;
+          for await (const chunk of fs.createReadStream(file.filePath)) {
+            for (const byte of chunk) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+            size += chunk.length;
+            await write(chunk);
+          }
+          crc = (crc ^ 0xffffffff) >>> 0;
+          await write(buffer(16, [["writeUInt32LE", 0, 0x08074b50], ["writeUInt32LE", 4, crc], ["writeUInt32LE", 8, size], ["writeUInt32LE", 12, size]]));
+          central.push({ name, stamp, crc, size, localOffset });
+        }
+        const centralOffset = offset;
+        for (const entry of central) {
+          await write(Buffer.concat([
+            buffer(46, [["writeUInt32LE", 0, 0x02014b50], ["writeUInt16LE", 4, 20], ["writeUInt16LE", 6, 20], ["writeUInt16LE", 8, 0x0808], ["writeUInt16LE", 10, 0], ["writeUInt16LE", 12, entry.stamp.time], ["writeUInt16LE", 14, entry.stamp.date], ["writeUInt32LE", 16, entry.crc], ["writeUInt32LE", 20, entry.size], ["writeUInt32LE", 24, entry.size], ["writeUInt16LE", 28, entry.name.length], ["writeUInt32LE", 42, entry.localOffset]]),
+            entry.name
+          ]));
+        }
+        const centralSize = offset - centralOffset;
+        // ponytail: ZIP32 keeps this dependency-free; add ZIP64 only if exports over 4 GiB become a real use case.
+        if (central.length > 0xffff || centralSize > 0xffffffff) throw new Error("ZIP32 package is too large.");
+        await write(buffer(22, [["writeUInt32LE", 0, 0x06054b50], ["writeUInt16LE", 8, central.length], ["writeUInt16LE", 10, central.length], ["writeUInt32LE", 12, centralSize], ["writeUInt32LE", 16, centralOffset]]));
+      } finally {
+        await output.close();
+      }
+    }
+
+    function uniqueDestination(parent, baseName, extension = "") {
+      let candidate = path.join(parent, `${baseName}${extension}`);
+      let number = 2;
+      while (fs.existsSync(candidate)) candidate = path.join(parent, `${baseName}-${number++}${extension}`);
+      return candidate;
+    }
+
+    module.exports = { parseOeLinkReferences, safeFileName, assignExportNames, rewriteReference, applyReplacements, copyPackageFiles, listFiles, writeStoredZip, uniqueDestination };
+
   },
   "./lib/keyed-task-scheduler": function(module, exports, require, __filename, __dirname) {
     class KeyedTaskScheduler {
@@ -11089,14 +11173,14 @@ module.exports = EagleBridgeMobilePlugin;
         this.clock = clock;
         this.tasks = new Map();
       }
-    
+
       cancel(key) {
         const timers = this.tasks.get(key);
         if (!timers) return;
         for (const timer of timers) this.clock.clearTimeout(timer);
         this.tasks.delete(key);
       }
-    
+
       schedule(key, delay, callback) {
         this.cancel(key);
         const timers = new Set();
@@ -11107,7 +11191,7 @@ module.exports = EagleBridgeMobilePlugin;
         timers.add(timer);
         this.tasks.set(key, timers);
       }
-    
+
       scheduleSequence(key, delays, callback) {
         this.cancel(key);
         const timers = new Set();
@@ -11120,14 +11204,14 @@ module.exports = EagleBridgeMobilePlugin;
         }, cleanupDelay));
         this.tasks.set(key, timers);
       }
-    
+
       clear() {
         for (const key of Array.from(this.tasks.keys())) this.cancel(key);
       }
     }
-    
+
     module.exports = { KeyedTaskScheduler };
-    
+
   },
   "./lib/live-preview-attachments": function(module, exports, require, __filename, __dirname) {
     const { editorLivePreviewField, Notice, setIcon } = require("obsidian");
@@ -11135,10 +11219,10 @@ module.exports = EagleBridgeMobilePlugin;
     const { Decoration, ViewPlugin, WidgetType } = require("@codemirror/view");
     const nodePath = require("path");
     const { externalLocalPathFromTarget, normalizeFileUrl, normalizeExtension, sanitizeEagleBridgeEmbedLabel, stripInfoSuffix, safeDecode } = require("./asset-utils");
-    
+
     const AUDIO_EXTENSIONS = new Set([".3gp", ".flac", ".m4a", ".mp3", ".ogg", ".wav", ".aac", ".opus", ".wma"]);
     const VIDEO_EXTENSIONS = new Set([".mkv", ".mov", ".mp4", ".ogv", ".webm", ".avi", ".wmv", ".m4v", ".flv"]);
-    
+
     function getAttachmentKind(name) {
       const extension = normalizeExtension(nodePath.extname(sanitizeEagleBridgeEmbedLabel(name)));
       if (extension === ".pdf") return "pdf";
@@ -11146,7 +11230,7 @@ module.exports = EagleBridgeMobilePlugin;
       if (VIDEO_EXTENSIONS.has(extension)) return "video";
       return "file";
     }
-    
+
     function parseRenderableAttachmentLinks(text, plugin) {
       const refs = [];
       const source = String(text || "");
@@ -11167,7 +11251,7 @@ module.exports = EagleBridgeMobilePlugin;
       }
       return refs;
     }
-    
+
     function normalizeLegacyNonImageEmbeds(text, plugin) {
       let count = 0;
       const normalized = String(text || "").replace(/!\[([^\]\n]*)\]\((https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/images\/[^)\s]+\.info)\)/gi, (full, label, url) => {
@@ -11178,7 +11262,7 @@ module.exports = EagleBridgeMobilePlugin;
       });
       return { text: normalized, count };
     }
-    
+
     function createAttachmentElement(plugin, ref) {
       let element;
       if (ref.kind === "audio" || ref.kind === "video") {
@@ -11218,27 +11302,27 @@ module.exports = EagleBridgeMobilePlugin;
       element.addEventListener("mousedown", event => event.stopPropagation());
       return element;
     }
-    
+
     class AttachmentWidget extends WidgetType {
       constructor(plugin, ref) {
         super();
         this.plugin = plugin;
         this.ref = ref;
       }
-    
+
       eq(other) {
         return this.ref.url === other.ref.url && this.ref.name === other.ref.name;
       }
-    
+
       toDOM() {
         return createAttachmentElement(this.plugin, this.ref);
       }
-    
+
       ignoreEvent() {
         return true;
       }
     }
-    
+
     function buildDecorations(view, plugin) {
       if (!view.state.field(editorLivePreviewField, false)) return Decoration.none;
       const text = view.state.doc.toString();
@@ -11250,13 +11334,13 @@ module.exports = EagleBridgeMobilePlugin;
         .map(ref => Decoration.replace({ widget: new AttachmentWidget(plugin, ref), inclusive: true }).range(ref.from, ref.to));
       return Decoration.set(ranges, true);
     }
-    
+
     function createLivePreviewAttachmentExtension(plugin) {
       return Prec.highest(ViewPlugin.fromClass(class {
         constructor(view) {
           this.decorations = buildDecorations(view, plugin);
         }
-    
+
         update(update) {
           if (update.docChanged || update.viewportChanged || update.selectionSet) {
             this.decorations = buildDecorations(update.view, plugin);
@@ -11264,13 +11348,13 @@ module.exports = EagleBridgeMobilePlugin;
         }
       }, { decorations: value => value.decorations }));
     }
-    
+
     module.exports = { createAttachmentElement, createLivePreviewAttachmentExtension, getAttachmentKind, normalizeLegacyNonImageEmbeds, parseRenderableAttachmentLinks };
-    
+
   },
   "./lib/progress-modal": function(module, exports, require, __filename, __dirname) {
     const { Modal } = require("obsidian");
-    
+
     class EagleBridgeProgressModal extends Modal {
       constructor(app, title, description) {
         super(app);
@@ -11278,7 +11362,7 @@ module.exports = EagleBridgeMobilePlugin;
         this.description = description;
         this.completed = false;
       }
-    
+
       onOpen() {
         const { contentEl } = this;
         contentEl.empty();
@@ -11298,7 +11382,7 @@ module.exports = EagleBridgeMobilePlugin;
           text: "准备开始..."
         });
       }
-    
+
       update({ phase = "", completed = 0, total = 0, detail = "" } = {}) {
         if (!this.statusEl || !this.progressEl) return;
         const safeTotal = Math.max(1, Number(total) || 1);
@@ -11308,7 +11392,7 @@ module.exports = EagleBridgeMobilePlugin;
         const progressText = total ? `${safeCompleted} / ${safeTotal}` : "";
         this.statusEl.setText([phase, progressText, detail].filter(Boolean).join("  "));
       }
-    
+
       finish(message, failed = false) {
         if (!this.statusEl || !this.progressEl) return;
         this.completed = true;
@@ -11320,26 +11404,26 @@ module.exports = EagleBridgeMobilePlugin;
           text: "关闭"
         }).addEventListener("click", () => this.close());
       }
-    
+
       onClose() {
         this.contentEl.empty();
       }
     }
-    
+
     module.exports = { EagleBridgeProgressModal };
-    
+
   },
   "./lib/settings-tab": function(module, exports, require, __filename, __dirname) {
     const { Notice, PluginSettingTab, Setting } = require("obsidian");
     const { getDefaultEaglePluginsDir, normalizeEagleFolderId } = require("./asset-utils");
-    
+
     function createEagleAssetsSettingTab({ DEFAULT_SETTINGS, VIEW_TYPE }) {
       return class EagleAssetsSettingTab extends PluginSettingTab {
       constructor(app, plugin) {
         super(app, plugin);
         this.plugin = plugin;
       }
-    
+
       display() {
         const { containerEl } = this;
         containerEl.empty();
@@ -11372,7 +11456,7 @@ module.exports = EagleBridgeMobilePlugin;
             }));
           return setting;
         };
-    
+
         const languageSetting = new Setting(containerEl)
           .setName(this.plugin.t("settingLanguageName"))
           .setDesc(this.plugin.t("settingLanguageDesc"))
@@ -11392,14 +11476,14 @@ module.exports = EagleBridgeMobilePlugin;
                 }
               }
             }));
-    
+
         const connectionModeSetting = new Setting(containerEl)
           .setName(this.plugin.t("settingConnectionModeName"))
           .setDesc(this.plugin.t("settingLocalConnectionModeDesc"))
           .addButton(button => button
             .setButtonText(this.plugin.t("enterCloudConnectionMode"))
             .onClick(() => this.plugin.switchConnectionMode("cloud")));
-    
+
         const targetFolderSetting = addTextSetting({
           name: this.plugin.t("settingFolderIdName"),
           desc: this.plugin.t("settingFolderIdDesc"),
@@ -11410,7 +11494,7 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.saveSettings();
           }
         });
-    
+
         const apiSetting = addTextSetting({
           name: this.plugin.t("settingApiName"),
           desc: this.plugin.t("settingApiDesc"),
@@ -11421,7 +11505,7 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.saveSettings();
           }
         });
-    
+
         const bridgeSetting = addTextSetting({
           name: this.plugin.t("settingBridgeUrlName"),
           desc: this.plugin.t("settingBridgeUrlDesc"),
@@ -11435,7 +11519,7 @@ module.exports = EagleBridgeMobilePlugin;
               });
           }
         });
-    
+
         const externalLocalImportSetting = new Setting(containerEl)
           .setName(this.plugin.t("settingImportExternalLocalName"))
           .setDesc(this.plugin.t("settingImportExternalLocalDesc"))
@@ -11446,13 +11530,13 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.saveSettings();
             }));
         externalLocalImportSetting.settingEl.addClass("eaglebridge-settings-toggle-row");
-    
+
         const helperPluginSetting = new Setting(containerEl)
           .setName(this.plugin.t("settingInstallHelperName"))
           .setDesc(this.plugin.t("settingInstallHelperDesc"));
         helperPluginSetting.settingEl.addClass("eaglebridge-helper-plugin-setting");
         helperPluginSetting.controlEl.empty();
-    
+
         const helperDirectory = helperPluginSetting.settingEl.createDiv({
           cls: "eaglebridge-helper-plugin-directory"
         });
@@ -11467,7 +11551,7 @@ module.exports = EagleBridgeMobilePlugin;
         };
         helperDirectoryInput.addEventListener("change", saveHelperDirectory);
         helperDirectoryInput.addEventListener("blur", saveHelperDirectory);
-    
+
         const detectHelperDirectoryButton = helperDirectory.createEl("button", {
           text: this.plugin.t("settingAutoDetect"),
           cls: "eaglebridge-inline-detect"
@@ -11484,7 +11568,7 @@ module.exports = EagleBridgeMobilePlugin;
             detectHelperDirectoryButton.disabled = false;
           }
         });
-    
+
         const installButton = helperPluginSetting.controlEl.createEl("button", {
           text: this.plugin.t("installOrUpdateHelper"),
           cls: "mod-cta eaglebridge-helper-plugin-install"
@@ -11498,7 +11582,7 @@ module.exports = EagleBridgeMobilePlugin;
             installButton.disabled = false;
           }
         });
-    
+
         const attachmentCard = containerEl.createDiv({
           cls: "eaglebridge-settings-rule-card eaglebridge-settings-attachment-card"
         });
@@ -11513,7 +11597,7 @@ module.exports = EagleBridgeMobilePlugin;
         });
         attachmentCard.appendChild(targetFolderSetting.settingEl);
         attachmentCard.appendChild(externalLocalImportSetting.settingEl);
-    
+
         const rules = containerEl.createDiv({ cls: "eaglebridge-settings-rule-grid" });
         const createRuleHeader = (column, title, desc, enabled, onChange) => {
           const header = column.createDiv({ cls: "eaglebridge-settings-rule-header" });
@@ -11527,7 +11611,7 @@ module.exports = EagleBridgeMobilePlugin;
           setting.settingEl.remove();
           column.createEl("p", { text: desc });
         };
-    
+
         const tagColumn = rules.createDiv({ cls: "eaglebridge-settings-rule-card" });
         createRuleHeader(
           tagColumn,
@@ -11541,7 +11625,7 @@ module.exports = EagleBridgeMobilePlugin;
             this.display();
           }
         );
-    
+
         new Setting(tagColumn)
           .setName(this.plugin.t("settingNoteTagNameTemplateName"))
           .setDesc(this.plugin.t("settingNoteTagNameTemplateDesc"))
@@ -11552,7 +11636,7 @@ module.exports = EagleBridgeMobilePlugin;
               this.plugin.settings.noteTagNameTemplate = value.trim() || DEFAULT_SETTINGS.noteTagNameTemplate;
               await this.plugin.saveSettings();
             }));
-    
+
         new Setting(tagColumn)
           .setName(this.plugin.t("settingCanvasTagNameTemplateName"))
           .setDesc(this.plugin.t("settingCanvasTagNameTemplateDesc"))
@@ -11563,7 +11647,7 @@ module.exports = EagleBridgeMobilePlugin;
               this.plugin.settings.canvasTagNameTemplate = value.trim() || DEFAULT_SETTINGS.canvasTagNameTemplate;
               await this.plugin.saveSettings();
             }));
-    
+
         const rebuildTagsSetting = new Setting(tagColumn)
           .setName(this.plugin.t("settingRebuildAllTagsName"))
           .setDesc(this.plugin.t("settingRebuildAllTagsDesc"))
@@ -11574,7 +11658,7 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.confirmAndRebuildAllTags();
             }));
         rebuildTagsSetting.settingEl.addClass("eaglebridge-settings-action-row");
-    
+
         const folderColumn = rules.createDiv({ cls: "eaglebridge-settings-rule-card" });
         createRuleHeader(
           folderColumn,
@@ -11588,14 +11672,14 @@ module.exports = EagleBridgeMobilePlugin;
             this.display();
           }
         );
-    
+
         const folderTreeDescription = document.createDocumentFragment();
         folderTreeDescription.append(`${this.plugin.t("settingUseObsidianFolderTreeDesc")} `);
         const folderTreeWarning = document.createElement("span");
         folderTreeWarning.className = "eaglebridge-settings-inline-warning";
         folderTreeWarning.textContent = this.plugin.t("settingUseObsidianFolderTreeWarning");
         folderTreeDescription.appendChild(folderTreeWarning);
-    
+
         const folderTreeSetting = new Setting(folderColumn)
           .setName(this.plugin.t("settingUseObsidianFolderTreeName"))
           .setDesc(folderTreeDescription)
@@ -11606,7 +11690,7 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.saveSettings();
             }));
         folderTreeSetting.settingEl.addClass("eaglebridge-settings-toggle-row");
-    
+
         new Setting(folderColumn)
           .setName(this.plugin.t("settingFolderNameTemplateName"))
           .setDesc(this.plugin.t("settingFolderNameTemplateDesc"))
@@ -11617,7 +11701,7 @@ module.exports = EagleBridgeMobilePlugin;
               this.plugin.settings.eagleFolderNameTemplate = value.trim() || DEFAULT_SETTINGS.eagleFolderNameTemplate;
               await this.plugin.saveSettings();
             }));
-    
+
         const rebuildFoldersSetting = new Setting(folderColumn)
           .setName(this.plugin.t("settingRebuildAllFoldersName"))
           .setDesc(this.plugin.t("settingRebuildAllFoldersDesc"))
@@ -11628,13 +11712,13 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.confirmAndRebuildAllFolders();
             }));
         rebuildFoldersSetting.settingEl.addClass("eaglebridge-settings-action-row");
-    
+
         const libraryPathsSetting = new Setting(containerEl)
           .setName(this.plugin.t("settingLibraryPathsName"))
           .setDesc(this.plugin.t("settingLibraryPathsDesc"));
         libraryPathsSetting.settingEl.addClass("eaglebridge-library-paths-setting");
         libraryPathsSetting.controlEl.empty();
-    
+
         const pathList = libraryPathsSetting.settingEl.createDiv({
           cls: "eaglebridge-library-path-list"
         });
@@ -11707,7 +11791,7 @@ module.exports = EagleBridgeMobilePlugin;
         apiSetting.settingEl.insertAdjacentElement("afterend", bridgeSetting.settingEl);
         bridgeSetting.settingEl.insertAdjacentElement("afterend", attachmentCard);
         attachmentCard.insertAdjacentElement("afterend", rules);
-    
+
         const templateSetting = addTextSetting({
           name: this.plugin.t("settingTemplateName"),
           desc: this.plugin.t("settingTemplateDesc"),
@@ -11719,7 +11803,7 @@ module.exports = EagleBridgeMobilePlugin;
           }
         });
         attachmentCard.appendChild(templateSetting.settingEl);
-    
+
         const normalizeReferencesSetting = new Setting(attachmentCard)
           .setName(this.plugin.t("settingNormalizeAllReferencesName"))
           .setDesc(this.plugin.t("settingNormalizeAllReferencesDesc"))
@@ -11729,11 +11813,11 @@ module.exports = EagleBridgeMobilePlugin;
               await this.plugin.confirmAndNormalizeAllEagleReferenceLabels();
             }));
         normalizeReferencesSetting.settingEl.addClass("eaglebridge-settings-action-row");
-    
+
         new Setting(containerEl)
           .setName(this.plugin.t("settingBuildName"))
           .setDesc(this.plugin.t("settingBuildDesc", { version: this.plugin.manifest.version }));
-    
+
         new Setting(containerEl)
           .setName(this.plugin.t("settingDesktopDiagnosticName"))
           .setDesc(this.plugin.t("settingDesktopDiagnosticDesc"))
@@ -11752,9 +11836,9 @@ module.exports = EagleBridgeMobilePlugin;
       }
     };
     }
-    
+
     module.exports = { createEagleAssetsSettingTab };
-    
+
   },
   "./lib/translations": function(module, exports, require, __filename, __dirname) {
     module.exports = {
@@ -11763,12 +11847,8 @@ module.exports = EagleBridgeMobilePlugin;
         cmdShowAssets: "Show Eagle assets for current note",
         cmdCopyTag: "Copy current note Eagle tag",
         cmdImportAttachments: "Import current note attachments to Eagle",
-        cmdFixThumbnailLinks: "Fix Eagle thumbnail API links in current note",
-        cmdFixDoubleEncodedLinks: "Fix double-encoded file links in current note",
-        cmdConvertFileLinks: "Convert Eagle file links to OE Link links in current note",
-        cmdConvertEmbedsToLinks: "Convert OE Link image embeds to links in current note",
-        cmdConvertLinksToHtml: "Convert OE Link links to HTML images in current note",
-        cmdConvertLinksToEmbeds: "Convert OE Link links to standard embeds in current note",
+        cmdExportSharePackage: "Export current note as a share package",
+        menuExportSharePackage: "Export note share package",
         menuImportAttachment: "Import this attachment to Eagle",
         copyAttachment: "Copy attachment",
         copyAttachmentReference: "Copy attachment reference",
@@ -11776,16 +11856,22 @@ module.exports = EagleBridgeMobilePlugin;
         noticeCopiedEagleTag: "Copied Eagle tag: {tag}",
         noticeOpenNoteOrCanvas: "Open a Markdown note or Canvas first.",
         noticeOpenMarkdown: "Open a Markdown note first.",
+        exportScanning: "Checking attachment references...",
+        exportTitle: "Export share package",
+        exportSummary: "Found {links} local attachment reference(s); {files} file(s) will be included. Internet links remain unchanged.",
+        exportMissingTitle: "Missing attachments (original links will be kept)",
+        exportRenameTitle: "Renamed attachments",
+        exportIgnorePrefix: "Ignore and ",
+        exportFolder: "Export folder",
+        exportZip: "Export ZIP",
+        exportChooseDirectory: "Choose export location",
+        exportComplete: "Export complete: {path}",
+        exportFailed: "Export failed: {error}",
+        exportMissingEagleFile: "Cannot find the original Eagle file",
+        exportMissingVaultFile: "Cannot find the attachment in this vault",
+        exportMissingExternalFile: "Cannot find the external local file",
         noticeCanvasImportUnsupported: "No directly importable local file nodes were found in this Canvas.",
         noticeNoLocalAttachments: "No importable attachment links found in this note.",
-        noticeNoThumbnailLinks: "No Eagle thumbnail API links found.",
-        noticeFixedThumbnailLinks: "Fixed {count} Eagle thumbnail link(s).",
-        noticeFixedDoubleEncodedLinks: "Fixed {count} double-encoded file link(s).",
-        noticeConvertedFileLinks: "Converted {count} Eagle file link(s) to OE Link links.",
-        noticeConvertedEmbedsToLinks: "Converted {count} OE Link image embed(s) to link(s).",
-        noticeConvertedLinksToHtml: "Converted {count} OE Link link(s) to HTML image(s).",
-        noticeConvertedLinksToEmbeds: "Converted {count} OE Link link(s) to standard embed(s).",
-        noticeCannotFindRenderedImage: "Cannot find this rendered image link in the current note.",
         noticeNoAttachmentAtCursor: "No local attachment link found at the cursor.",
         noticeImportedToEagle: "Imported to Eagle: {name}",
         noticeProcessedAttachments: "Processed {success} attachment reference(s). Reused: {reused}. Failed: {failed}.",
@@ -11807,34 +11893,21 @@ module.exports = EagleBridgeMobilePlugin;
         clearAllAttachmentFoldersOption: "All attachment folders",
         noticeClearedObsidianFolders: "Removed Obsidian-managed folder assignments from {count} Eagle asset(s); no folders were deleted.",
         noticeClearObsidianFoldersNeedsHelper: "Please install/update the Eagle helper plugin first, then restart Eagle.",
-        noticeAddedTags: "Added current tag to {count} Eagle asset(s).",
         noticeJoinedFolder: "Added {count} Eagle asset(s) to the current folder.",
-        confirm: "Confirm",
         cancel: "Cancel",
         noticeImportedTrashFailed: "Imported, but failed to trash local file: {name}",
         noticeCopied: "Copied: {value}",
         trashTitle: "This Eagle asset is in Eagle trash.",
         readingLinks: "Reading current note OE Link links: {name}",
         copyFirstTag: "Copy tag",
-        openEagle: "Open Eagle",
         addTags: "Add tags",
         addToFolder: "Add folder",
         importNoteAttachments: "Import attachments",
         cleanupLocalCopies: "Clean imported attachments",
         clearObsidianTags: "Clear tags",
         clearObsidianFolders: "Clear folders",
-        deleteLocalOn: "AUTO",
-        deleteLocalOff: "AUTO",
-        refresh: "Refresh",
-        autoOn: "AUTO",
-        autoOff: "AUTO",
         totalAssets: "Total: {count}",
         visibleAssetsStat: "Shown: {count}",
-        inEagleCount: "Eagle: {count}",
-        localCount: "Obsidian: {count}",
-        eagleTrashCount: "Eagle trash: {count}",
-        loadFailedCount: "Load failed: {count}",
-        internetCount: "Internet: {count}",
         embeddedNote: "Note",
         notePlaceholder: "NOTE",
         viewingEmbeddedNote: "Viewing note: {name}",
@@ -11843,23 +11916,10 @@ module.exports = EagleBridgeMobilePlugin;
         loadMoreAssets: "Scroll down to load more assets",
         obsidianLibrary: "Obsidian asset library",
         obsidianLibraryLoading: "Loading Obsidian assets from Eagle...",
-        obsidianLibraryLoaded: "Loaded: {count}",
         obsidianLibraryEmpty: "No assets were found under the configured Eagle Obsidian folder.",
         obsidianLibraryFilterEmpty: "No assets match the current filters.",
-        libraryAll: "All",
         libraryReferenced: "Referenced",
         libraryUnreferenced: "Unreferenced",
-        referencedCount: "Referenced: {count}",
-        unreferencedCount: "Unreferenced: {count}",
-        referencedBadge: "Referenced",
-        unreferencedBadge: "Unreferenced",
-        assetDetails: "Attachment details",
-        referencedBy: "Related notes or Canvases",
-        noReferences: "This asset is not referenced by an Obsidian note or Canvas.",
-        assetName: "Name",
-        assetType: "Type",
-        assetId: "Eagle ID",
-        assetLocation: "Location",
         trashedSingleUnreferencedAsset: "Moved this unreferenced asset to Eagle trash.",
         untitledAsset: "Untitled asset",
         obsidianLocal: "Inside Obsidian vault",
@@ -11870,7 +11930,6 @@ module.exports = EagleBridgeMobilePlugin;
         inEagle: "Inside Eagle library",
         localAttachmentAlt: "Obsidian attachment",
         eagleAssetAlt: "Eagle asset",
-        importThisToEagle: "Import this attachment to Eagle",
         moveToObsidianTrash: "Move to Obsidian trash",
         moveToEagleTrash: "Move to Eagle trash",
         trashLocalAttachmentTitle: "Move local attachment to Obsidian trash",
@@ -11881,7 +11940,6 @@ module.exports = EagleBridgeMobilePlugin;
         localAttachmentNoLongerExists: "This local attachment no longer exists. Refreshed the asset library.",
         filePlaceholder: "FILE",
         viewModeNormal: "Tile",
-        viewModeCompact: "Small",
         viewModeList: "List",
         viewModeWaterfall: "Waterfall",
         settingsTitle: "OE Link Local Connection Mode",
@@ -11905,8 +11963,6 @@ module.exports = EagleBridgeMobilePlugin;
         settingNormalizeAllReferencesButton: "Normalize links",
         settingApiName: "Eagle API URL",
         settingApiDesc: "Usually Eagle's local API address.",
-        settingHelperPluginsDirName: "Eagle plugin directory",
-        settingHelperPluginsDirDesc: "Folder where Eagle stores installed plugins. Used to install or update OE Link Helper.",
         settingHelperPluginsDirPlaceholder: "Enter the Eagle plugins directory",
         settingInstallHelperName: "OE Link Helper",
         settingInstallHelperDesc: "Installs or updates OE Link Helper in Eagle. Bundled version: 0.2.13. Example: C:\\Users\\username\\AppData\\Roaming\\Eagle\\Plugins.",
@@ -11917,11 +11973,9 @@ module.exports = EagleBridgeMobilePlugin;
         noticeHelperInstalled: "OE Link Helper installed/updated. Restart Eagle or reload the plugin in Eagle if needed.",
         noticeHelperInstallFailed: "Failed to install OE Link Helper: {message}",
         noticeHelperAlreadyCurrent: "OE Link Helper is already current.",
-        managementRulesTitle: "Management rules",
         attachmentManagementTitle: "Attachment management",
         attachmentManagementDesc: "Configure where attachments are imported and how OE Link references are written.",
         attachmentManagementWarning: "Imported attachment references are replaced with OE Link links and cannot be restored to their original references.",
-        selectAttachment: "Select attachment",
         selectedAssetsStat: "Selected: {count}",
         importSelectedToEagle: "Import selected to Eagle",
         copiedAttachmentReferences: "Copied {count} attachment references.",
@@ -11936,14 +11990,6 @@ module.exports = EagleBridgeMobilePlugin;
         tagManagementDesc: "Write and clean Eagle tags.",
         folderManagementTitle: "Folder management",
         folderManagementDesc: "Add imports to matching Eagle folders.",
-        settingTagManagementEnabledName: "Tag management",
-        settingTagManagementEnabledDesc: "Master switch for writing note/canvas identity tags and cleaning stale tags.",
-        settingShowClearObsidianTagsName: "Clear attachment tags button",
-        settingShowClearObsidianTagsDesc: "Show the Clear attachment tags button in the sidebar. It clears all Obsidian-prefixed tags from assets referenced by the current note or Canvas.",
-        settingShowClearObsidianFoldersName: "Clear attachment folders button",
-        settingShowClearObsidianFoldersDesc: "Show the Clear attachment folders button in the sidebar. It removes Obsidian-managed folder assignments without deleting folders.",
-        settingFolderManagementEnabledName: "Folder management",
-        settingFolderManagementEnabledDesc: "Master switch for matching, creating, and renaming Eagle folders under the configured root folder.",
         settingUseObsidianFolderTreeName: "Mirror Obsidian folder tree",
         settingUseObsidianFolderTreeDesc: "Creates matching Eagle folders from Obsidian folder paths.",
         settingUseObsidianFolderTreeWarning: "Existing folders cannot yet be moved or deleted automatically. Enable with caution.",
@@ -11952,12 +11998,8 @@ module.exports = EagleBridgeMobilePlugin;
         settingFolderIdName: "Eagle target folder ID",
         settingFolderIdDesc: "Target folder for imported assets. Leave blank to import into Eagle Unsorted. Paste either the full copied link or its ID, for example http://localhost:41595/folder?id=ABC123 or ABC123.",
         settingFolderIdPlaceholder: "Enter the target Eagle folder ID",
-        settingTagPrefixesName: "Eagle tag prefixes",
-        settingTagPrefixesDesc: "Default: Obsidian-. Note assets get Obsidian-{note name-date}.",
         settingNoteTagNameTemplateName: "Note tag naming rule",
         settingNoteTagNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date.",
-        settingCanvasPrefixesName: "Canvas tag prefixes",
-        settingCanvasPrefixesDesc: "Default: Obsidian-cavs-. Canvas assets get Obsidian-cavs-{canvas name-date}.",
         settingCanvasTagNameTemplateName: "Canvas tag naming rule",
         settingCanvasTagNameTemplateDesc: "Variables: {{title}} title, {{created}} creation date.",
         settingRebuildAllTagsName: "Rebuild all tags",
@@ -11972,25 +12014,18 @@ module.exports = EagleBridgeMobilePlugin;
         settingLibraryPathsAdd: "+ Add path",
         settingLibraryPathsRemove: "Remove library path",
         settingLibraryPathsPlaceholder: "Enter an Eagle .library path",
-        settingTrashAfterImportName: "Auto cleanup imported attachments",
-        settingTrashAfterImportDesc: "When enabled, local files are moved to the system trash after they are successfully imported into Eagle.",
         settingImportExternalLocalName: "Import attachments outside the Obsidian vault",
         settingImportExternalLocalDesc: "Off by default. When enabled, explicit local file paths in notes can be imported into Eagle; OE Link never scans other folders automatically.",
         settingTemplateName: "Replacement template",
         settingTemplateDesc: "Used for newly imported attachments and when normalizing existing OE Link references below. Available variables: {name}, {filename}, {itemId}, {bridgeUrl}, {url}.",
-        cleanLabelFallback: "Eagle image"
       },
       zh: {
         ribbonShowAssets: "显示当前笔记的 Eagle 素材",
         cmdShowAssets: "显示当前笔记的 Eagle 素材",
         cmdCopyTag: "复制当前笔记的 Eagle 标签",
         cmdImportAttachments: "将当前笔记附件导入 Eagle",
-        cmdFixThumbnailLinks: "修复当前笔记中的 Eagle 缩略图链接",
-        cmdFixDoubleEncodedLinks: "修复当前笔记中的双重编码文件链接",
-        cmdConvertFileLinks: "将当前笔记中的 Eagle 文件链接转换为 OE Link 链接",
-        cmdConvertEmbedsToLinks: "将当前笔记中的 OE Link 图片嵌入转换为链接",
-        cmdConvertLinksToHtml: "将当前笔记中的 OE Link 链接转换为 HTML 图片",
-        cmdConvertLinksToEmbeds: "将当前笔记中的 OE Link 链接转换为标准嵌入",
+        cmdExportSharePackage: "将当前笔记导出为分享包",
+        menuExportSharePackage: "导出笔记分享包",
         menuImportAttachment: "导入该附件到 Eagle",
         copyAttachment: "复制附件",
         copyAttachmentReference: "复制附件引用链接",
@@ -11998,16 +12033,22 @@ module.exports = EagleBridgeMobilePlugin;
         noticeCopiedEagleTag: "已复制 Eagle 标签：{tag}",
         noticeOpenNoteOrCanvas: "请先打开一个 Markdown 笔记或白板。",
         noticeOpenMarkdown: "请先打开一个 Markdown 笔记。",
+        exportScanning: "正在检查附件引用...",
+        exportTitle: "导出笔记分享包",
+        exportSummary: "发现 {links} 个本地附件引用，将打包 {files} 个文件；网络链接保持不变。",
+        exportMissingTitle: "缺失附件（将保留原链接）",
+        exportRenameTitle: "重名或名称已调整的附件",
+        exportIgnorePrefix: "忽略并",
+        exportFolder: "导出文件夹",
+        exportZip: "导出 ZIP",
+        exportChooseDirectory: "选择导出位置",
+        exportComplete: "导出完成：{path}",
+        exportFailed: "导出失败：{error}",
+        exportMissingEagleFile: "找不到 Eagle 原始文件",
+        exportMissingVaultFile: "在当前 Obsidian 库中找不到附件",
+        exportMissingExternalFile: "找不到库外本地文件",
         noticeCanvasImportUnsupported: "当前白板没有找到可直接导入的本地文件节点。",
         noticeNoLocalAttachments: "当前笔记没有找到可导入的附件链接。",
-        noticeNoThumbnailLinks: "没有找到 Eagle 缩略图 API 链接。",
-        noticeFixedThumbnailLinks: "已修复 {count} 个 Eagle 缩略图链接。",
-        noticeFixedDoubleEncodedLinks: "已修复 {count} 个双重编码文件链接。",
-        noticeConvertedFileLinks: "已将 {count} 个 Eagle 文件链接转换为 OE Link 链接。",
-        noticeConvertedEmbedsToLinks: "已将 {count} 个 OE Link 图片嵌入转换为链接。",
-        noticeConvertedLinksToHtml: "已将 {count} 个 OE Link 链接转换为 HTML 图片。",
-        noticeConvertedLinksToEmbeds: "已将 {count} 个 OE Link 链接转换为标准嵌入。",
-        noticeCannotFindRenderedImage: "在当前笔记中找不到这个渲染图片链接。",
         noticeNoAttachmentAtCursor: "光标位置没有找到本地附件链接。",
         noticeImportedToEagle: "已导入 Eagle：{name}",
         noticeProcessedAttachments: "已处理 {success} 个附件引用；复用 {reused} 个；失败 {failed} 个。",
@@ -12029,34 +12070,21 @@ module.exports = EagleBridgeMobilePlugin;
         clearAllAttachmentFoldersOption: "全部附件文件夹",
         noticeClearedObsidianFolders: "已从 {count} 个 Eagle 素材移除 Obsidian 文件夹归属，未删除文件夹。",
         noticeClearObsidianFoldersNeedsHelper: "请先安装/更新 OE Link 辅助插件，然后重启 Eagle。",
-        noticeAddedTags: "已给 {count} 个 Eagle 素材添加当前标签。",
         noticeJoinedFolder: "已将 {count} 个 Eagle 素材加入当前文件夹。",
-        confirm: "确定",
         cancel: "取消",
         noticeImportedTrashFailed: "已导入，但未能删除本地文件：{name}",
         noticeCopied: "已复制：{value}",
         trashTitle: "这个 Eagle 素材在 Eagle 回收站中。",
         readingLinks: "正在读取当前笔记的 OE Link 链接：{name}",
         copyFirstTag: "复制标签",
-        openEagle: "打开 Eagle",
         addTags: "添加标签",
         addToFolder: "加入文件夹",
         importNoteAttachments: "导入附件",
         cleanupLocalCopies: "清理已导入附件",
         clearObsidianTags: "清除标签",
         clearObsidianFolders: "清除文件夹",
-        deleteLocalOn: "AUTO",
-        deleteLocalOff: "AUTO",
-        refresh: "刷新",
-        autoOn: "AUTO",
-        autoOff: "AUTO",
         totalAssets: "总数：{count}",
         visibleAssetsStat: "显示：{count}",
-        inEagleCount: "Eagle：{count}",
-        localCount: "Obsidian：{count}",
-        eagleTrashCount: "Eagle 回收站：{count}",
-        loadFailedCount: "加载失败：{count}",
-        internetCount: "网络素材：{count}",
         embeddedNote: "笔记",
         notePlaceholder: "笔记",
         viewingEmbeddedNote: "当前笔记：{name}",
@@ -12065,23 +12093,10 @@ module.exports = EagleBridgeMobilePlugin;
         loadMoreAssets: "继续向下滚动以加载更多素材",
         obsidianLibrary: "Obsidian 素材库",
         obsidianLibraryLoading: "正在加载 Eagle 中的 Obsidian 素材...",
-        obsidianLibraryLoaded: "已加载：{count}",
         obsidianLibraryEmpty: "配置的 Eagle Obsidian 文件夹下没有找到素材。",
         obsidianLibraryFilterEmpty: "当前筛选条件下没有素材。",
-        libraryAll: "全部",
         libraryReferenced: "已引用",
         libraryUnreferenced: "未引用",
-        referencedCount: "已引用：{count}",
-        unreferencedCount: "未引用：{count}",
-        referencedBadge: "已引用",
-        unreferencedBadge: "未引用",
-        assetDetails: "附件详情",
-        referencedBy: "关联笔记或白板",
-        noReferences: "当前没有 Obsidian 笔记或白板引用这个素材。",
-        assetName: "名称",
-        assetType: "类型",
-        assetId: "Eagle ID",
-        assetLocation: "位置",
         trashedSingleUnreferencedAsset: "已将这个未引用素材移入 Eagle 回收站。",
         untitledAsset: "未命名素材",
         obsidianLocal: "Obsidian 库内",
@@ -12092,7 +12107,6 @@ module.exports = EagleBridgeMobilePlugin;
         inEagle: "Eagle 库内",
         localAttachmentAlt: "Obsidian 附件",
         eagleAssetAlt: "Eagle 素材",
-        importThisToEagle: "导入该附件到 Eagle",
         moveToObsidianTrash: "移入 Obsidian 回收站",
         moveToEagleTrash: "移入 Eagle 回收站",
         trashLocalAttachmentTitle: "移入 Obsidian 回收站",
@@ -12103,7 +12117,6 @@ module.exports = EagleBridgeMobilePlugin;
         localAttachmentNoLongerExists: "本地附件已不存在，已刷新素材库。",
         filePlaceholder: "文件",
         viewModeNormal: "平铺",
-        viewModeCompact: "小图",
         viewModeList: "列表",
         viewModeWaterfall: "瀑布",
         settingsTitle: "OE Link 本地连接模式",
@@ -12127,8 +12140,6 @@ module.exports = EagleBridgeMobilePlugin;
         settingNormalizeAllReferencesButton: "开始修正",
         settingApiName: "Eagle API 地址",
         settingApiDesc: "通常是 Eagle 的本地 API 地址。",
-        settingHelperPluginsDirName: "Eagle 插件目录",
-        settingHelperPluginsDirDesc: "Eagle 存放已安装插件的文件夹，用来安装或更新 OE Link 辅助插件。",
         settingHelperPluginsDirPlaceholder: "请输入 Eagle 插件目录",
         settingInstallHelperName: "OE Link 辅助插件",
         settingInstallHelperDesc: "安装或更新 Eagle 端的 OE Link 辅助插件。内置版本：0.2.13。例如：C:\\Users\\用户名\\AppData\\Roaming\\Eagle\\Plugins。",
@@ -12139,11 +12150,9 @@ module.exports = EagleBridgeMobilePlugin;
         noticeHelperInstalled: "OE Link 辅助插件已安装/更新。如未生效，请重启 Eagle 或在 Eagle 插件面板中重新加载。",
         noticeHelperInstallFailed: "安装 OE Link 辅助插件失败：{message}",
         noticeHelperAlreadyCurrent: "OE Link 辅助插件已经是最新版本。",
-        managementRulesTitle: "管理规则",
         attachmentManagementTitle: "附件管理",
         attachmentManagementDesc: "设置附件导入位置与 OE Link 引用方式。",
         attachmentManagementWarning: "导入后将会将原附件引用链接替换为 OE Link 链接，不支持恢复原引用。",
-        selectAttachment: "选择附件",
         selectedAssetsStat: "已选：{count}",
         importSelectedToEagle: "导入所选到 Eagle",
         copiedAttachmentReferences: "已复制 {count} 条附件引用链接。",
@@ -12158,14 +12167,6 @@ module.exports = EagleBridgeMobilePlugin;
         tagManagementDesc: "写入与清理 Eagle 标签。",
         folderManagementTitle: "文件夹管理",
         folderManagementDesc: "将素材加入对应的 Eagle 文件夹。",
-        settingTagManagementEnabledName: "标签管理",
-        settingTagManagementEnabledDesc: "总开关：写入笔记/白板身份标签，并清理旧标签。",
-        settingShowClearObsidianTagsName: "清除附件所有标签按钮",
-        settingShowClearObsidianTagsDesc: "开启后，侧边栏会显示“清除附件所有标签”按钮，用来清除当前笔记/白板引用素材上的所有 Obsidian 开头标签。",
-        settingShowClearObsidianFoldersName: "清除附件所有文件夹按钮",
-        settingShowClearObsidianFoldersDesc: "开启后，侧边栏会显示“清除附件所有文件夹”按钮，仅移除引用素材的 Obsidian 文件夹归属，不删除文件夹。",
-        settingFolderManagementEnabledName: "文件夹管理",
-        settingFolderManagementEnabledDesc: "总开关：匹配、创建并重命名 Eagle 文件夹。",
         settingUseObsidianFolderTreeName: "镜像 Obsidian 目录树",
         settingUseObsidianFolderTreeDesc: "开启后根据 Obsidian 文件夹路径，在 Eagle 中生成对应文件夹。",
         settingUseObsidianFolderTreeWarning: "暂不支持自动移动或删除已有文件夹，请谨慎开启。",
@@ -12174,12 +12175,8 @@ module.exports = EagleBridgeMobilePlugin;
         settingFolderIdName: "Eagle 目标文件夹 ID",
         settingFolderIdDesc: "填写素材导入的目标文件夹；留空则导入 Eagle 未分类。可粘贴完整链接或 ID，例如 http://localhost:41595/folder?id=ABC123 或 ABC123。",
         settingFolderIdPlaceholder: "请输入 Eagle 目标文件夹 ID",
-        settingTagPrefixesName: "Eagle 标签前缀",
-        settingTagPrefixesDesc: "默认 Obsidian-；笔记素材会写入 Obsidian-{笔记名-日期}。",
         settingNoteTagNameTemplateName: "笔记标签命名规则",
         settingNoteTagNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。",
-        settingCanvasPrefixesName: "白板标签前缀",
-        settingCanvasPrefixesDesc: "默认 Obsidian-cavs-；白板素材会写入 Obsidian-cavs-{白板名-日期}。",
         settingCanvasTagNameTemplateName: "白板标签命名规则",
         settingCanvasTagNameTemplateDesc: "变量：{{title}} 名称，{{created}} 创建日期。",
         settingRebuildAllTagsName: "重新生成所有标签",
@@ -12194,16 +12191,13 @@ module.exports = EagleBridgeMobilePlugin;
         settingLibraryPathsAdd: "+ 添加路径",
         settingLibraryPathsRemove: "删除素材库路径",
         settingLibraryPathsPlaceholder: "请输入 Eagle .library 素材库路径",
-        settingTrashAfterImportName: "自动清理已导入附件",
-        settingTrashAfterImportDesc: "开启后，只有 Eagle 导入成功时，才会自动把本地文件移入系统回收站。",
         settingImportExternalLocalName: "导入 Obsidian 库外附件",
         settingImportExternalLocalDesc: "默认关闭。开启后可导入笔记中明确引用的库外本地文件；不会扫描电脑中的其他文件夹。",
         settingTemplateName: "替换模板",
         settingTemplateDesc: "新导入附件及下方统一修正现有 OE Link 引用时使用。可用变量：{name}、{filename}、{itemId}、{bridgeUrl}、{url}。",
-        cleanLabelFallback: "Eagle 图片"
       }
     };
-    
+
   }
   };
   const cache = Object.create(null);

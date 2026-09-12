@@ -16,7 +16,7 @@ assert.match(externalLocalPathFromTarget("C:\\Assets\\example.png"), /^C:[\\/]As
 assert.equal(externalLocalPathFromTarget("Attachments/example.png"), "");
 assert.equal(externalLocalPathFromTarget("https://example.com/example.png"), "");
 
-const source = fs.readFileSync("main.source.js", "utf8");
+const source = fs.readFileSync("main.source.js", "utf8") + fs.readFileSync("lib/eagle-assets-view.js", "utf8");
 assert.match(source, /importExternalLocalAttachments: false/);
 assert.match(source, /findExternalLocalAttachmentLinks\(text\)/);
 assert.match(source, /this\.settings\.importExternalLocalAttachments === true/);

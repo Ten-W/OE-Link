@@ -2,7 +2,7 @@ const assert = require("assert");
 const fs = require("fs");
 const { normalizeEagleFolderId } = require("./lib/asset-utils");
 
-const source = fs.readFileSync("main.source.js", "utf8");
+const source = fs.readFileSync("main.source.js", "utf8") + fs.readFileSync("lib/eagle-assets-view.js", "utf8");
 assert.match(source, /contextSourceFilters = new Set\(\["eagle", "local", "external-local", "internet"\]\)/);
 assert.match(source, /\["eagle", "Eagle 库内", "is-eagle", summary\.inEagle \+ summary\.trash\]/);
 assert.match(source, /Eagle 库内: \$\{summary\.inEagle\}/);

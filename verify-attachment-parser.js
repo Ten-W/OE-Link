@@ -46,7 +46,7 @@ assert.equal(
   `![file.jpg|200](${eagleUrl})`
 );
 
-const source = fs.readFileSync("main.source.js", "utf8");
+const source = fs.readFileSync("main.source.js", "utf8") + fs.readFileSync("lib/eagle-assets-view.js", "utf8");
 assert.match(source, /__isImage: internetLinks\.some/);
 assert.match(source, /if \(item && item\.__isImage\) return true;/);
 assert.match(source, /autoImportAttachments: false/);

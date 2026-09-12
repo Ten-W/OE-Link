@@ -32,7 +32,7 @@ const modules = [
 
 function indent(source, spaces) {
   const prefix = " ".repeat(spaces);
-  return source.split(/\r?\n/).map(line => `${prefix}${line}`).join("\n");
+  return source.split(/\r?\n/).map(line => line.trim() ? `${prefix}${line}` : "").join("\n");
 }
 
 const factories = modules.map(({ id, filePath }) => {

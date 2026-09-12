@@ -2,7 +2,8 @@ const assert = require("assert");
 const fs = require("fs");
 const { KeyedTaskScheduler } = require("./lib/keyed-task-scheduler");
 
-const source = fs.readFileSync(require("path").join(__dirname, "main.source.js"), "utf8");
+const source = fs.readFileSync(require("path").join(__dirname, "main.source.js"), "utf8")
+  + fs.readFileSync(require("path").join(__dirname, "lib", "eagle-assets-view.js"), "utf8");
 const desktop = fs.readFileSync(require("path").join(__dirname, "desktop.js"), "utf8");
 
 assert.doesNotMatch(source, /file\.path === this\.lastReferenceViewActiveFilePath\) return;/);

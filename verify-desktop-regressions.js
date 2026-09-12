@@ -8,14 +8,18 @@ Module._load = function(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain);
 };
 
-const source = fs.readFileSync(require.resolve("./main.source.js"), "utf8");
+const source = ["./main.source.js", "./lib/eagle-assets-view.js"]
+  .map(name => fs.readFileSync(require.resolve(name), "utf8"))
+  .join("\n");
 const helper = fs.readFileSync(require.resolve("./oe-link-helper/js/plugin.js"), "utf8");
 const settings = fs.readFileSync(require.resolve("./lib/settings-tab.js"), "utf8");
 const { getStableIdentityDate } = require("./lib/asset-utils");
 Module._load = originalLoad;
 
 assert.match(source, /context\.kind !== "markdown"[\s\S]*__sourceStart/);
-assert.match(source, /const externalLocalLinks = this\.findExternalLocalAttachmentLinks\(text\)/);
+assert.match(source, /const \{ localLinks, externalLocalLinks, internetLinks \} = this\.collectMarkdownAttachmentLinks\(text, context\.file, \{[\s\S]*includeExternal: this\.settings\.importExternalLocalAttachments === true/);
+assert.match(source, /const submenu = item\.setSubmenu\(\);[\s\S]*exportCurrentNoteSharePackage\(file, "zip"\)[\s\S]*exportCurrentNoteSharePackage\(file, "folder"\)/);
+assert.match(source, /\/PDF\/i\.test[\s\S]*pdfItem\.after\(itemEl\)/);
 assert.match(source, /source === "eagle" \|\| source === "trash" \|\| item\.__fromNoteLink/);
 assert.match(source, /requestEagleHelperJson\("item\/open"/);
 assert.match(source, /const protocolTimer = window\.setTimeout\(openProtocol, 250\)/);

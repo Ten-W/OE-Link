@@ -3,7 +3,8 @@ const fs = require("fs");
 const path = require("path");
 const { isInsideEagleLibrary } = require("./lib/asset-utils");
 
-const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8");
+const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8")
+  + fs.readFileSync(path.join(__dirname, "lib", "eagle-assets-view.js"), "utf8");
 
 assert.match(source, /libraryReferenceSummaryGeneration/);
 assert.match(source, /libraryReferenceSummaryTask/);
