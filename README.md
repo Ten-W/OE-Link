@@ -1,5 +1,7 @@
 # OE Link
 
+**简体中文** | [English](./README_EN.md)
+
 > 让 Obsidian 只保留文字，把附件交给 Eagle。
 
 ## 1. 基本介绍
