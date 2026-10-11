@@ -33,7 +33,7 @@ assert.doesNotMatch(source, /activeReferences\.has\(this\.getLibraryItemReferenc
 assert.match(styles, /\.eaglebridge-library-filter-bar-section \+ \.eaglebridge-library-filter-bar-section\s*\{[\s\S]*margin-top: 4px;/);
 assert.match(styles, /\.eaglebridge-library-filter-bar\s*\{[\s\S]*height: 16px;[\s\S]*border: 0;/);
 assert.match(styles, /\.eaglebridge-library-filter-segment\.is-eagle\s*\{[\s\S]*inset 0 0 0 2px var\(--color-blue\)/);
-assert.match(styles, /\.eaglebridge-library-filter-segment\.is-enabled\s*\{[\s\S]*box-shadow: none !important;/);
+assert.match(styles, /\.eaglebridge-library-filter-segment\.is-enabled\s*\{[\s\S]*box-shadow: none;/);
 assert.match(styles, /\.eaglebridge-library-filter-segment\.is-enabled\s*\{[\s\S]*color: var\(--text-on-accent\);/);
 assert.match(styles, /\.eaglebridge-library-filter-segment:first-child\s*\{[\s\S]*border-radius: 999px 0 0 999px;/);
 assert.match(styles, /\.eaglebridge-note-assets-stat-visible\s*\{[\s\S]*color: var\(--text-normal\);[\s\S]*font-weight: 600;/);

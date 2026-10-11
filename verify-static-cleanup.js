@@ -15,6 +15,11 @@ for (const language of ["en", "zh"]) {
 }
 
 const css = fs.readFileSync(path.join(__dirname, "styles.css"), "utf8");
+assert.doesNotMatch(css, /!important|:has\(|text-indent\s*:/);
+assert.match(css, /\.workspace-leaf-content\[data-type="eaglebridge-note-assets-view"\] \.view-content/);
+assert.match(fs.readFileSync(path.join(__dirname, "README.md"), "utf8"), /OE Link connects Eagle assets with Obsidian notes and canvases/);
+const lock = JSON.parse(fs.readFileSync(path.join(__dirname, "package-lock.json"), "utf8"));
+assert.deepEqual(Object.keys(lock.packages), [""]);
 for (const className of [
   "eaglebridge-action-group", "eaglebridge-library-filter-row", "eaglebridge-library-trash-button",
   "eaglebridge-missing-repair-button", "eaglebridge-refresh-group", "eaglebridge-view-mode-button",
@@ -23,6 +28,7 @@ for (const className of [
 
 const mainSource = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8");
 const assetViewSource = fs.readFileSync(path.join(__dirname, "lib", "eagle-assets-view.js"), "utf8");
+assert.match(assetViewSource, /parent\.toggleClass\("is-management-disabled", !!options\.disabled\)/);
 assert.match(mainSource, /collectMarkdownAttachmentLinks\(text, sourceFile, options = \{\}\)/);
 assert.match(mainSource, /mapWithConcurrency\(itemIds, 4/);
 assert.match(mainSource, /createEagleAssetsView\(\{ VIEW_TYPE, DEFAULT_SETTINGS \}\)/);

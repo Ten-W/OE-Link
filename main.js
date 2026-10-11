@@ -9983,6 +9983,7 @@ module.exports = EagleBridgeMobilePlugin;
           const controlClasses = [options.controlClass, "eaglebridge-compound-auto-control"];
           if (options.enabled) controlClasses.push("is-enabled");
           if (options.disabled) controlClasses.push("is-management-disabled");
+          parent.toggleClass("is-management-disabled", !!options.disabled);
           const control = parent.createDiv({ cls: controlClasses.join(" ") });
           const primaryButton = control.createEl("button", {
             text: options.primaryText,

@@ -1,5 +1,7 @@
 # Changelog
 
+0.5.91 - Replaces forced CSS overrides with scoped specificity, removes relational selectors and redundant text indentation resets, adds an English README summary and a dependency-free build lockfile.
+
 0.5.90 - Switches local/cloud runtimes without disabling the plugin, cleans up cloud previews on mode changes, protects in-flight work, and simplifies the directory manifest description.
 
 0.5.89 - Shares attachment identity matching for sidebar/source navigation, locates references in other notes and canvases, avoids guessing repeated occurrences, and preserves selection while consolidating operation refreshes.

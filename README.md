@@ -2,6 +2,10 @@
 
 **简体中文** | [English](./README_EN.md)
 
+OE Link connects Eagle assets with Obsidian notes and canvases. Import attachments, manage tags and folders, and keep previewable references in your notes. Desktop local mode requires Eagle and OE Link Helper; mobile devices use read-only OneDrive or WebDAV cloud mode. Back up your vault before importing or cleaning up attachments.
+
+See the [English guide](./README_EN.md) for installation, platform support, privacy and usage details. OE Link is an independent third-party plugin, not affiliated with Obsidian or Eagle.
+
 > 让 Obsidian 只保留文字，把附件交给 Eagle。
 
 ## 1. 基本介绍

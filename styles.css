@@ -1,8 +1,9 @@
-.view-content:has(> .eaglebridge-note-assets-view) {
+/* Repeated plugin classes override host styles through specificity. */
+.workspace-leaf-content[data-type="eaglebridge-note-assets-view"] .view-content {
   overflow: hidden;
 }
 
-.eaglebridge-file-embed {
+.eaglebridge-file-embed.eaglebridge-file-embed {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -12,8 +13,8 @@
   min-height: 48px;
   padding: 8px 12px;
   border-radius: 6px;
-  background: var(--background-secondary) !important;
-  color: var(--text-muted) !important;
+  background: var(--background-secondary);
+  color: var(--text-muted);
   text-decoration: none;
   border: 0;
   font: inherit;
@@ -22,12 +23,12 @@
   justify-content: center;
   margin: 0;
   appearance: none;
-  box-shadow: none !important;
+  box-shadow: none;
   font-size: var(--font-ui-medium);
   line-height: 1.2;
 }
 
-.eaglebridge-file-embed:hover {
+.eaglebridge-file-embed.eaglebridge-file-embed:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
   text-decoration: none;
@@ -253,7 +254,7 @@ audio.eaglebridge-media-embed {
   min-height: 18px;
 }
 
-.eaglebridge-library-view-icon {
+.eaglebridge-library-view-icon.eaglebridge-library-view-icon {
   display: inline-grid;
   place-items: center;
   width: 18px;
@@ -261,23 +262,23 @@ audio.eaglebridge-media-embed {
   height: 18px;
   padding: 0;
   margin: 0;
-  border: 0 !important;
+  border: 0;
   border-radius: 0;
   color: var(--text-muted);
-  background: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
+  box-shadow: none;
   line-height: 1;
 }
 
-.eaglebridge-library-view-icon:hover {
+.eaglebridge-library-view-icon.eaglebridge-library-view-icon:hover {
   color: var(--text-normal);
 }
 
-.eaglebridge-library-view-icon.is-enabled {
+.eaglebridge-library-view-icon.eaglebridge-library-view-icon.is-enabled {
   color: var(--text-normal);
 }
 
-.eaglebridge-library-view-icon svg {
+.eaglebridge-library-view-icon.eaglebridge-library-view-icon svg {
   display: block;
   width: 16px;
   height: 16px;
@@ -296,7 +297,7 @@ audio.eaglebridge-media-embed {
   background: var(--background-modifier-border);
 }
 
-.eaglebridge-library-view-icon:focus-visible {
+.eaglebridge-library-view-icon.eaglebridge-library-view-icon:focus-visible {
   outline: 1px solid var(--interactive-accent);
   outline-offset: 2px;
 }
@@ -316,23 +317,23 @@ audio.eaglebridge-media-embed {
   margin: 12px 0 18px;
 }
 
-.eaglebridge-settings-rule-card {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card {
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   padding: 14px 16px;
   background: var(--background-secondary);
 }
 
-.eaglebridge-settings-rule-header {
+.eaglebridge-settings-rule-header.eaglebridge-settings-rule-header {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0 0 6px;
 }
 
-.eaglebridge-settings-rule-header h4 {
+.eaglebridge-settings-rule-header.eaglebridge-settings-rule-header h4 {
   flex: 1 1 auto;
-  margin: 0 !important;
+  margin: 0;
 }
 
 .eaglebridge-settings-rule-header-toggle {
@@ -343,42 +344,40 @@ audio.eaglebridge-media-embed {
   margin: 0;
 }
 
-.eaglebridge-settings-rule-card h4 {
-  margin: 0 0 6px !important;
-  padding: 0 !important;
-  margin-inline-start: 0 !important;
-  padding-inline-start: 0 !important;
-  text-indent: 0;
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card h4 {
+  margin: 0 0 6px;
+  padding: 0;
+  margin-inline-start: 0;
+  padding-inline-start: 0;
 }
 
-.eaglebridge-settings-rule-card p {
-  margin: 0 0 12px !important;
-  padding: 0 !important;
-  margin-inline-start: 0 !important;
-  padding-inline-start: 0 !important;
-  text-indent: 0;
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card p {
+  margin: 0 0 12px;
+  padding: 0;
+  margin-inline-start: 0;
+  padding-inline-start: 0;
   color: var(--text-muted);
   font-size: var(--font-ui-small);
   line-height: 1.45;
 }
 
-.eaglebridge-settings-rule-card .setting-item {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .setting-item {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 10px;
 }
 
-.eaglebridge-settings-rule-card .setting-item-info {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .setting-item-info {
   width: 100%;
   margin-right: 0;
 }
 
-.eaglebridge-settings-rule-card .setting-item-name {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .setting-item-name {
   line-height: 1.35;
 }
 
-.eaglebridge-settings-rule-card .setting-item-description {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .setting-item-description {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
   line-height: 1.45;
@@ -405,51 +404,51 @@ audio.eaglebridge-media-embed {
   margin-right: 16px;
 }
 
-.eaglebridge-settings-rule-card.eaglebridge-settings-attachment-card .setting-item-control {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card.eaglebridge-settings-attachment-card .setting-item-control {
   flex: 0 1 52%;
   width: min(52%, 560px);
   margin-left: auto;
 }
 
-.eaglebridge-settings-rule-card .setting-item-control {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .setting-item-control {
   width: 100%;
   justify-content: flex-end;
   margin-left: 0;
 }
 
-.eaglebridge-settings-rule-card .setting-item-control input[type="text"] {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .setting-item-control input[type="text"] {
   width: 100%;
 }
 
-.eaglebridge-settings-rule-card .eaglebridge-settings-toggle-row {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .eaglebridge-settings-toggle-row {
   flex-direction: row;
   align-items: center;
 }
 
-.eaglebridge-settings-rule-card .eaglebridge-settings-toggle-row .setting-item-info {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .eaglebridge-settings-toggle-row .setting-item-info {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.eaglebridge-settings-rule-card .eaglebridge-settings-toggle-row .setting-item-control {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .eaglebridge-settings-toggle-row .setting-item-control {
   flex: 0 0 auto;
   width: auto;
   margin-left: 14px;
 }
 
-.eaglebridge-settings-rule-card .eaglebridge-settings-action-row {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .eaglebridge-settings-action-row {
   flex-direction: row;
   align-items: center;
 }
 
-.eaglebridge-settings-rule-card .eaglebridge-settings-action-row .setting-item-info {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .eaglebridge-settings-action-row .setting-item-info {
   flex: 1 1 auto;
   min-width: 0;
   width: auto;
   margin-right: 16px;
 }
 
-.eaglebridge-settings-rule-card .eaglebridge-settings-action-row .setting-item-control {
+.eaglebridge-settings-rule-card.eaglebridge-settings-rule-card .eaglebridge-settings-action-row .setting-item-control {
   flex: 0 0 auto;
   width: auto;
   margin-left: auto;
@@ -653,23 +652,23 @@ audio.eaglebridge-media-embed {
   margin: 0;
 }
 
-.eaglebridge-segmented-button {
+.eaglebridge-segmented-button.eaglebridge-segmented-button {
   border-radius: 0;
-  margin-left: -1px !important;
+  margin-left: -1px;
 }
 
-.eaglebridge-segmented-button:first-child {
+.eaglebridge-segmented-button.eaglebridge-segmented-button:first-child {
   border-top-left-radius: var(--button-radius);
   border-bottom-left-radius: var(--button-radius);
-  margin-left: 0 !important;
+  margin-left: 0;
 }
 
-.eaglebridge-segmented-button:last-child {
+.eaglebridge-segmented-button.eaglebridge-segmented-button:last-child {
   border-top-right-radius: var(--button-radius);
   border-bottom-right-radius: var(--button-radius);
 }
 
-.eaglebridge-compound-auto-control {
+.eaglebridge-compound-auto-control.eaglebridge-compound-auto-control {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -677,75 +676,75 @@ audio.eaglebridge-media-embed {
   min-height: var(--input-height);
   margin-left: -1px;
   border: 1px solid var(--background-modifier-border);
-  border-radius: var(--button-radius) !important;
+  border-radius: var(--button-radius);
   background: var(--interactive-normal);
   box-shadow: var(--input-shadow);
 }
 
-.eaglebridge-segmented-group > .eaglebridge-compound-auto-control:first-child:not(:last-child) {
-  border-top-right-radius: 0 !important;
-  border-bottom-right-radius: 0 !important;
+.eaglebridge-segmented-group.eaglebridge-segmented-group > .eaglebridge-compound-auto-control.eaglebridge-compound-auto-control:first-child:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
-.eaglebridge-segmented-group > .eaglebridge-compound-auto-control:not(:first-child):not(:last-child) {
-  border-radius: 0 !important;
+.eaglebridge-segmented-group.eaglebridge-segmented-group > .eaglebridge-compound-auto-control.eaglebridge-compound-auto-control:not(:first-child):not(:last-child) {
+  border-radius: 0;
 }
 
-.eaglebridge-segmented-group > .eaglebridge-compound-auto-control:not(:first-child):last-child {
-  border-top-left-radius: 0 !important;
-  border-bottom-left-radius: 0 !important;
+.eaglebridge-segmented-group.eaglebridge-segmented-group > .eaglebridge-compound-auto-control.eaglebridge-compound-auto-control:not(:first-child):last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
-.eaglebridge-segmented-group > .eaglebridge-compound-auto-control + .eaglebridge-segmented-button {
-  margin-left: 0 !important;
+.eaglebridge-segmented-group.eaglebridge-segmented-group > .eaglebridge-compound-auto-control.eaglebridge-compound-auto-control + .eaglebridge-segmented-button.eaglebridge-segmented-button {
+  margin-left: 0;
   border-left-width: 1px;
   border-left-color: var(--background-modifier-border);
 }
 
-.eaglebridge-compound-auto-control:hover {
+.eaglebridge-compound-auto-control.eaglebridge-compound-auto-control:hover {
   background: var(--interactive-hover);
 }
 
-.eaglebridge-segmented-group:has(.is-management-disabled) {
+.eaglebridge-segmented-group.eaglebridge-segmented-group.is-management-disabled {
   opacity: 0.42;
   filter: grayscale(1);
 }
 
-.eaglebridge-segmented-group:has(.is-management-disabled) button,
-.eaglebridge-segmented-group:has(.is-management-disabled) .eaglebridge-compound-auto-control {
+.eaglebridge-segmented-group.eaglebridge-segmented-group.is-management-disabled button,
+.eaglebridge-segmented-group.eaglebridge-segmented-group.is-management-disabled .eaglebridge-compound-auto-control.eaglebridge-compound-auto-control {
   cursor: not-allowed;
 }
 
-.eaglebridge-compound-primary-button,
-.eaglebridge-compound-auto-toggle {
+.eaglebridge-compound-primary-button.eaglebridge-compound-primary-button,
+.eaglebridge-compound-auto-toggle.eaglebridge-compound-auto-toggle {
   -webkit-appearance: none;
   appearance: none;
   height: auto;
   min-height: 0;
-  margin: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  background: transparent !important;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
-.eaglebridge-compound-primary-button {
+.eaglebridge-compound-primary-button.eaglebridge-compound-primary-button {
   min-height: calc(var(--input-height) - 2px);
   padding: 0 62px 0 12px;
   width: 100%;
 }
 
-.eaglebridge-compound-primary-button:hover,
-.eaglebridge-compound-primary-button:focus,
-.eaglebridge-compound-primary-button:active,
-.eaglebridge-compound-auto-toggle:hover,
-.eaglebridge-compound-auto-toggle:focus,
-.eaglebridge-compound-auto-toggle:active {
-  background: transparent !important;
-  box-shadow: none !important;
+.eaglebridge-compound-primary-button.eaglebridge-compound-primary-button:hover,
+.eaglebridge-compound-primary-button.eaglebridge-compound-primary-button:focus,
+.eaglebridge-compound-primary-button.eaglebridge-compound-primary-button:active,
+.eaglebridge-compound-auto-toggle.eaglebridge-compound-auto-toggle:hover,
+.eaglebridge-compound-auto-toggle.eaglebridge-compound-auto-toggle:focus,
+.eaglebridge-compound-auto-toggle.eaglebridge-compound-auto-toggle:active {
+  background: transparent;
+  box-shadow: none;
 }
 
-.eaglebridge-compound-auto-toggle {
+.eaglebridge-compound-auto-toggle.eaglebridge-compound-auto-toggle {
   position: absolute;
   right: 5px;
   top: 50%;
@@ -754,22 +753,22 @@ audio.eaglebridge-media-embed {
   justify-content: center;
   width: 46px;
   min-width: 0;
-  padding: 0 !important;
+  padding: 0;
   transform: translateY(-50%);
 }
 
-.eaglebridge-auto-toggle {
+.eaglebridge-auto-toggle.eaglebridge-auto-toggle {
   min-width: 74px;
   height: var(--input-height);
   padding: 0 6px;
-  border-radius: 0 var(--button-radius) var(--button-radius) 0 !important;
+  border-radius: 0 var(--button-radius) var(--button-radius) 0;
   border: 1px solid var(--background-modifier-border);
   border-left-width: 0;
   background: var(--interactive-normal);
-  margin-left: 0 !important;
+  margin-left: 0;
 }
 
-.eaglebridge-auto-toggle:hover {
+.eaglebridge-auto-toggle.eaglebridge-auto-toggle:hover {
   border-left-width: 0;
   background: var(--interactive-hover);
 }
@@ -817,13 +816,13 @@ audio.eaglebridge-media-embed {
   transition: left 120ms ease;
 }
 
-.eaglebridge-auto-toggle.is-enabled {
+.eaglebridge-auto-toggle.eaglebridge-auto-toggle.is-enabled {
   background: var(--interactive-normal);
   border-color: var(--background-modifier-border);
   border-left-width: 0;
 }
 
-.eaglebridge-auto-toggle.is-enabled .eaglebridge-auto-toggle-track {
+.eaglebridge-auto-toggle.eaglebridge-auto-toggle.is-enabled .eaglebridge-auto-toggle-track {
   justify-content: flex-start;
   padding: 0 18px 0 6px;
   background: var(--interactive-accent);
@@ -831,12 +830,12 @@ audio.eaglebridge-media-embed {
   box-shadow: none;
 }
 
-.eaglebridge-auto-toggle.is-enabled .eaglebridge-auto-toggle-knob {
+.eaglebridge-auto-toggle.eaglebridge-auto-toggle.is-enabled .eaglebridge-auto-toggle-knob {
   left: calc(100% - 15px);
   background: var(--background-modifier-border-hover);
 }
 
-.eaglebridge-compound-auto-control.is-enabled .eaglebridge-auto-toggle-track {
+.eaglebridge-compound-auto-control.eaglebridge-compound-auto-control.is-enabled .eaglebridge-auto-toggle-track {
   justify-content: flex-start;
   padding: 0 18px 0 6px;
   background: var(--interactive-accent);
@@ -844,7 +843,7 @@ audio.eaglebridge-media-embed {
   box-shadow: none;
 }
 
-.eaglebridge-compound-auto-control.is-enabled .eaglebridge-auto-toggle-knob {
+.eaglebridge-compound-auto-control.eaglebridge-compound-auto-control.is-enabled .eaglebridge-auto-toggle-knob {
   left: calc(100% - 15px);
   background: var(--background-modifier-border-hover);
 }
@@ -926,7 +925,7 @@ audio.eaglebridge-media-embed {
   margin: 2px 0 4px;
 }
 
-.eaglebridge-context-source-bar .eaglebridge-library-filter-segment {
+.eaglebridge-context-source-bar .eaglebridge-library-filter-segment.eaglebridge-library-filter-segment {
   cursor: pointer;
 }
 
@@ -936,12 +935,12 @@ audio.eaglebridge-media-embed {
   font-weight: 700;
 }
 
-.eaglebridge-library-filter-segment {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment {
   box-sizing: border-box;
   min-width: 22px;
   height: 16px;
   min-height: 16px;
-  margin: 0 !important;
+  margin: 0;
   padding: 0 1px;
   overflow: hidden;
   border: 0;
@@ -954,7 +953,7 @@ audio.eaglebridge-media-embed {
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
-  box-shadow: none !important;
+  box-shadow: none;
   opacity: 1;
   transition: flex-grow 260ms cubic-bezier(0.4, 0, 0.2, 1), opacity 120ms ease, filter 120ms ease, background-color 120ms ease;
 }
@@ -965,101 +964,101 @@ audio.eaglebridge-media-embed {
   font-size: var(--font-ui-small);
 }
 
-.eaglebridge-library-filter-segment:hover,
-.eaglebridge-library-filter-segment.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment:hover,
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-enabled {
   color: var(--text-on-accent);
   opacity: 1;
   filter: saturate(1.08) brightness(1.03);
 }
 
-.eaglebridge-library-filter-segment.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-enabled {
   position: relative;
   z-index: 1;
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
-.eaglebridge-library-filter-segment.is-eagle {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-eagle {
   color: var(--color-blue);
-  box-shadow: inset 0 0 0 2px var(--color-blue) !important;
+  box-shadow: inset 0 0 0 2px var(--color-blue);
 }
 
-.eaglebridge-library-filter-segment.is-eagle.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-eagle.is-enabled {
   background: var(--color-blue);
 }
 
-.eaglebridge-library-filter-segment.is-local {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-local {
   color: var(--color-purple);
-  box-shadow: inset 0 0 0 2px var(--color-purple) !important;
+  box-shadow: inset 0 0 0 2px var(--color-purple);
 }
 
-.eaglebridge-library-filter-segment.is-local.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-local.is-enabled {
   background: var(--color-purple);
 }
 
-.eaglebridge-library-filter-segment.is-external-local {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-external-local {
   color: var(--color-cyan, #14b8a6);
-  box-shadow: inset 0 0 0 2px var(--color-cyan, #14b8a6) !important;
+  box-shadow: inset 0 0 0 2px var(--color-cyan, #14b8a6);
 }
 
-.eaglebridge-library-filter-segment.is-external-local.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-external-local.is-enabled {
   background: var(--color-cyan, #14b8a6);
 }
 
-.eaglebridge-library-filter-segment.is-internet {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-internet {
   color: var(--text-normal);
-  box-shadow: inset 0 0 0 2px var(--text-normal) !important;
+  box-shadow: inset 0 0 0 2px var(--text-normal);
 }
 
-.eaglebridge-library-filter-segment.is-internet.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-internet.is-enabled {
   color: var(--background-primary);
   background: var(--text-normal);
 }
 
-.eaglebridge-library-filter-segment.is-referenced {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-referenced {
   color: var(--color-green);
-  box-shadow: inset 0 0 0 2px var(--color-green) !important;
+  box-shadow: inset 0 0 0 2px var(--color-green);
 }
 
-.eaglebridge-library-filter-segment.is-referenced.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-referenced.is-enabled {
   background: var(--color-green);
 }
 
-.eaglebridge-library-filter-segment.is-unreferenced {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-unreferenced {
   color: var(--text-muted);
-  box-shadow: inset 0 0 0 2px var(--text-muted) !important;
+  box-shadow: inset 0 0 0 2px var(--text-muted);
 }
 
-.eaglebridge-library-filter-segment.is-unreferenced.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-unreferenced.is-enabled {
   background: var(--text-muted);
 }
 
-.eaglebridge-library-filter-segment.is-trash {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-trash {
   color: var(--text-error);
-  box-shadow: inset 0 0 0 2px var(--text-error) !important;
+  box-shadow: inset 0 0 0 2px var(--text-error);
 }
 
-.eaglebridge-library-filter-segment.is-trash.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-trash.is-enabled {
   background: var(--text-error);
 }
 
-.eaglebridge-library-filter-segment.is-enabled {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment.is-enabled {
   color: var(--text-on-accent);
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
-.eaglebridge-library-filter-segment:first-child {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment:first-child {
   border-radius: 999px 0 0 999px;
 }
 
-.eaglebridge-library-filter-segment:last-child {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment:last-child {
   border-radius: 0 999px 999px 0;
 }
 
-.eaglebridge-library-filter-segment:only-child {
+.eaglebridge-library-filter-segment.eaglebridge-library-filter-segment:only-child {
   border-radius: 999px;
 }
 
-.eaglebridge-library-trash-filter {
+.eaglebridge-library-trash-filter.eaglebridge-library-trash-filter {
   flex: 0 0 28px;
   min-width: 28px;
   max-width: 40%;
@@ -1071,14 +1070,14 @@ audio.eaglebridge-media-embed {
   border-radius: 999px;
   color: var(--text-error);
   background: transparent;
-  box-shadow: inset 0 0 0 2px var(--text-error) !important;
+  box-shadow: inset 0 0 0 2px var(--text-error);
   font-size: 10px;
   font-weight: 600;
   line-height: 16px;
   transition: flex-basis 260ms cubic-bezier(0.4, 0, 0.2, 1), background-color 120ms ease;
 }
 
-.eaglebridge-library-trash-filter.is-enabled {
+.eaglebridge-library-trash-filter.eaglebridge-library-trash-filter.is-enabled {
   color: var(--text-on-accent);
   background: var(--text-error);
 }
@@ -1489,12 +1488,12 @@ img.eaglebridge-image-in-trash {
   filter: saturate(0.65) brightness(0.9);
 }
 
-.eaglebridge-trash-anchor {
-  position: relative !important;
-  display: inline-block !important;
+.eaglebridge-trash-anchor.eaglebridge-trash-anchor {
+  position: relative;
+  display: inline-block;
 }
 
-.eaglebridge-trash-anchor::after {
+.eaglebridge-trash-anchor.eaglebridge-trash-anchor::after {
   content: "Eagle trash";
   position: absolute;
   top: 8px;
@@ -1517,24 +1516,24 @@ img.eaglebridge-image-in-trash {
   pointer-events: none;
 }
 
-.eaglebridge-trash-badge {
-  display: block !important;
-  box-sizing: border-box !important;
-  width: max-content !important;
-  max-width: max-content !important;
-  height: auto !important;
-  min-height: 0 !important;
-  margin: 6px 0 12px 0 !important;
-  padding: 3px 10px !important;
-  border: 1px solid var(--text-error) !important;
-  border-radius: 999px !important;
+.eaglebridge-trash-badge.eaglebridge-trash-badge {
+  display: block;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: max-content;
+  height: auto;
+  min-height: 0;
+  margin: 6px 0 12px 0;
+  padding: 3px 10px;
+  border: 1px solid var(--text-error);
+  border-radius: 999px;
   background: color-mix(in srgb, var(--text-error) 14%, transparent);
   color: var(--text-error);
   font-size: var(--font-ui-smaller);
   font-weight: 600;
-  line-height: 1.25 !important;
-  white-space: nowrap !important;
-  vertical-align: top !important;
+  line-height: 1.25;
+  white-space: nowrap;
+  vertical-align: top;
 }
 
 .eaglebridge-card-missing {
