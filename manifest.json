@@ -1,7 +1,7 @@
 {
   "id": "oe-link",
   "name": "OE Link",
-  "version": "0.5.91",
+  "version": "0.5.92",
   "minAppVersion": "1.11.4",
   "description": "Connect Eagle assets with notes and canvases.",
   "author": "TenW",

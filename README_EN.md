@@ -1,6 +1,6 @@
 # OE Link
 
-[简体中文](./README.md) | **English**
+[简体中文](./README_ZH.md) | **English**
 
 > Keep text in Obsidian and leave attachments to Eagle.
 

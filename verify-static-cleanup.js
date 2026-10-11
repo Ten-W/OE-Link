@@ -17,7 +17,9 @@ for (const language of ["en", "zh"]) {
 const css = fs.readFileSync(path.join(__dirname, "styles.css"), "utf8");
 assert.doesNotMatch(css, /!important|:has\(|text-indent\s*:/);
 assert.match(css, /\.workspace-leaf-content\[data-type="eaglebridge-note-assets-view"\] \.view-content/);
-assert.match(fs.readFileSync(path.join(__dirname, "README.md"), "utf8"), /OE Link connects Eagle assets with Obsidian notes and canvases/);
+assert.match(fs.readFileSync(path.join(__dirname, "README.md"), "utf8"), /OE Link provides a stable workflow/);
+assert.match(fs.readFileSync(path.join(__dirname, "README.md"), "utf8"), /\[简体中文\]\(\.\/README_ZH\.md\)/);
+assert.match(fs.readFileSync(path.join(__dirname, "README_ZH.md"), "utf8"), /\[English\]\(\.\/README\.md\)/);
 const lock = JSON.parse(fs.readFileSync(path.join(__dirname, "package-lock.json"), "utf8"));
 assert.deepEqual(Object.keys(lock.packages), [""]);
 for (const className of [
