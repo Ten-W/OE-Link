@@ -51,6 +51,7 @@ assert.doesNotMatch(pluginSource, /fixCurrentNoteEagleThumbnailLinks|convertCurr
       "![[missing.png]]"
     ].join("\n");
     const plugin = Object.create(PluginClass.prototype);
+    plugin.settings = { eagleBridgeBaseUrl: "http://localhost:6060" };
     plugin.app = {
       metadataCache: { getFirstLinkpathDest(target) { return target === "same.jpg" ? localFile : null; } },
       vault: { adapter: { getFullPath(filePath) { return filePath === localFile.path ? vaultImage : ""; } } }
@@ -69,6 +70,13 @@ assert.doesNotMatch(pluginSource, /fixCurrentNoteEagleThumbnailLinks|convertCurr
     assert.match(plan.noteText, /attachments\/audio\.mp3/);
     assert.match(plan.noteText, /https:\/\/example\.com\/image\.png/);
     assert.match(plan.noteText, /!\[\[missing\.png\]\]/);
+    const ipPlan = await plugin.buildCurrentNoteExportPlan(noteFile, source.replaceAll("localhost:6060", "127.0.0.1:6060"));
+    assert.equal(ipPlan.referenceCount, plan.referenceCount);
+    assert.match(ipPlan.noteText, /attachments\/audio\.mp3/);
+    plugin.settings.eagleBridgeBaseUrl = "https://media.example.test";
+    const customPlan = await plugin.buildCurrentNoteExportPlan(noteFile, source.replaceAll("http://localhost:6060", plugin.settings.eagleBridgeBaseUrl));
+    assert.equal(customPlan.referenceCount, plan.referenceCount);
+    assert.match(customPlan.noteText, /attachments\/audio\.mp3/);
     console.log("export plan checks passed");
   } finally {
     await fs.promises.rm(root, { recursive: true, force: true });

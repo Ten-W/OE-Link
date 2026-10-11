@@ -1,6 +1,12 @@
 const assert = require("assert");
 const fs = require("fs");
+const Module = require("node:module");
+const originalLoad = Module._load;
+Module._load = function(request, parent, isMain) {
+  return request === "obsidian" ? { TFile: class {} } : originalLoad.call(this, request, parent, isMain);
+};
 const { normalizeEagleFolderId } = require("./lib/asset-utils");
+Module._load = originalLoad;
 
 const source = fs.readFileSync("main.source.js", "utf8") + fs.readFileSync("lib/eagle-assets-view.js", "utf8");
 assert.match(source, /contextSourceFilters = new Set\(\["eagle", "local", "external-local", "internet"\]\)/);

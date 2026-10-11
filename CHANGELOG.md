@@ -1,5 +1,17 @@
 # Changelog
 
+0.5.89 - Shares attachment identity matching for sidebar/source navigation, locates references in other notes and canvases, avoids guessing repeated occurrences, and preserves selection while consolidating operation refreshes.
+
+0.5.88 - Opens Canvas, note and library images through Obsidian's native lightbox, uses original image sources, and preserves note navigation and older editor-action compatibility.
+
+0.5.87 - Merges Markdown imports without overwriting concurrent edits, protects shared/local-changed attachments before import cleanup, serializes scheduled work, guards cache races and cloud library switches, and runs verification scripts in isolation.
+
+0.5.86 - Keeps existing folder assignments when adding assets to note/Canvas folders and reports added, existing and failed counts for manual organization.
+
+0.5.85 - Fixes manual note/Canvas folder organization using Eagle V2 folder updates, removes direct root assignment while preserving other folders, and recognizes encoded Canvas attachment links.
+
+0.5.84 - Ignores Canvas node ordering in attachment change detection and merges attachment imports into the latest Canvas without overwriting layout edits.
+
 0.5.83 - Fixes the extracted asset view's missing default settings dependency and adds a runtime module regression check.
 
 0.5.82 - Adds direct ZIP/folder export submenus, keeps issue confirmation only when needed, improves placement beside Obsidian's PDF export, and extracts the asset sidebar view from the plugin entry.

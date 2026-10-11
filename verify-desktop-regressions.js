@@ -22,8 +22,8 @@ assert.match(source, /const submenu = item\.setSubmenu\(\);[\s\S]*exportCurrentN
 assert.match(source, /\/PDF\/i\.test[\s\S]*pdfItem\.after\(itemEl\)/);
 assert.match(source, /source === "eagle" \|\| source === "trash" \|\| item\.__fromNoteLink/);
 assert.match(source, /requestEagleHelperJson\("item\/open"/);
-assert.match(source, /const protocolTimer = window\.setTimeout\(openProtocol, 250\)/);
-assert.match(source, /status: protocolOpened \? "success-after-protocol" : "success"/);
+assert.doesNotMatch(source, /const protocolTimer = window\.setTimeout\(openProtocol, 250\)/);
+assert.match(source, /itemId: cleanItemId,\s*status: "success"/);
 assert.match(source, /document\.body\.click\(\);\s*await descriptor\.onClick\(\);/);
 assert.match(source, /exportDesktopDiagnosticLog/);
 assert.match(source, /schemaVersion: 1/);

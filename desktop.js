@@ -116,6 +116,7 @@
     const TRANSLATIONS = require("./lib/translations");
     const { EagleItemRepository } = require("./lib/eagle-item-repository");
     const { KeyedTaskScheduler } = require("./lib/keyed-task-scheduler");
+    const { mergeAttachmentReplacements } = require("./lib/attachment-import");
     const { chooseInObsidianModal } = require("./lib/choice-modal");
     const { EagleBridgeProgressModal } = require("./lib/progress-modal");
     const { chooseExportFormat } = require("./lib/export-package-modal");
@@ -141,6 +142,7 @@
 
     module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       async onload() {
+        this.unloaded = false;
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
         this.migrateSettings();
         this.desktopDiagnosticEvents = [];
@@ -346,6 +348,7 @@
       }
 
       onunload() {
+        this.unloaded = true;
         this.cancelReferenceViewRefresh();
         this.autoSyncScheduler && this.autoSyncScheduler.clear();
         this.trashScanScheduler && this.trashScanScheduler.clear();
@@ -771,27 +774,19 @@
         if (!cleanItemId) return;
         const rawBase = String(this.settings.eagleProtocolUrl || "eagle://").trim() || "eagle://";
         const base = /^eagle:\/+$/i.test(rawBase) ? "eagle://" : `${rawBase.replace(/\/+$/, "")}/`;
-        let protocolOpened = false;
-        const openProtocol = () => {
-          if (protocolOpened) return;
-          protocolOpened = true;
-          this.openExternalUrl(`${base}item/${encodeURIComponent(cleanItemId)}`);
-        };
+        const openProtocol = () => this.openExternalUrl(`${base}item/${encodeURIComponent(cleanItemId)}`);
         const open = () => this.requestEagleHelperJson("item/open", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ itemId: cleanItemId })
         });
-        const protocolTimer = window.setTimeout(openProtocol, 250);
         try {
           await open();
-          window.clearTimeout(protocolTimer);
           this.recordDesktopDiagnosticEvent("item-open", {
             itemId: cleanItemId,
-            status: protocolOpened ? "success-after-protocol" : "success"
+            status: "success"
           });
         } catch (firstError) {
-          window.clearTimeout(protocolTimer);
           openProtocol();
           this.eagleHelperBaseUrl = "";
           void sleep(350).then(open).then(() => {
@@ -1321,12 +1316,14 @@
       }
 
       async runWithReferenceViewRefreshPaused(task, refreshFile = null) {
+        this.referenceViewRefreshScheduler?.cancel("current-reference-view");
         this.referenceViewOperationDepth += 1;
         try {
           return await task();
         } finally {
           this.referenceViewOperationDepth = Math.max(0, this.referenceViewOperationDepth - 1);
           if (this.referenceViewOperationDepth === 0) {
+            this.referenceViewRefreshScheduler?.cancel("current-reference-view");
             await this.refreshReferenceViewsForCurrentNote(refreshFile, { force: true });
           }
         }
@@ -1359,7 +1356,8 @@
             for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
               const view = leaf.view;
               if (view && typeof view.loadForCurrentNote === "function") {
-                await view.loadForCurrentNote(false);
+                if (force && typeof view.reloadDisplayedContext === "function") await view.reloadDisplayedContext(false);
+                else await view.loadForCurrentNote(false);
               }
             }
           } while (this.referenceViewRefreshQueued);
@@ -1735,8 +1733,9 @@
       }
 
       async organizeCurrentContextEagleItemsIntoFolder(context, existingText = null, options = {}) {
-        if (this.settings.folderManagementEnabled === false) return 0;
-        if (!context || !(context.file instanceof TFile)) return 0;
+        const summary = { added: 0, already: 0, failed: 0, total: 0 };
+        if (this.settings.folderManagementEnabled === false) return options.report ? summary : 0;
+        if (!context || !(context.file instanceof TFile)) return options.report ? summary : 0;
 
         const text = existingText !== null ? existingText : await this.app.vault.read(context.file);
         // A plain note or Canvas must not create a dedicated Eagle folder merely
@@ -1745,44 +1744,45 @@
         const directRefIds = new Set(this.extractEagleBridgeItemIds(text)
           .map(id => stripInfoSuffix(id))
           .filter(Boolean));
-        if (!directRefIds.size) return 0;
+        if (!directRefIds.size) return options.report ? summary : 0;
 
         const items = await this.getCurrentContextEagleItems(context, text);
         const directItems = items.filter(item => directRefIds.has(stripInfoSuffix(getEagleItemId(item))));
-        if (!directItems.length) return 0;
+        summary.total = directRefIds.size;
+        summary.failed = directRefIds.size - directItems.length;
+        if (!directItems.length) return options.report ? summary : 0;
 
         const folderId = await this.resolveEagleFolderIdForContext(context, {
           createMissing: options.createMissing !== false
         });
         const rootId = String(this.settings.eagleFolderId || "").trim();
-        if (!folderId || folderId === rootId) return 0;
+        if (!folderId || folderId === rootId) {
+          summary.failed = summary.total;
+          return options.report ? summary : 0;
+        }
 
         let changed = 0;
-        const replacementIds = new Map();
 
         for (const item of directItems) {
           const itemId = getEagleItemId(item);
-          if (!itemId || itemHasEagleFolder(item, folderId)) continue;
+          if (!itemId) continue;
+          if (itemHasEagleFolder(item, folderId)) {
+            summary.already += 1;
+            continue;
+          }
           const ok = await this.updateEagleItemFolder(itemId, folderId);
           if (ok) {
             changed += 1;
             continue;
           }
+          summary.failed += 1;
           if (directRefIds.has(itemId)) {
             console.warn("Eagle helper could not add existing item to folder; skipped reimport to avoid duplicate import:", itemId, folderId);
           }
         }
 
-        if (replacementIds.size) {
-          const latestText = await this.app.vault.read(context.file);
-          const nextText = replaceEagleBridgeIdsInText(latestText, replacementIds);
-          if (nextText !== latestText) {
-            await this.app.vault.modify(context.file, nextText);
-            await this.rememberCurrentFileEagleBridgeIds(context.file);
-          }
-        }
-
-        return changed;
+        summary.added = changed;
+        return options.report ? summary : changed;
       }
 
       async getOriginalPathForEagleItem(item) {
@@ -2043,41 +2043,76 @@
       }
 
       getRenderedAssetCandidates(view, item) {
-        const root = view && view.containerEl;
+        const selector = view && view.getMode && view.getMode() === "preview"
+          ? ".markdown-preview-view" : ".markdown-source-view";
+        const root = view && view.containerEl && view.containerEl.querySelector(selector);
         if (!root || typeof root.querySelectorAll !== "function") return [];
-        const source = String(item.__assetSource || "");
-        const itemId = source === "eagle" || source === "trash" || item.__fromNoteLink
-          ? stripInfoSuffix(getEagleItemId(item))
-          : "";
-        const internetUrl = source === "internet" ? safeDecode(String(item.url || item.fileURL || "")) : "";
-        const localPath = item.__localFile instanceof TFile
-          ? item.__localFile.path
-          : String(item.__externalLocalPath || item.__localTarget || "");
-        const normalizedLocalPath = safeDecode(localPath).replace(/\\/g, "/").toLowerCase();
-        const localName = normalizedLocalPath.split("/").pop() || "";
-        const displayName = safeDecode(getAssetDisplayName(item)).toLowerCase();
-
-        const candidates = Array.from(root.querySelectorAll(".markdown-source-view img, .markdown-preview-view img"))
+        const candidates = Array.from(root.querySelectorAll("img"))
+          .filter(element => {
+            const rect = element.getBoundingClientRect();
+            return element.isConnected && rect.width > 0 && rect.height > 0;
+          })
           .map(element => {
-            const values = [
-              element.currentSrc,
-              element.getAttribute("src"),
-              element.getAttribute("data-src"),
-              element.getAttribute("alt"),
-              element.getAttribute("title")
-            ].map(value => safeDecode(String(value || "")).replace(/\\/g, "/").toLowerCase());
-            const haystack = values.join("\n");
-            let score = 0;
-            if (itemId && haystack.includes(itemId.toLowerCase())) score += 120;
-            if (internetUrl && values.some(value => value === internetUrl.toLowerCase() || value.includes(internetUrl.toLowerCase()))) score += 120;
-            if (normalizedLocalPath && haystack.includes(normalizedLocalPath)) score += 110;
-            if (localName && haystack.includes(localName)) score += 70;
-            if (displayName && haystack.includes(displayName)) score += 45;
-            return { element, score, exactId: !!(itemId && haystack.includes(itemId.toLowerCase())) };
+            const score = this.getAssetIdentityScore(item, this.getRenderedAttachmentIdentity(element));
+            return { element, score };
           })
           .filter(candidate => candidate.score >= 45)
           .sort((left, right) => right.score - left.score);
-        return itemId ? candidates.filter(candidate => candidate.exactId) : candidates;
+        return candidates;
+      }
+
+      getAssetIdentityScore(item, identity) {
+        const normalize = value => {
+          try { return decodeURIComponent(String(value || "")).replace(/\\/g, "/"); }
+          catch (_) { return String(value || "").replace(/\\/g, "/"); }
+        };
+        const src = normalize(identity.src);
+        const source = item.__assetSource || "eagle";
+        const itemId = source === "eagle" || source === "trash" || item.__fromNoteLink
+          ? stripInfoSuffix(getEagleItemId(item)) : "";
+        const imageId = extractEagleBridgeItemIdFromText(src);
+        if (itemId || imageId) return itemId && itemId === imageId ? 120 : 0;
+        const paths = [item.__localFile?.path, item.__externalLocalPath, item.__localTarget];
+        if (item.__localFile) paths.push(this.getFullPath(item.__localFile));
+        const urls = [item.resourceURL, item.fileURL, item.url].filter(Boolean).map(normalize);
+        if (src && urls.includes(src)) return 120;
+        const normalizedPaths = paths.filter(Boolean).map(normalize);
+        const pathSource = normalize(String(identity.src || "").replace(/[?#].*$/, ""));
+        if (normalizedPaths.some(path => pathSource === path || pathSource.endsWith(`/${path}`))) return 110;
+        // A known but different source must never match just because names agree.
+        if (src && (normalizedPaths.length || urls.length)) return 0;
+        const name = getAssetDisplayName(item);
+        return name && identity.names?.includes(name) ? 45 : 0;
+      }
+
+      async revealReferencedAsset(file, item, preferredLeaf = null) {
+        const references = await this.getSourceAttachmentReferences(file);
+        const source = item.__assetSource || "eagle";
+        const identity = this.getRenderedAttachmentIdentity({
+          getAttribute: name => name === "src"
+            ? (source === "eagle" || source === "trash" ? this.getEagleBridgeUrl(item)
+              : item.resourceURL || item.fileURL || item.url || normalizeFileUrl(item.__externalLocalPath || "")) || "" : "",
+          matches: () => true
+        });
+        const matching = references.filter(candidate => this.getAssetIdentityScore(candidate, identity) >= 100);
+        const target = matching.find(candidate => item.__canvasNodeId && candidate.__canvasNodeId === item.__canvasNodeId)
+          || matching.find(candidate => file.path === preferredLeaf?.view?.file?.path
+          && candidate.__sourceStart === item.__sourceStart
+          && candidate.__sourceEnd === item.__sourceEnd) || matching[0];
+        if (!target) {
+          new Notice("未能确认该素材在目标笔记或白板中的引用位置。");
+          return;
+        }
+        return this.revealAssetInSource(file.path, target, preferredLeaf);
+      }
+
+      async getSourceAttachmentReferences(file) {
+        const text = await this.app.vault.read(file);
+        const items = await this.queryNoteAttachmentItemsForFile(file, text);
+        const eagle = this.extractEagleBridgeItemReferences(text).map(ref => ({
+          id: ref.id, __fromNoteLink: true, __sourceStart: ref.start, __sourceEnd: ref.end
+        }));
+        return eagle.concat(items);
       }
 
       chooseNearestRenderedAsset(candidates) {
@@ -2109,17 +2144,6 @@
         return false;
       }
 
-      async waitForRenderedAsset(view, item, generation, timeout = 1600) {
-        const started = Date.now();
-        while (Date.now() - started < timeout) {
-          if (generation !== this.sourceRevealGeneration) return null;
-          const renderedAsset = this.chooseNearestRenderedAsset(this.getRenderedAssetCandidates(view, item));
-          if (renderedAsset) return renderedAsset;
-          await new Promise(resolve => window.requestAnimationFrame(resolve));
-        }
-        return null;
-      }
-
       flashRenderedAsset(element, generation) {
         if (!element || generation !== this.sourceRevealGeneration) return false;
         element.classList.remove("eaglebridge-source-target-highlight");
@@ -2129,11 +2153,65 @@
         return true;
       }
 
-      async scrollRenderedAssetIntoView(element, generation) {
-        if (!element || typeof element.scrollIntoView !== "function") return false;
-        element.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
-        if (!await this.waitForRenderedAssetToSettle(element, generation)) return false;
-        return this.flashRenderedAsset(element, generation);
+      async scrollAssetIntoView(view, item, line, generation) {
+        const mode = view.currentMode;
+        const file = view.file;
+        const scroller = view.containerEl.querySelector(view.getMode() === "preview"
+          ? ".markdown-preview-view" : ".cm-scroller");
+        if (!scroller || !scroller.clientHeight || typeof mode?.getScroll !== "function") return null;
+        const win = scroller.ownerDocument.defaultView;
+        const started = win.performance.now();
+        let previousTime = started;
+        let settledSince = 0;
+        let stalledSince = started;
+        let previousTop = scroller.scrollTop;
+        const cancel = () => { if (generation === this.sourceRevealGeneration) this.sourceRevealGeneration += 1; };
+        scroller.addEventListener("wheel", cancel, { passive: true });
+        scroller.addEventListener("pointerdown", cancel, { passive: true });
+        try {
+          while (win.performance.now() - started < 20000) {
+            await new Promise(resolve => win.requestAnimationFrame(resolve));
+            if (generation !== this.sourceRevealGeneration || view.currentMode !== mode || view.file !== file || !scroller.isConnected) return null;
+            const now = win.performance.now();
+            const elapsed = Math.min(40, now - previousTime);
+            previousTime = now;
+            const viewport = scroller.getBoundingClientRect();
+            const element = this.chooseNearestRenderedAsset(this.getRenderedAssetCandidates(view, item));
+            let delta;
+            let inView = false;
+            if (element) {
+              const rect = element.getBoundingClientRect();
+              delta = rect.top + rect.height / 2 - (viewport.top + viewport.height / 2);
+              inView = rect.bottom > viewport.top + 8 && rect.top < viewport.bottom - 8;
+            } else {
+              const currentLine = mode.getScroll();
+              if (!Number.isFinite(currentLine)) return null;
+              delta = Math.sign(line - currentLine) * viewport.height;
+            }
+            const destination = Math.max(0, Math.min(scroller.scrollHeight - scroller.clientHeight, scroller.scrollTop + delta));
+            const remaining = destination - scroller.scrollTop;
+            if (element && inView && Math.abs(remaining) < 2) {
+              if (!settledSince) settledSince = now;
+              if (now - settledSince >= 120) {
+                this.flashRenderedAsset(element, generation);
+                return element;
+              }
+            } else {
+              settledSince = 0;
+              // Virtual rendering can change heights and cancel browser smooth scrolls.
+              // Advance the visible scroller each frame and remeasure the actual image.
+              const step = Math.sign(remaining) * Math.min(Math.abs(remaining), Math.max(1, Math.min(viewport.height * 25, Math.abs(remaining) * 25) * elapsed / 1000));
+              scroller.scrollTo({ top: scroller.scrollTop + step, behavior: "instant" });
+            }
+            if (Math.abs(scroller.scrollTop - previousTop) > 0.1) stalledSince = now;
+            previousTop = scroller.scrollTop;
+            if (!settledSince && now - stalledSince > 2000) return null;
+          }
+          return null;
+        } finally {
+          scroller.removeEventListener("wheel", cancel);
+          scroller.removeEventListener("pointerdown", cancel);
+        }
       }
 
       async revealAssetInSource(filePath, item, preferredLeaf = null) {
@@ -2142,8 +2220,7 @@
         const file = this.app.vault.getAbstractFileByPath(filePath);
         if (!(file instanceof TFile)) return;
         if (file.extension === "canvas") {
-          await this.revealAssetInCanvas(file, item, preferredLeaf);
-          return;
+          return this.revealAssetInCanvas(file, item, preferredLeaf);
         }
         if (file.extension !== "md") return;
 
@@ -2154,7 +2231,6 @@
           return;
         }
         const from = indexToLineCh(text, sourceRange.start);
-        const to = indexToLineCh(text, sourceRange.end);
         let targetLeaf = this.findPreferredMarkdownLeaf(file.path, preferredLeaf);
 
         let openedFileInLeaf = false;
@@ -2174,17 +2250,9 @@
           await this.waitForEditorLayout();
         }
         const view = targetLeaf && targetLeaf.view;
-        const editor = view && view.editor;
-        if (!editor) return;
         await this.waitForEditorLayout();
         if (generation !== this.sourceRevealGeneration) return;
-        const visibleAsset = this.chooseNearestRenderedAsset(this.getRenderedAssetCandidates(view, item));
-        if (visibleAsset && await this.scrollRenderedAssetIntoView(visibleAsset, generation)) return;
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-          this.smoothScrollEditorToRange(editor, view, { from, to });
-          const renderedAsset = await this.waitForRenderedAsset(view, item, generation, attempt === 0 ? 1600 : 3600);
-          if (renderedAsset && await this.scrollRenderedAssetIntoView(renderedAsset, generation)) return;
-        }
+        return this.scrollAssetIntoView(view, item, from.line, generation);
       }
 
       async revealAssetInCanvas(file, item, preferredLeaf = null) {
@@ -2199,7 +2267,7 @@
             const canvas = JSON.parse(text);
             const nodes = Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [];
             const node = nodes.find(candidate => candidate && (
-              (localPath && candidate.file === item.__localTarget)
+              (localPath && candidate.file === localPath)
               || (internetUrl && cleanExternalAttachmentUrl(candidate.url || "") === internetUrl)
               || (eagleItemId && String(candidate.file || candidate.url || "").includes(eagleItemId))
             ));
@@ -2210,9 +2278,20 @@
         }
         if (!nodeId) return;
         const leaves = this.app.workspace.getLeavesOfType("canvas");
-        const leaf = preferredLeaf && preferredLeaf.view && preferredLeaf.view.file === file
+        let leaf = preferredLeaf && preferredLeaf.view && preferredLeaf.view.file === file
           ? preferredLeaf
-          : leaves.find(candidate => candidate.view && candidate.view.file && candidate.view.file.path === file.path);
+          : leaves.find(candidate => candidate.view && candidate.view.file && candidate.view.file.path === file.path && this.isWorkspaceLeafVisible(candidate))
+            || leaves.find(candidate => candidate.view && candidate.view.file && candidate.view.file.path === file.path);
+        if (!leaf) {
+          leaf = this.app.workspace.getLeaf("tab");
+          await leaf.openFile(file);
+        }
+        if (generation !== this.sourceRevealGeneration) return;
+        if (!this.isWorkspaceLeafVisible(leaf)) {
+          this.app.workspace.setActiveLeaf(leaf, { focus: false });
+          await this.waitForEditorLayout();
+        }
+        if (generation !== this.sourceRevealGeneration) return;
         const root = leaf && leaf.view && leaf.view.containerEl;
         const element = root && Array.from(root.querySelectorAll("[data-node-id]"))
           .find(candidate => candidate.getAttribute("data-node-id") === nodeId);
@@ -2230,24 +2309,6 @@
         if (element && await this.waitForRenderedAssetToSettle(element, generation, 1200)) {
           this.flashRenderedAsset(element, generation);
         }
-      }
-
-      smoothScrollEditorToRange(editor, view, range) {
-        if (!editor || typeof editor.scrollIntoView !== "function") return;
-        const scroller = view && view.containerEl && view.containerEl.querySelector
-          ? view.containerEl.querySelector(".cm-scroller")
-          : null;
-        if (!scroller) {
-          editor.scrollIntoView(range, true);
-          return;
-        }
-
-        const previousBehavior = scroller.style.scrollBehavior;
-        scroller.style.scrollBehavior = "smooth";
-        editor.scrollIntoView(range, true);
-        window.setTimeout(() => {
-          if (scroller.isConnected) scroller.style.scrollBehavior = previousBehavior;
-        }, 460);
       }
 
       getTransferFiles(dataTransfer) {
@@ -2435,7 +2496,7 @@
       }
 
       async importAttachmentsForContext(context, options = {}) {
-        if (!context) return;
+        if (!context || this.unloaded || (options.shouldContinue && !options.shouldContinue())) return;
         const run = task => options.refresh === false
           ? task()
           : this.runWithReferenceViewRefreshPaused(task, context.file);
@@ -2443,9 +2504,11 @@
           await run(async () => {
             await this.importCanvasAttachments(context, "", {
               silent: options.silent,
+              shouldContinue: options.shouldContinue,
+              trashImported: options.trashImported,
               scheduleRefresh: options.refresh !== false
             });
-            if (options.organize !== false) {
+            if (options.organize !== false && !this.unloaded && (!options.shouldContinue || options.shouldContinue())) {
               const moved = await this.organizeCurrentContextEagleItemsIntoFolder(context, null, {
                 createMissing: this.settings.autoFolderOnImport !== false
               });
@@ -2473,8 +2536,10 @@
         }
 
         await run(async () => {
-          await this.importAttachmentLinks(context, [...localLinks, ...externalLocalLinks], internetLinks, { silent: options.silent });
-          if (options.organize !== false) {
+          await this.importAttachmentLinks(context, [...localLinks, ...externalLocalLinks], internetLinks, {
+            silent: options.silent, sourceText: text, trashImported: options.trashImported, shouldContinue: options.shouldContinue
+          });
+          if (options.organize !== false && !this.unloaded && (!options.shouldContinue || options.shouldContinue())) {
             const moved = await this.organizeCurrentContextEagleItemsIntoFolder(context, null, {
               createMissing: this.settings.autoFolderOnImport !== false
             });
@@ -2503,6 +2568,7 @@
           if (context.kind === "canvas") {
             return this.importCanvasAttachments(context, localFile.path, {
               silent: options.silent,
+              trashImported: options.trashImported,
               importedByPath: options.importedByPath
             });
           }
@@ -2524,6 +2590,7 @@
           return this.importAttachmentLinks(context, selectedLinks, [], {
             silent: options.silent,
             importedByPath: options.importedByPath,
+            trashImported: options.trashImported,
             sourceText: text
           });
         }, sourceFile);
@@ -2589,6 +2656,7 @@
           if (context.kind === "canvas") {
             return this.importCanvasAttachments(context, localPath, {
               silent: options.silent,
+              trashImported: options.trashImported,
               importedByPath: options.importedByPath
             });
           }
@@ -2603,6 +2671,7 @@
             return this.importAttachmentLinks(context, selectedLinks, [], {
               silent: options.silent,
               importedByPath: options.importedByPath,
+              trashImported: options.trashImported,
               sourceText: text
             });
           }
@@ -2638,6 +2707,7 @@
           if (context.kind === "canvas") {
             return this.importCanvasAttachments(context, sourceUrl, {
               silent: options.silent,
+              trashImported: options.trashImported,
               importedByUrl: options.importedByUrl
             });
           }
@@ -2658,6 +2728,7 @@
           return this.importAttachmentLinks(context, [], selectedLinks, {
             silent: options.silent,
             importedByUrl: options.importedByUrl,
+            trashImported: options.trashImported,
             sourceText: text
           });
         }, sourceFile);
@@ -2673,6 +2744,7 @@
       }
 
       async importCanvasAttachments(context, targetFilePath = "", options = {}) {
+        const shouldContinue = () => !this.unloaded && (!options.shouldContinue || options.shouldContinue());
         const raw = options.sourceText !== undefined
           ? options.sourceText
           : await this.app.vault.read(context.file);
@@ -2693,12 +2765,14 @@
           ? options.importedByUrl
           : new Map();
         const importedFiles = [];
+        const replacements = new Map();
         let success = 0;
         let failed = 0;
         let reused = 0;
         let changed = false;
 
         for (const node of nodes) {
+          if (!shouldContinue()) break;
           if (!node || typeof node !== "object") continue;
           const rawTarget = typeof node.file === "string" ? node.file : typeof node.url === "string" ? node.url : "";
           if (!rawTarget) continue;
@@ -2774,46 +2848,67 @@
               continue;
             }
 
-            const size = normalizeCanvasNodeSize(node, imported.sourceFile.name);
-            node.type = "link";
-            node.url = this.buildCanvasEagleBridgeUrl(bridgeUrl, imported.sourceFile.name);
-            node.width = size.width;
-            node.height = size.height;
-            delete node.file;
-
-            if (isPreviewableImage(imported.sourceFile.name)) {
-              node.eagleBridgeManaged = true;
-              node.eagleBridgeSourceUrl = bridgeUrl;
-              if (size.width > 0 && size.height > 0) {
-                node.eagleBridgeAspect = size.width / size.height;
-                node.eagleBridgeLastWidth = size.width;
-                node.eagleBridgeLastHeight = size.height;
-              }
-            } else {
-              delete node.eagleBridgeManaged;
-              delete node.eagleBridgeSourceUrl;
-              delete node.eagleBridgeAspect;
-              delete node.eagleBridgeLastWidth;
-              delete node.eagleBridgeLastHeight;
-            }
-
-            success += 1;
-            changed = true;
+            replacements.set(node.id, { rawTarget, imported, bridgeUrl });
           } catch (error) {
             console.warn("Failed to import Canvas attachment:", node, error);
             failed += 1;
           }
         }
 
-        if (!success && !failed) {
+        if (!replacements.size && !failed) {
           if (!options.silent) new Notice(this.t("noticeCanvasImportUnsupported"));
           return { success, failed, reused, changed };
         }
 
-        if (changed) {
-          await this.app.vault.modify(context.file, `${JSON.stringify(canvas, null, 2)}\n`);
-          if (options.trashImported !== false) await this.trashImportedFiles(importedFiles);
-          if (options.scheduleRefresh !== false) this.scheduleReferenceViewRefresh(context.file);
+        if (replacements.size && shouldContinue()) {
+          const appliedPaths = new Set();
+          const remainingPaths = new Set();
+          // Import awaits Eagle; merge into the latest file instead of restoring old geometry.
+          await this.app.vault.process(context.file, latestText => {
+            if (!shouldContinue()) return latestText;
+            const latest = JSON.parse(latestText);
+            const latestNodes = Array.isArray(latest.nodes) ? latest.nodes : [];
+            for (const node of latestNodes) {
+              if (!node) continue;
+              const replacement = replacements.get(node.id);
+              const target = typeof node.file === "string" ? node.file : node.url;
+              if (!replacement || target !== replacement.rawTarget) continue;
+              const { imported, bridgeUrl } = replacement;
+              const size = normalizeCanvasNodeSize(node, imported.sourceFile.name);
+              node.type = "link";
+              node.url = this.buildCanvasEagleBridgeUrl(bridgeUrl, imported.sourceFile.name);
+              node.width = size.width;
+              node.height = size.height;
+              delete node.file;
+              if (isPreviewableImage(imported.sourceFile.name)) {
+                node.eagleBridgeManaged = true;
+                node.eagleBridgeSourceUrl = bridgeUrl;
+                node.eagleBridgeAspect = size.width / size.height;
+                node.eagleBridgeLastWidth = size.width;
+                node.eagleBridgeLastHeight = size.height;
+              } else {
+                delete node.eagleBridgeManaged;
+                delete node.eagleBridgeSourceUrl;
+                delete node.eagleBridgeAspect;
+                delete node.eagleBridgeLastWidth;
+                delete node.eagleBridgeLastHeight;
+              }
+              appliedPaths.add(imported.sourceFile.path);
+              success += 1;
+            }
+            for (const node of latestNodes) {
+              if (!node || typeof node.file !== "string") continue;
+              const file = this.app.metadataCache.getFirstLinkpathDest(node.file, context.file.path);
+              if (file instanceof TFile) remainingPaths.add(file.path);
+            }
+            changed = success > 0;
+            return changed ? `${JSON.stringify(latest, null, 2)}\n` : latestText;
+          });
+          if (changed && shouldContinue() && options.trashImported !== false) {
+            await this.trashImportedFiles(importedFiles.filter(imported =>
+              appliedPaths.has(imported.sourceFile.path) && !remainingPaths.has(imported.sourceFile.path)));
+          }
+          if (changed && options.scheduleRefresh !== false) this.scheduleReferenceViewRefresh(context.file);
         }
 
         if (!options.silent) {
@@ -2924,9 +3019,25 @@
         const paths = new Set();
         for (const file of files) {
           const text = await this.app.vault.read(file);
-          const links = file.extension === "canvas"
-            ? this.findCanvasAttachmentLinks(text, file)
-            : this.findLocalAttachmentLinks(text, file);
+          let links;
+          if (file.extension === "canvas") {
+            const canvas = JSON.parse(text);
+            if (!canvas || !Array.isArray(canvas.nodes)) throw new Error(`Invalid Canvas: ${file.path}`);
+            links = this.findCanvasAttachmentLinks(text, file);
+            for (const node of canvas.nodes) {
+              if (node?.type === "text" && typeof node.text === "string") {
+                links.push(...this.findLocalAttachmentLinks(node.text, file));
+              }
+            }
+          } else {
+            links = this.findLocalAttachmentLinks(text, file);
+            // An open editor may contain references not yet saved to disk.
+            for (const leaf of this.app.workspace?.getLeavesOfType("markdown") || []) {
+              if (leaf.view?.file?.path === file.path && leaf.view.editor) {
+                links.push(...this.findLocalAttachmentLinks(leaf.view.editor.getValue(), file));
+              }
+            }
+          }
           for (const link of links) {
             if (link.file instanceof TFile) paths.add(link.file.path);
           }
@@ -3224,15 +3335,14 @@
         const file = this.getRenderedImageSourceFile(image);
         if (!file) return;
         if (file.extension === "canvas") {
-          const items = await this.queryNoteAttachmentItemsForFile(file);
-          const src = safeDecode(String(image.getAttribute("src") || ""));
-          const itemIdMatch = src.match(/\/images\/([^/?#]+)\.info/i);
-          const itemId = itemIdMatch ? stripInfoSuffix(itemIdMatch[1]) : "";
-          const item = items.find(candidate => (
-            (itemId && stripInfoSuffix(getEagleItemId(candidate)) === itemId)
-            || candidate.resourceURL === src
-            || candidate.url === src
-          ));
+          const items = await this.getSourceAttachmentReferences(file);
+          const identity = this.getRenderedAttachmentIdentity(image);
+          const nodeId = image.closest("[data-node-id]")?.getAttribute("data-node-id");
+          const matching = items.filter(candidate => this.getAssetIdentityScore(candidate, identity) >= 100);
+          const item = matching.find(candidate => nodeId && candidate.__canvasNodeId === nodeId)
+            || (matching.length === 1 ? matching[0] : null)
+            || (extractEagleBridgeItemIdFromText(identity.src) ? matching[0] : null);
+          const itemId = extractEagleBridgeItemIdFromText(identity.src);
           if (item) await this.scrollReferenceViewsToAsset(file.path, { assetKey: item.id, itemId });
           return;
         }
@@ -3268,18 +3378,19 @@
         const text = await this.app.vault.read(noteFile);
         const identity = this.getRenderedAttachmentIdentity(image);
         const src = identity.src;
-        const idMatch = src.match(/\/images\/([^/?#]+)\.info/i);
-        const cleanId = idMatch ? stripInfoSuffix(safeDecode(idMatch[1])) : "";
+        const cleanId = extractEagleBridgeItemIdFromText(src);
         const refs = this.extractEagleBridgeItemReferences(text);
 
         if (cleanId) {
-          const byId = refs.find(ref => ref.id === cleanId);
+          const byId = this.chooseRenderedImageReference(noteFile, image, refs.filter(ref => ref.id === cleanId));
           if (byId) return { start: byId.start, end: byId.end, itemId: cleanId };
+          return null;
         }
 
-        for (const name of identity.names) {
+        for (const name of src ? [] : identity.names) {
           const cleanAlt = cleanEagleBridgeLabel(name);
-          const byLabel = cleanAlt && refs.find(ref => cleanEagleBridgeLabel(ref.label) === cleanAlt);
+          const byLabel = cleanAlt && this.chooseRenderedImageReference(noteFile, image,
+            refs.filter(ref => cleanEagleBridgeLabel(ref.label) === cleanAlt));
           if (byLabel) return { start: byLabel.start, end: byLabel.end, itemId: byLabel.id };
         }
 
@@ -3290,6 +3401,9 @@
           return {
             start: localOrInternet.start,
             end: localOrInternet.end,
+            assetKey: localOrInternet.file ? `local:${localOrInternet.file.path}`
+              : localOrInternet.localPath ? `external-local:${localOrInternet.localPath}`
+              : `internet:${localOrInternet.url}`,
             link: localOrInternet
           };
         }
@@ -3310,34 +3424,31 @@
         const text = await this.app.vault.read(noteFile);
         const { localLinks: links, externalLocalLinks, internetLinks } = this.collectMarkdownAttachmentLinks(text, noteFile);
 
-        const { src, names } = this.getRenderedAttachmentIdentity(image);
-        const srcName = safeDecode(nodePath.basename(src.split("?")[0]));
-        const matchesName = candidates => names.some(name => candidates.includes(name));
+        const identity = this.getRenderedAttachmentIdentity(image);
+        const candidates = [
+          ...links.map(link => ({ link, item: { __assetSource: "local", __localFile: link.file, __localTarget: link.target, name: link.file.name } })),
+          ...externalLocalLinks.map(link => ({ link, item: { __assetSource: "external-local", __externalLocalPath: link.localPath, name: link.name } })),
+          ...internetLinks.map(link => ({ link, item: { __assetSource: "internet", url: link.url, name: link.name } }))
+        ].map(candidate => ({ ...candidate, score: this.getAssetIdentityScore(candidate.item, identity) }));
+        const bestScore = Math.max(0, ...candidates.map(candidate => candidate.score));
+        return bestScore ? this.chooseRenderedImageReference(noteFile, image,
+          candidates.filter(candidate => candidate.score === bestScore).map(candidate => candidate.link)) : null;
+      }
 
-        for (const link of links) {
-          const fullPath = this.getFullPath(link.file).replace(/\\/g, "/");
-          const decodedFullPath = safeDecode(fullPath);
-          if (src && (src.includes(fullPath) || src.includes(decodedFullPath))) return link;
-          if (matchesName([link.file.basename, link.file.name, link.target])) return link;
-          if (srcName && srcName === link.file.name) return link;
-        }
-
-        for (const link of externalLocalLinks) {
-          const normalizedPath = safeDecode(link.localPath).replace(/\\/g, "/");
-          const fileName = nodePath.basename(link.localPath);
-          if (src && (safeDecode(src).replace(/\\/g, "/").includes(normalizedPath) || srcName === fileName)) return link;
-          if (matchesName([link.name, fileName, link.target])) return link;
-        }
-
-        for (const link of internetLinks) {
-          if (src && (src === link.url || src.includes(link.url) || safeDecode(src) === safeDecode(link.url))) return link;
-          if (matchesName([link.name, link.url])) return link;
-          if (srcName && srcName === nodePath.basename(String(link.url).split("?")[0])) return link;
-        }
-
-        const allLocalLinks = links.concat(externalLocalLinks);
-        if (allLocalLinks.length === 1) return allLocalLinks[0];
-        return null;
+      chooseRenderedImageReference(file, image, candidates) {
+        if (candidates.length === 1) return candidates[0];
+        const leaf = this.app.workspace.getLeavesOfType("markdown")
+          .find(candidate => candidate.view.file?.path === file.path && candidate.view.containerEl.contains(image));
+        const cm = leaf?.view.editor?.cm;
+        if (!cm?.dom?.contains(image)) return null;
+        try {
+          const position = cm.posAtDOM(image);
+          const exact = candidates.filter(candidate => candidate.start <= position && candidate.end >= position);
+          if (exact.length === 1) return exact[0];
+          const line = cm.state.doc.lineAt(position);
+          const inLine = candidates.filter(candidate => candidate.start >= line.from && candidate.start <= line.to);
+          return inLine.length === 1 ? inLine[0] : null;
+        } catch (_) { return null; }
       }
 
       getRenderedAttachmentIdentity(element) {
@@ -3345,7 +3456,7 @@
           ? element
           : element && element.querySelector && element.querySelector("[src], [href], [data-href]");
         const read = name => String(source && source.getAttribute(name) || element && element.getAttribute && element.getAttribute(name) || "").trim();
-        const src = safeDecode(read("src") || read("href") || read("data-href"));
+        const src = safeDecode(source?.currentSrc || read("src") || read("data-src") || read("href") || read("data-href"));
         const names = [read("alt"), read("aria-label"), read("data-href"), String(element && element.textContent || "").trim(), safeDecode(nodePath.basename(src.split("?")[0]))]
           .filter(Boolean);
         return { src, names: Array.from(new Set(names)) };
@@ -3430,17 +3541,10 @@
           new Notice(this.t("noticeNoAttachmentAtCursor"));
           return;
         }
-        const { cursor, lineText, link } = match;
-        const imported = await this.importOneAttachment(context, link);
-        if (!imported) return;
-
-        const sizedReplacement = preserveAttachmentDisplaySize(link.original, imported.replacement);
-        const replacement = isProbablyMarkdownTableLine(lineText)
-          ? escapeMarkdownTablePipes(sizedReplacement)
-          : sizedReplacement;
-        editor.replaceRange(replacement, { line: cursor.line, ch: link.start }, { line: cursor.line, ch: link.end });
-        await this.trashImportedFiles([imported]);
-        new Notice(this.t("noticeImportedToEagle", { name: imported.sourceFile.name }));
+        const { cursor, link } = match;
+        const sourceText = editor.getValue();
+        const offset = editor.posToOffset({ line: cursor.line, ch: 0 });
+        await this.importAttachmentLinks(context, [{ ...link, start: offset + link.start, end: offset + link.end }], [], { sourceText });
       }
 
       getImportableAttachmentAtCursor(editor, view) {
@@ -3453,6 +3557,7 @@
       }
 
       async importAttachmentLinks(context, links, internetLinks = [], options = {}) {
+        const shouldContinue = () => !this.unloaded && (!options.shouldContinue || options.shouldContinue());
         const replacements = [];
         const importedFiles = [];
         const importedByPath = options.importedByPath instanceof Map
@@ -3464,11 +3569,13 @@
         const sourceText = options.sourceText !== undefined
           ? options.sourceText
           : await this.app.vault.read(context.file);
+        const sourceLinks = Object.values(this.collectMarkdownAttachmentLinks(sourceText, context.file)).flat();
         let success = 0;
         let failed = 0;
         let reused = 0;
 
         for (const link of links) {
+          if (!shouldContinue()) break;
           try {
             const importKey = link.file instanceof TFile ? link.file.path : link.localPath;
             if (!importKey) throw new Error("无法确定本地附件路径。");
@@ -3491,11 +3598,8 @@
             }
             const sizedReplacement = preserveAttachmentDisplaySize(link.original, imported.replacement);
             replacements.push({
-              start: link.start,
-              end: link.end,
-              value: makeMarkdownTableSafeReference(sourceText, link.start, sizedReplacement)
+              link, imported, value: sizedReplacement
             });
-            success += 1;
           } catch (error) {
             console.warn("Failed to import attachment:", link, error);
             failed += 1;
@@ -3503,6 +3607,7 @@
         }
 
         for (const link of internetLinks) {
+          if (!shouldContinue()) break;
           try {
             const importKey = link.url;
             let imported = importedByUrl.get(importKey);
@@ -3523,31 +3628,37 @@
             }
             const sizedReplacement = preserveAttachmentDisplaySize(link.original, imported.replacement);
             replacements.push({
-              start: link.start,
-              end: link.end,
-              value: makeMarkdownTableSafeReference(sourceText, link.start, sizedReplacement)
+              link, imported, value: sizedReplacement
             });
-            success += 1;
           } catch (error) {
             console.warn("Failed to import internet attachment:", link, error);
             failed += 1;
           }
         }
 
-        if (replacements.length) {
-          let text = sourceText;
-          replacements.sort((a, b) => b.start - a.start);
-          for (const replacement of replacements) {
-            text = text.slice(0, replacement.start) + replacement.value + text.slice(replacement.end);
+        if (replacements.length && shouldContinue()) {
+          let applied = [];
+          await this.app.vault.process(context.file, latestText => {
+            if (!shouldContinue()) return latestText;
+            const latestLinks = Object.values(this.collectMarkdownAttachmentLinks(latestText, context.file)).flat();
+            const merged = mergeAttachmentReplacements(sourceText, latestText, replacements, sourceLinks, latestLinks);
+            applied = merged.applied;
+            return merged.text;
+          });
+          success = applied.length;
+          failed += replacements.length - success;
+          if (shouldContinue() && options.trashImported !== false) {
+            const appliedPaths = new Set(applied.map(replacement => replacement.imported.sourceFile.path));
+            await this.trashImportedFiles(importedFiles.filter(imported => appliedPaths.has(imported.sourceFile.path)));
           }
-          const normalizedText = await this.normalizeEagleBridgeReferenceLabels(context, text);
-          await this.app.vault.modify(context.file, normalizedText);
-          if (options.trashImported !== false) await this.trashImportedFiles(importedFiles);
-        } else {
-          // A prior URL import may already be an Eagle link with a stale network
-          // label. "Import attachments" is also the safe manual way to update it.
-          const normalizedText = await this.normalizeEagleBridgeReferenceLabels(context, sourceText);
-          if (normalizedText !== sourceText) await this.app.vault.modify(context.file, normalizedText);
+        }
+        // Metadata lookup awaits Eagle too; never restore a snapshot if editing continued.
+        if (shouldContinue()) {
+          const latestText = await this.app.vault.read(context.file);
+          const normalizedText = await this.normalizeEagleBridgeReferenceLabels(context, latestText);
+          if (normalizedText !== latestText) {
+            await this.app.vault.process(context.file, current => shouldContinue() && current === latestText ? normalizedText : current);
+          }
         }
 
         if (!options.silent) {
@@ -5414,15 +5525,23 @@
           refs.push({ id: cleanId, label: cleanEagleBridgeLabel(label), start, end });
         };
 
-        const mdRe = /!?\[([^\]]*)\]\((https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info)\)/g;
+        const mdRe = /!?\[([^\]]*)\]\((https?:\/\/[^)\s"'<>]+\/images\/([^)\s"'<>]+)\.info)\)/g;
         let match;
         while ((match = mdRe.exec(source)) !== null) {
+          if (!this.isEagleBridgeAssetUrl(match[2])) continue;
           addRef(match[3], match[1], match.index, match.index + match[0].length);
         }
 
-        const urlRe = /https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info/g;
-        while ((match = urlRe.exec(source)) !== null) {
-          addRef(match[1], "", match.index, match.index + match[0].length);
+        for (const ref of parseOeLinkReferences(source, url => this.isEagleBridgeAssetUrl(url))) {
+          addRef(ref.id, "", ref.start, ref.end);
+        }
+
+        const canvasUrlRe = /https?:\/\/[^\s"'<>]+\/__eaglebridge__\/canvas-(?:image|resource)\?[^\s"'<>]+/g;
+        while ((match = canvasUrlRe.exec(source)) !== null) {
+          const url = cleanExternalAttachmentUrl(match[0]);
+          if (!this.isEagleBridgeAssetUrl(url)) continue;
+          const idMatch = url.match(/\/images\/([^/?#]+)\.info(?:$|[?#/])/i);
+          if (idMatch) addRef(idMatch[1], "", match.index, match.index + match[0].length);
         }
 
         return refs;
@@ -5457,64 +5576,40 @@
         }
       }
 
-      async updateEagleItemFolder(itemId, folderId) {
+      async updateEagleItemFolder(itemId, folderId, options = {}) {
         const cleanItemId = String(itemId || "").trim();
         const cleanFolderId = String(folderId || "").trim();
         if (!cleanItemId || !cleanFolderId) return false;
 
-        const helperOk = await this.addEagleItemToFolderViaHelper(cleanItemId, cleanFolderId);
-        if (helperOk) return true;
-
+        const removeIds = new Set((options.removeFolderIds || []).map(String).filter(id => id !== cleanFolderId));
+        const current = await this.queryEagleItemInfo(cleanItemId, { force: true });
+        if (!current) return false;
+        const nextFolders = Array.from(new Set([...getEagleItemFolderIds(current), cleanFolderId]))
+          .filter(id => !removeIds.has(id));
+        const isUpdated = item => itemHasEagleFolder(item, cleanFolderId)
+          && Array.from(removeIds).every(id => !itemHasEagleFolder(item, id));
+        if (isUpdated(current)) return true;
         const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
-        const attempts = [
-          { endpoint: "moveToFolder", payload: { id: cleanItemId, itemId: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
-          { endpoint: "moveTo", payload: { id: cleanItemId, itemId: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
-          { endpoint: "move", payload: { id: cleanItemId, itemId: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
-          { endpoint: "update", payload: { id: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
-          { endpoint: "update", payload: { id: cleanItemId, itemId: cleanItemId, folders: [cleanFolderId] } },
-          { endpoint: "update", payload: { id: cleanItemId, itemId: cleanItemId, folderIds: [cleanFolderId] } },
-          { endpoint: "update", payload: { id: cleanItemId, itemId: cleanItemId, folderIDs: [cleanFolderId] } }
-        ];
-
-        for (const attempt of attempts) {
-          try {
-            const response = await requestUrl({
-              url: `${base}/api/item/${attempt.endpoint}`,
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(attempt.payload)
-            });
-            const body = response.json;
-            if (body && body.status && body.status !== "success") continue;
-            this.invalidateEagleItemInfo(cleanItemId);
-            const updated = await this.queryEagleItemInfo(cleanItemId, { force: true });
-            if (itemHasEagleFolder(updated, cleanFolderId)) return true;
-          } catch (error) {
-            console.warn("Failed to update Eagle item folder:", error);
-          }
+        try {
+          await this.requestEagleApiJson({
+            url: `${base}/api/v2/item/update`,
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: cleanItemId, folders: nextFolders })
+          });
+          this.invalidateEagleItemInfo(cleanItemId);
+          if (isUpdated(await this.queryEagleItemInfo(cleanItemId, { force: true }))) return true;
+        } catch (error) {
+          console.warn("Eagle V2 folder update unavailable; trying helper:", error);
         }
-
-        const queryAttempts = [
-          `moveToFolder?id=${encodeURIComponent(cleanItemId)}&folderId=${encodeURIComponent(cleanFolderId)}`,
-          `moveToFolder?itemId=${encodeURIComponent(cleanItemId)}&folderId=${encodeURIComponent(cleanFolderId)}`,
-          `move?id=${encodeURIComponent(cleanItemId)}&folderId=${encodeURIComponent(cleanFolderId)}`
-        ];
-        for (const path of queryAttempts) {
-          try {
-            const response = await requestUrl({
-              url: `${base}/api/item/${path}`,
-              method: "POST"
-            });
-            const body = response.json;
-            if (body && body.status && body.status !== "success") continue;
-            this.invalidateEagleItemInfo(cleanItemId);
-            const updated = await this.queryEagleItemInfo(cleanItemId, { force: true });
-            if (itemHasEagleFolder(updated, cleanFolderId)) return true;
-          } catch (error) {
-            console.warn("Failed to update Eagle item folder with query endpoint:", error);
-          }
+        const helperOk = await this.addEagleItemToFolderViaHelper(cleanItemId, cleanFolderId);
+        if (!helperOk) return false;
+        try {
+          if (removeIds.size) await this.removeEagleItemFoldersViaHelper(cleanItemId, Array.from(removeIds));
+          return isUpdated(await this.queryEagleItemInfo(cleanItemId, { force: true }));
+        } catch (error) {
+          console.warn("Failed to remove Eagle root folder assignment:", error);
         }
-
         return false;
       }
 
@@ -5669,10 +5764,25 @@
       async trashImportedFiles(importedItems) {
         if (!this.settings.trashAfterImport) return;
         const seen = new Set();
+        const verified = [];
         for (const imported of importedItems) {
           const file = imported && imported.sourceFile;
-          if (!file || seen.has(file.path)) continue;
+          if (!(file instanceof TFile) || seen.has(file.path) || isInsideEagleLibrary(file.path)) continue;
           seen.add(file.path);
+          if (await this.isVerifiedLocalCopyOfEagleItem(file, imported.item)) verified.push(file);
+        }
+        if (!verified.length) return;
+        let protectedPaths;
+        try {
+          protectedPaths = await this.getVaultReferencedLocalAttachmentPaths();
+        } catch (error) {
+          console.warn("Cannot verify vault references; retaining imported attachments:", error);
+          new Notice(this.t("noticeImportedTrashFailed", { name: verified.map(file => file.name).join(", ") }));
+          return;
+        }
+        for (const file of verified) {
+          if (this.unloaded) return;
+          if (protectedPaths.has(file.path)) continue;
           try {
             await this.trashLocalFile(file);
           } catch (error) {
@@ -5863,7 +5973,7 @@
           entry.refs.push(ref);
         };
 
-        const oeRefs = parseOeLinkReferences(text);
+        const oeRefs = parseOeLinkReferences(text, url => this.isEagleBridgeAssetUrl(url));
         const { localLinks: localRefs, externalLocalLinks: externalRefs } = this.collectMarkdownAttachmentLinks(text, file, {
           includeMissing: true,
           includeInternet: false
@@ -6332,6 +6442,7 @@
     const { TFile } = require("obsidian");
     const nodePath = require("path");
     const nodeFs = require("fs");
+    const { parseOeLinkReferences } = require("./oe-link-references");
 
     const SUPPORTED_ATTACHMENT_EXTENSIONS = [
       ".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".png", ".apng", ".gif", ".webp", ".avif", ".bmp", ".svg", ".tif", ".tiff", ".heic", ".heif", ".ico", ".raw",
@@ -7032,7 +7143,8 @@
           const canvas = JSON.parse(source);
           return JSON.stringify((Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [])
             .filter(node => node && (node.file || node.url))
-            .map(node => [String(node.id || ""), String(node.file || node.url || "")]));
+            .map(node => [String(node.id || ""), String(node.file || node.url || "")])
+            .sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1])));
         } catch (_) {
           return source;
         }
@@ -7138,8 +7250,8 @@
     }
 
     function extractEagleBridgeItemIdFromText(value) {
-      const match = String(value || "").match(/https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info/i);
-      return match ? stripInfoSuffix(safeDecode(match[1])) : "";
+      const reference = parseOeLinkReferences(value)[0];
+      return reference ? stripInfoSuffix(reference.id) : "";
     }
 
     function isEagleItemTrashed(item) {
@@ -7500,6 +7612,39 @@
     };
 
   },
+  "./lib/attachment-import": function(module, exports, require, __filename, __dirname) {
+    const { makeMarkdownTableSafeReference } = require("./asset-utils");
+
+    function referenceKey(link) {
+      return JSON.stringify([link.original, link.file?.path || link.localPath || link.url || link.target]);
+    }
+
+    function mergeAttachmentReplacements(source, latest, replacements, sourceLinks, latestLinks) {
+      const applied = [];
+      for (const replacement of replacements) {
+        const { link } = replacement;
+        if (source.slice(link.start, link.end) !== link.original) continue;
+        const key = referenceKey(link);
+        const before = sourceLinks.filter(candidate => referenceKey(candidate) === key);
+        const after = latestLinks.filter(candidate => referenceKey(candidate) === key);
+        // Duplicate insertion/removal makes occurrence-based matching ambiguous.
+        if (before.length !== after.length) continue;
+        const index = before.findIndex(candidate => candidate.start === link.start && candidate.end === link.end);
+        const target = after[index];
+        if (!target || latest.slice(target.start, target.end) !== link.original) continue;
+        applied.push({ ...replacement, start: target.start, end: target.end });
+      }
+      let text = latest;
+      for (const replacement of applied.slice().sort((a, b) => b.start - a.start)) {
+        const value = makeMarkdownTableSafeReference(latest, replacement.start, replacement.value);
+        text = text.slice(0, replacement.start) + value + text.slice(replacement.end);
+      }
+      return { text, applied };
+    }
+
+    module.exports = { mergeAttachmentReplacements };
+
+  },
   "./lib/choice-modal": function(module, exports, require, __filename, __dirname) {
     const { Modal } = require("obsidian");
 
@@ -7557,7 +7702,7 @@
 
   },
   "./lib/eagle-assets-view": function(module, exports, require, __filename, __dirname) {
-    const { ItemView, Menu, Notice, setTooltip, TFile } = require("obsidian");
+    const { ItemView, Menu, Notice, setTooltip, TFile, MarkdownPreviewRenderer } = require("obsidian");
     const nodeFs = require("fs");
     const { KeyedTaskScheduler } = require("./keyed-task-scheduler");
     const { chooseInObsidianModal } = require("./choice-modal");
@@ -7764,17 +7909,19 @@
       }
 
       syncContextInBackground(context, requestId) {
-        this.backgroundSyncScheduler.schedule("context", 0, async () => {
+        this.backgroundSyncScheduler.schedule("context", 0, async isScheduled => {
           try {
-            if (!this.isCurrentLoad(requestId) || this.currentFilePath !== context.file.path) return;
+            const shouldContinue = () => isScheduled() && this.isCurrentLoad(requestId)
+              && !this.isLibraryMode && this.currentFilePath === context.file.path;
+            if (!shouldContinue()) return;
             if (this.plugin.settings.autoImportAttachments !== false) {
-              await this.plugin.importAttachmentsForContext(context, { silent: true, organize: false, refresh: false });
+              await this.plugin.importAttachmentsForContext(context, { silent: true, organize: false, refresh: false, shouldContinue });
             }
-            if (!this.isCurrentLoad(requestId) || this.currentFilePath !== context.file.path) return;
+            if (!shouldContinue()) return;
             if (this.plugin.settings.autoTagOnRefresh !== false) {
               await this.plugin.reconcileCurrentContextEagleBridgeTags(context, null, false);
             }
-            if (!this.isCurrentLoad(requestId) || this.currentFilePath !== context.file.path) return;
+            if (!shouldContinue()) return;
             if (this.plugin.settings.autoFolderOnImport !== false) {
               await this.plugin.organizeCurrentContextEagleItemsIntoFolder(context, null, { createMissing: true });
             }
@@ -8020,6 +8167,21 @@
         this.assetSelectionAnchorKey = "";
         this.updateAssetSelectionUi();
       }
+      reconcileAssetSelection(items) {
+        const contextKey = this.isLibraryMode ? "library" : this.currentFilePath;
+        if (this.assetSelectionContextKey !== contextKey) {
+          this.selectedAssetItems.clear();
+          this.assetSelectionAnchorKey = "";
+        }
+        this.assetSelectionContextKey = contextKey;
+        const current = new Map(items.map(item => [this.getAssetSelectionKey(item), item]));
+        for (const key of this.selectedAssetItems.keys()) {
+          if (current.has(key)) this.selectedAssetItems.set(key, current.get(key));
+          else this.selectedAssetItems.delete(key);
+        }
+        if (!current.has(this.assetSelectionAnchorKey)) this.assetSelectionAnchorKey = "";
+        this.updateAssetSelectionUi();
+      }
       selectAssetFromClick(item, event, items) {
         const key = this.getAssetSelectionKey(item);
         if (!key) return false;
@@ -8096,7 +8258,6 @@
         }, this.currentContext && this.currentContext.file);
         new Notice(this.plugin.t("noticeProcessedAttachments", total));
         this.clearAssetSelection();
-        await this.reloadDisplayedContext(false);
       }
       isLibraryAssetReferenced(item) {
         const summary = this.libraryReferenceSummary;
@@ -8223,6 +8384,10 @@
       async getAssetOriginalPath(item) {
         const localFile = item && item.__localFile;
         if (localFile instanceof TFile) return this.plugin.getFullPath(localFile);
+        if (item && item.__inObsidianTrash && item.__localTrashPath) {
+          const adapter = this.plugin.app.vault.adapter;
+          return typeof adapter.getFullPath === "function" ? adapter.getFullPath(item.__localTrashPath) : "";
+        }
         if (item && item.__assetSource === "external-local") return String(item.__externalLocalPath || "");
         if (item && item.__assetSource !== "internet") return await this.plugin.getOriginalPathForEagleItem(item) || "";
         return "";
@@ -8237,16 +8402,7 @@
 
       async copyAssetImageToClipboard(item) {
         const { clipboard, nativeImage } = require("electron");
-        const paths = [];
-        if (item && item.__localFile instanceof TFile) {
-          paths.push(this.plugin.getFullPath(item.__localFile));
-        }
-        if (item && item.__assetSource === "external-local" && item.__externalLocalPath) {
-          paths.push(item.__externalLocalPath);
-        }
-        if (item && item.__assetSource !== "internet") {
-          paths.push(await this.plugin.getOriginalPathForEagleItem(item));
-        }
+        const paths = [await this.getAssetOriginalPath(item)];
         for (const filePath of paths.filter(Boolean)) {
           const image = nativeImage.createFromPath(filePath);
           if (!image.isEmpty()) {
@@ -8300,19 +8456,65 @@
         return candidates.some(candidate => isPreviewableImage(candidate));
       }
 
-      async openAssetPreview(item) {
+      tryOpenNativeImagePreview(source, item, card) {
+        const renderer = this.plugin.app.workspace.getLeavesOfType("markdown")
+          .map(leaf => leaf.view.previewMode?.renderer)
+          .find(candidate => typeof candidate?.handleMediaClick === "function");
+        const handler = MarkdownPreviewRenderer?.prototype?.handleMediaClick || renderer?.handleMediaClick;
+        if (typeof handler !== "function") return false;
+        const doc = card?.ownerDocument || this.containerEl.ownerDocument;
+        const image = card?.querySelector("img");
+        const original = image?.src === source ? image : doc.createElement("img");
+        if (original !== image) {
+          original.src = source;
+          original.alt = getAssetDisplayName(item) || "";
+          if (item.__assetSource === "internet") original.referrerPolicy = "no-referrer";
+        }
+        // Internal API: capability-check it and retain the older editor action fallback.
+        handler.call({ sections: [{ el: { findAll: () => [original] } }] }, null, original);
+        return true;
+      }
+
+      async openAssetPreview(item, card) {
         if (!this.isPreviewableAssetItem(item)) return;
+        const needsReveal = !this.isLibraryMode
+          && this.currentFilePath
+          && this.currentFilePath.endsWith(".md")
+          && typeof item.__sourceStart === "number";
+        const revealTask = needsReveal
+          ? this.plugin.revealAssetInSource(this.currentFilePath, item, this.sourceLeaf)
+          : null;
+        const generation = this.plugin.sourceRevealGeneration;
+        const revealedImage = revealTask
+          ? await revealTask
+          : null;
+        if (needsReveal && generation !== this.plugin.sourceRevealGeneration) return;
+        if (needsReveal && !revealedImage) {
+          new Notice("未能定位到正文中的图片，已停止放大。");
+          return;
+        }
         const itemSource = String(item && item.__assetSource || "eagle");
         const eagleItemId = itemSource === "eagle" || itemSource === "trash"
           ? stripInfoSuffix(getEagleItemId(item))
           : "";
         const bridgeUrl = eagleItemId ? this.plugin.getEagleBridgeUrl(item) : "";
         const source = bridgeUrl
+          || (item && item.__assetSource === "external-local" && normalizeFileUrl(item.__externalLocalPath))
           || (item && item.__assetSource === "internet" && (item.url || item.fileURL))
           || (item && item.resourceURL)
           || (item && (item.fileURL || item.url));
         if (!source) {
           new Notice("\u65e0\u6cd5\u8bfb\u53d6\u6b64\u9644\u4ef6\u7684\u9884\u89c8\u3002");
+          return;
+        }
+
+        try {
+          if (this.tryOpenNativeImagePreview(source, item, card)) return;
+        } catch (error) {
+          console.warn("Failed to open the native image viewer.", error);
+        }
+        if (revealedImage?.closest(".markdown-preview-view")) {
+          revealedImage.click();
           return;
         }
 
@@ -8334,7 +8536,9 @@
             return normalizeSource(imageSource) === expectedSource;
           });
           // Prefer the active editor image over the same image rendered in this sidebar.
-          const matchingImage = matchingImages.find(image => image.closest(".image-embed, .table-cell-wrapper"))
+          const matchingImage = revealedImage && revealedImage.isConnected
+            ? revealedImage
+            : matchingImages.find(image => image.closest(".image-embed, .table-cell-wrapper"))
             || matchingImages[0];
           const imageContainer = matchingImage?.closest(".image-embed")
             || matchingImage?.parentElement?.parentElement
@@ -8507,8 +8711,6 @@
 
       getContentRoot(root = this.containerEl.children[1]) {
         this.disposeAssetRendering();
-        this.selectedAssetItems.clear();
-        this.assetSelectionAnchorKey = "";
         let content = root.querySelector(".eaglebridge-note-assets-content");
         if (!content) content = root.createDiv({ cls: "eaglebridge-note-assets-content" });
         content.empty();
@@ -8520,7 +8722,11 @@
         if (typeof this.assetInfiniteScrollCleanup === "function") {
           this.assetInfiniteScrollCleanup();
         }
+        if (typeof this.assetWaterfallCleanup === "function") {
+          this.assetWaterfallCleanup();
+        }
         this.assetInfiniteScrollCleanup = null;
+        this.assetWaterfallCleanup = null;
         this.assetRenderNextBatch = null;
       }
 
@@ -8617,7 +8823,8 @@
           primaryButton.addEventListener("click", async event => {
             event.preventDefault();
             event.stopPropagation();
-            await options.onPrimary();
+            await this.plugin.runWithReferenceViewRefreshPaused(
+              () => options.onPrimary(), (this.currentContext || context)?.file);
           });
           const autoButton = control.createEl("button", {
             cls: `${options.autoClass} eaglebridge-compound-auto-toggle`
@@ -8668,7 +8875,6 @@
             const activeContext = getActiveContext();
             if (!activeContext) return;
             await this.plugin.reconcileCurrentContextEagleBridgeTags(activeContext, null, true);
-            await this.reloadDisplayedContext();
           },
           onToggle: async update => {
             this.plugin.settings.autoTagOnRefresh = this.plugin.settings.autoTagOnRefresh === false;
@@ -8728,9 +8934,11 @@
           onPrimary: async () => {
             const activeContext = getActiveContext();
             if (!activeContext) return;
-            const moved = await this.plugin.organizeCurrentContextEagleItemsIntoFolder(activeContext, null, { createMissing: true });
-            new Notice(this.plugin.t("noticeJoinedFolder", { count: moved }));
-            await this.reloadDisplayedContext();
+            const result = await this.plugin.organizeCurrentContextEagleItemsIntoFolder(activeContext, null, { createMissing: true, report: true });
+            const message = !result.total ? "noticeNoEagleBridgeLinks"
+              : result.failed ? "noticeJoinedFolderResult"
+              : !result.added ? "noticeAlreadyInFolder" : "noticeJoinedFolderResult";
+            new Notice(this.plugin.t(message, result));
           },
           onToggle: async update => {
             this.plugin.settings.autoFolderOnImport = this.plugin.settings.autoFolderOnImport === false;
@@ -8780,7 +8988,6 @@
             const activeContext = getActiveContext();
             if (!activeContext) return;
             await this.plugin.importAttachmentsForContext(activeContext);
-            await this.reloadDisplayedContext();
           },
           onToggle: async update => {
             this.plugin.settings.autoImportAttachments = this.plugin.settings.autoImportAttachments === false;
@@ -8799,7 +9006,6 @@
             const activeContext = getActiveContext();
             if (!activeContext) return;
             await this.plugin.cleanupLocalCopiesForContext(activeContext);
-            await this.reloadDisplayedContext();
           },
           onToggle: async update => {
             this.plugin.settings.trashAfterImport = !this.plugin.settings.trashAfterImport;
@@ -9007,6 +9213,39 @@
         this.clearAssetSelection();
         await this.reloadDisplayedContext(false);
       }
+
+      async permanentlyDeleteObsidianTrashItems(items) {
+        const paths = Array.from(new Set((items || [])
+          .filter(item => item && item.__inObsidianTrash)
+          .map(item => String(item.__localTrashPath || "").replace(/\\/g, "/"))
+          .filter(path => path.startsWith(".trash/"))));
+        if (!paths.length) return;
+        const choice = await chooseInObsidianModal(
+          this.plugin.app,
+          this.plugin.t("permanentlyDeleteTitle"),
+          this.plugin.t("permanentlyDeleteConfirm", { count: paths.length }),
+          [{ value: "delete", label: this.plugin.t("permanentlyDelete"), cta: true }],
+          this.plugin.t("cancel")
+        );
+        if (choice !== "delete") return;
+
+        const adapter = this.plugin.app.vault.adapter;
+        let deleted = 0;
+        let failed = 0;
+        for (const path of paths) {
+          try {
+            await adapter.remove(path);
+            deleted += 1;
+          } catch (error) {
+            failed += 1;
+            console.warn("Failed to permanently delete Obsidian trash item:", path, error);
+          }
+        }
+        new Notice(this.plugin.t("permanentlyDeleted", { deleted, failed }));
+        this.clearAssetSelection();
+        await this.reloadDisplayedContext(false);
+      }
+
       async showAssetCardContextMenu(event, item) {
         event.preventDefault();
         event.stopPropagation();
@@ -9014,12 +9253,13 @@
 
         const menu = new Menu();
         const source = String(item && item.__assetSource || "eagle");
+        const isObsidianTrashItem = source === "local" && !!(item && item.__inObsidianTrash);
         const isLocalItem = source === "local" && item.__localFile instanceof TFile;
         const isExternalLocalItem = source === "external-local" && !!item.__externalLocalPath;
         const isInternetItem = source === "internet";
         const isMissingItem = source === "missing" || !!(item && item.__missingAttachment);
         const itemId = stripInfoSuffix(getEagleItemId(item));
-        const isEagleItem = !!itemId && !isLocalItem && !isExternalLocalItem && !isInternetItem && !isMissingItem;
+        const isEagleItem = !!itemId && !isLocalItem && !isObsidianTrashItem && !isExternalLocalItem && !isInternetItem && !isMissingItem;
         const isTrashed = isEagleItem && isEagleItemTrashed(item);
         const displayName = getAssetDisplayName(item) || itemId || this.plugin.t("untitledAsset");
         const run = (label, task, icon = "") => {
@@ -9058,9 +9298,8 @@
               submenu.addItem(referenceItem => referenceItem
                 .setTitle(file.basename || file.path)
                 .setIcon(file.extension === "canvas" ? "layout-dashboard" : "file-text")
-                .onClick(() => file.path === this.currentFilePath && typeof targetItem.__sourceStart === "number"
-                  ? this.plugin.revealAssetInSource(file.path, targetItem, this.sourceLeaf)
-                  : this.openSourceFileInNewTab(file)));
+                .onClick(() => this.plugin.revealReferencedAsset(file, targetItem,
+                  file.path === this.currentFilePath ? this.sourceLeaf : null)));
             }
           });
         };
@@ -9081,6 +9320,11 @@
             && !this.isLibraryAssetReferenced(selected));
           if (allLocalTrashable) {
             run(this.plugin.t("moveToObsidianTrash"), () => this.trashSelectedLocalAttachments(selectedItems), "trash-2");
+          }
+          const allObsidianTrashItems = this.isLibraryMode && selectedItems.every(selected =>
+            selected && selected.__inObsidianTrash && String(selected.__localTrashPath || "").replace(/\\/g, "/").startsWith(".trash/"));
+          if (allObsidianTrashItems) {
+            run(this.plugin.t("permanentlyDelete"), () => this.permanentlyDeleteObsidianTrashItems(selectedItems), "trash-2");
           }
           const allEagleTrashable = this.isLibraryMode && selectedItems.every(selected => {
             const selectedSource = String(selected && selected.__assetSource || "eagle");
@@ -9122,7 +9366,9 @@
           run("尝试修复", () => this.handleMissingItemRepair(item, displayName), "wrench");
         }
 
-        if (isLocalItem) {
+        if (isObsidianTrashItem) {
+          run(this.plugin.t("permanentlyDelete"), () => this.permanentlyDeleteObsidianTrashItems([item]), "trash-2");
+        } else if (isLocalItem) {
           if (this.isLibraryMode && !this.isLibraryAssetReferenced(item)) {
             run(this.plugin.t("moveToObsidianTrash"), () => this.trashLocalUnreferencedLibraryAttachment(item), "trash-2");
           } else {
@@ -9157,13 +9403,15 @@
           run(this.plugin.t("moveToEagleTrash"), () => this.trashSingleUnreferencedLibraryAsset(itemId), "trash-2");
         }
 
-        if ((isLocalItem || isExternalLocalItem || isEagleItem) && !isPreviewableImage(displayName)) {
+        if ((isLocalItem || isObsidianTrashItem || isExternalLocalItem || isEagleItem) && !isPreviewableImage(displayName)) {
           run("用默认应用打开", () => this.openLibraryAssetWithDefaultApp(item), "external-link");
         }
 
-        if (isLocalItem) {
+        if (isLocalItem || isObsidianTrashItem) {
           run("打开文件所在位置", () => {
-            const fullPath = this.plugin.getFullPath(item.__localFile);
+            const fullPath = isObsidianTrashItem
+              ? this.plugin.app.vault.adapter.getFullPath(item.__localTrashPath)
+              : this.plugin.getFullPath(item.__localFile);
             if (!fullPath) throw new Error("无法找到本地附件。");
             require("electron").shell.showItemInFolder(fullPath);
           }, "folder-open");
@@ -9327,6 +9575,7 @@
       renderAssetGrid(root, items, options = {}) {
         const renderGeneration = ++this.assetRenderGeneration;
         const isCurrentRender = () => renderGeneration === this.assetRenderGeneration;
+        this.reconcileAssetSelection(items);
         if (!items.length) {
           root.createDiv({ cls: "eaglebridge-note-assets-scroll-area" }).createEl("div", {
             cls: "eaglebridge-note-assets-empty",
@@ -9346,6 +9595,51 @@
         });
         this.applyAssetCardSize(grid, viewMode);
         this.registerAssetZoomHandler(grid, viewMode);
+        let scheduleWaterfallLayout = () => {};
+        if (viewMode === "waterfall") {
+          const win = grid.ownerDocument.defaultView;
+          let layoutFrame = 0;
+          let waterfallColumnCount = 0;
+          const layoutWaterfall = () => {
+            layoutFrame = 0;
+            if (!isCurrentRender() || !grid.isConnected) return;
+            const cards = Array.from(grid.children).filter(child => child.classList.contains("eaglebridge-note-assets-card"));
+            const gap = 8;
+            const cardWidth = clampNumber(this.plugin.settings.assetCardSize, 64, 260, DEFAULT_SETTINGS.assetCardSize);
+            const columnCount = Math.max(1, Math.floor((grid.clientWidth + gap) / (cardWidth + gap)));
+            const previousScrollTop = scrollArea.scrollTop;
+            if (columnCount !== waterfallColumnCount) {
+              waterfallColumnCount = columnCount;
+              for (const card of cards) {
+                card.style.removeProperty("grid-column");
+                card.style.removeProperty("grid-row");
+              }
+              void grid.offsetWidth;
+            }
+            const columnHeights = Array(columnCount).fill(0);
+            for (const card of cards) {
+              const column = columnHeights.indexOf(Math.min(...columnHeights));
+              const span = Math.max(1, Math.ceil((card.getBoundingClientRect().height + gap) / 9));
+              card.style.gridColumn = String(column + 1);
+              card.style.gridRow = `${columnHeights[column] + 1} / span ${span}`;
+              columnHeights[column] += span;
+            }
+            scrollArea.scrollTop = Math.min(previousScrollTop, Math.max(0, scrollArea.scrollHeight - scrollArea.clientHeight));
+          };
+          scheduleWaterfallLayout = () => {
+            if (!layoutFrame) layoutFrame = win.requestAnimationFrame(layoutWaterfall);
+          };
+          grid.addEventListener("load", scheduleWaterfallLayout, true);
+          grid.addEventListener("error", scheduleWaterfallLayout, true);
+          const resizeObserver = new win.ResizeObserver(scheduleWaterfallLayout);
+          resizeObserver.observe(grid);
+          this.assetWaterfallCleanup = () => {
+            if (layoutFrame) win.cancelAnimationFrame(layoutFrame);
+            resizeObserver.disconnect();
+            grid.removeEventListener("load", scheduleWaterfallLayout, true);
+            grid.removeEventListener("error", scheduleWaterfallLayout, true);
+          };
+        }
         const batchSize = 24;
         let renderedCount = 0;
         let loadMoreHint = null;
@@ -9493,7 +9787,7 @@
               event.preventDefault();
               event.stopPropagation();
               cancelPendingCardClick();
-              void this.openAssetPreview(item);
+              void this.openAssetPreview(item, card);
             });
           }
           if (!isNoteItem) {
@@ -9662,6 +9956,7 @@
           }
           }
           renderedCount += batch.length;
+          scheduleWaterfallLayout();
           updateLoadMoreHint();
           if (typeof options.onRendered === "function") options.onRendered(renderedCount);
           return true;
@@ -9741,11 +10036,12 @@
         const itemId = stripInfoSuffix(range.itemId || "");
         const assetKey = String(range.assetKey || "");
         const findCard = () => {
-          const cards = Array.from(root.querySelectorAll(".eaglebridge-note-assets-card[data-source-start]"));
-          return (assetKey ? cards.find(el => el.dataset.assetKey === assetKey) : null)
-            || cards.find(el => el.dataset.sourceStart === start && el.dataset.sourceEnd === end)
+          const cards = Array.from(root.querySelectorAll(".eaglebridge-note-assets-card"));
+          const identityCards = cards.filter(el => (assetKey && el.dataset.assetKey === assetKey)
+            || (itemId && el.dataset.eagleItemId === itemId));
+          return cards.find(el => el.dataset.sourceStart === start && el.dataset.sourceEnd === end)
             || cards.find(el => el.dataset.sourceStart === start)
-            || (itemId ? cards.find(el => el.dataset.eagleItemId === itemId) : null);
+            || (identityCards.length === 1 ? identityCards[0] : null);
         };
         let card = findCard();
         while (!card && typeof this.assetRenderNextBatch === "function" && this.assetRenderNextBatch()) {
@@ -9781,7 +10077,10 @@
 
       invalidate(itemId) {
         const id = this.normalizeId(itemId);
-        if (id) this.cache.delete(id);
+        if (id) {
+          this.cache.delete(id);
+          this.inFlight.delete(id);
+        }
       }
 
       clear() {
@@ -9792,6 +10091,11 @@
       async get(itemId, options = {}) {
         const id = this.normalizeId(itemId);
         if (!id) return null;
+        const base = String(this.getBaseUrl() || "").replace(/\/+$/, "");
+        if (this.baseUrl !== base) {
+          this.clear();
+          this.baseUrl = base;
+        }
 
         const force = Boolean(options.force);
         const cached = this.cache.get(id);
@@ -9800,7 +10104,12 @@
         }
         if (!force && this.inFlight.has(id)) return this.inFlight.get(id);
 
-        const pending = this.fetch(id);
+        const pending = this.fetch(id, base).then(item => {
+          if (item && this.inFlight.get(id) === pending && this.baseUrl === base) {
+            this.cache.set(id, { item, updatedAt: Date.now() });
+          }
+          return item;
+        });
         this.inFlight.set(id, pending);
         const clearPending = () => {
           if (this.inFlight.get(id) === pending) this.inFlight.delete(id);
@@ -9809,15 +10118,12 @@
         return pending;
       }
 
-      async fetch(id) {
-        const base = String(this.getBaseUrl() || "").replace(/\/+$/, "");
+      async fetch(id, base) {
         const body = await this.request({
           url: `${base}/api/item/info?id=${encodeURIComponent(id)}`,
           method: "GET"
         });
-        const item = body && body.data ? body.data : null;
-        if (item) this.cache.set(id, { item, updatedAt: Date.now() });
-        return item;
+        return body && body.data ? body.data : null;
       }
     }
 
@@ -9890,26 +10196,13 @@
   "./lib/export-package": function(module, exports, require, __filename, __dirname) {
     const fs = require("fs");
     const path = require("path");
+    const { parseOeLinkReferences } = require("./oe-link-references");
 
     const CRC_TABLE = Array.from({ length: 256 }, (_, value) => {
       let crc = value;
       for (let bit = 0; bit < 8; bit += 1) crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
       return crc >>> 0;
     });
-
-    function parseOeLinkReferences(text) {
-      const refs = [];
-      const re = /https?:\/\/localhost:\d+\/images\/([^\s)"'<>]+)\.info/g;
-      let match;
-      while ((match = re.exec(String(text || ""))) !== null) {
-        refs.push({ id: decodeURIComponentSafe(match[1]), original: match[0], start: match.index, end: match.index + match[0].length });
-      }
-      return refs;
-    }
-
-    function decodeURIComponentSafe(value) {
-      try { return decodeURIComponent(value); } catch (_) { return value; }
-    }
 
     function safeFileName(name, fallback = "attachment") {
       const parsed = path.parse(path.basename(String(name || fallback)));
@@ -10055,9 +10348,12 @@
       constructor(clock = globalThis.window || globalThis) {
         this.clock = clock;
         this.tasks = new Map();
+        this.running = new Map();
+        this.tokens = new Map();
       }
 
       cancel(key) {
+        this.tokens.delete(key);
         const timers = this.tasks.get(key);
         if (!timers) return;
         for (const timer of timers) this.clock.clearTimeout(timer);
@@ -10068,11 +10364,23 @@
         this.cancel(key);
         const timers = new Set();
         const timer = this.clock.setTimeout(async () => {
+          const previous = this.running.get(key);
+          if (previous) await previous.catch(() => {});
+          if (this.tokens.get(key) !== timers) return;
           this.tasks.delete(key);
-          await callback();
+          const isCurrent = () => this.tokens.get(key) === timers;
+          const pending = Promise.resolve().then(() => callback(isCurrent));
+          this.running.set(key, pending);
+          try {
+            await pending;
+          } finally {
+            if (this.running.get(key) === pending) this.running.delete(key);
+            if (isCurrent()) this.tokens.delete(key);
+          }
         }, delay);
         timers.add(timer);
         this.tasks.set(key, timers);
+        this.tokens.set(key, timers);
       }
 
       scheduleSequence(key, delays, callback) {
@@ -10090,6 +10398,7 @@
 
       clear() {
         for (const key of Array.from(this.tasks.keys())) this.cancel(key);
+        this.tokens.clear();
       }
     }
 
@@ -10233,6 +10542,23 @@
     }
 
     module.exports = { createAttachmentElement, createLivePreviewAttachmentExtension, getAttachmentKind, normalizeLegacyNonImageEmbeds, parseRenderableAttachmentLinks };
+
+  },
+  "./lib/oe-link-references": function(module, exports, require, __filename, __dirname) {
+    function parseOeLinkReferences(text, acceptsUrl = url => /^https?:\/\/(?:localhost|127\.0\.0\.1):\d+\//i.test(url)) {
+      const refs = [];
+      const re = /https?:\/\/[^\s)"'<>]+\/images\/([^/?#\s)"'<>]+)\.info(?![\w.%-])/gi;
+      let match;
+      while ((match = re.exec(String(text || ""))) !== null) {
+        if (!acceptsUrl(match[0])) continue;
+        let id = match[1];
+        try { id = decodeURIComponent(id); } catch (_) {}
+        refs.push({ id, original: match[0], start: match.index, end: match.index + match[0].length });
+      }
+      return refs;
+    }
+
+    module.exports = { parseOeLinkReferences };
 
   },
   "./lib/progress-modal": function(module, exports, require, __filename, __dirname) {
@@ -10756,7 +11082,6 @@
         noticeCanvasImportUnsupported: "No directly importable local file nodes were found in this Canvas.",
         noticeNoLocalAttachments: "No importable attachment links found in this note.",
         noticeNoAttachmentAtCursor: "No local attachment link found at the cursor.",
-        noticeImportedToEagle: "Imported to Eagle: {name}",
         noticeProcessedAttachments: "Processed {success} attachment reference(s). Reused: {reused}. Failed: {failed}.",
         noticeNoEagleBridgeLinks: "No OE Link assets found in the current file.",
         noticeCleanedLocalCopies: "Moved {deleted} local copy/copies to trash. Skipped: {skipped}.",
@@ -10776,7 +11101,8 @@
         clearAllAttachmentFoldersOption: "All attachment folders",
         noticeClearedObsidianFolders: "Removed Obsidian-managed folder assignments from {count} Eagle asset(s); no folders were deleted.",
         noticeClearObsidianFoldersNeedsHelper: "Please install/update the Eagle helper plugin first, then restart Eagle.",
-        noticeJoinedFolder: "Added {count} Eagle asset(s) to the current folder.",
+        noticeJoinedFolderResult: "Current folder: {added} added, {already} already present, {failed} failed.",
+        noticeAlreadyInFolder: "All {already} assets are already in the current folder; no changes needed.",
         cancel: "Cancel",
         noticeImportedTrashFailed: "Imported, but failed to trash local file: {name}",
         noticeCopied: "Copied: {value}",
@@ -10814,6 +11140,10 @@
         localAttachmentAlt: "Obsidian attachment",
         eagleAssetAlt: "Eagle asset",
         moveToObsidianTrash: "Move to Obsidian trash",
+        permanentlyDelete: "Delete permanently",
+        permanentlyDeleteTitle: "Permanently delete trash items",
+        permanentlyDeleteConfirm: "Permanently delete {count} item(s) from the Obsidian trash? This cannot be undone.",
+        permanentlyDeleted: "Permanently deleted {deleted} item(s). Failed: {failed}.",
         moveToEagleTrash: "Move to Eagle trash",
         trashLocalAttachmentTitle: "Move local attachment to Obsidian trash",
         trashLocalAttachmentConfirm: "Move “{name}” to the Obsidian trash? The file can be restored from Obsidian's trash.",
@@ -10933,7 +11263,6 @@
         noticeCanvasImportUnsupported: "当前白板没有找到可直接导入的本地文件节点。",
         noticeNoLocalAttachments: "当前笔记没有找到可导入的附件链接。",
         noticeNoAttachmentAtCursor: "光标位置没有找到本地附件链接。",
-        noticeImportedToEagle: "已导入 Eagle：{name}",
         noticeProcessedAttachments: "已处理 {success} 个附件引用；复用 {reused} 个；失败 {failed} 个。",
         noticeNoEagleBridgeLinks: "当前文件没有找到 OE Link 链接素材。",
         noticeCleanedLocalCopies: "已将 {deleted} 个本地副本移入回收站；跳过 {skipped} 个。",
@@ -10953,7 +11282,8 @@
         clearAllAttachmentFoldersOption: "全部附件文件夹",
         noticeClearedObsidianFolders: "已从 {count} 个 Eagle 素材移除 Obsidian 文件夹归属，未删除文件夹。",
         noticeClearObsidianFoldersNeedsHelper: "请先安装/更新 OE Link 辅助插件，然后重启 Eagle。",
-        noticeJoinedFolder: "已将 {count} 个 Eagle 素材加入当前文件夹。",
+        noticeJoinedFolderResult: "当前文件夹：新增 {added} 个，已有 {already} 个，失败 {failed} 个。",
+        noticeAlreadyInFolder: "{already} 个素材已在当前文件夹，无需重复加入。",
         cancel: "取消",
         noticeImportedTrashFailed: "已导入，但未能删除本地文件：{name}",
         noticeCopied: "已复制：{value}",
@@ -10991,6 +11321,10 @@
         localAttachmentAlt: "Obsidian 附件",
         eagleAssetAlt: "Eagle 素材",
         moveToObsidianTrash: "移入 Obsidian 回收站",
+        permanentlyDelete: "彻底删除该文件",
+        permanentlyDeleteTitle: "彻底删除回收站文件",
+        permanentlyDeleteConfirm: "确认彻底删除 Obsidian 回收站中的 {count} 个文件吗？此操作无法撤销。",
+        permanentlyDeleted: "已彻底删除 {deleted} 个文件；失败 {failed} 个。",
         moveToEagleTrash: "移入 Eagle 回收站",
         trashLocalAttachmentTitle: "移入 Obsidian 回收站",
         trashLocalAttachmentConfirm: "确认将“{name}”移入 Obsidian 回收站吗？可在 Obsidian 回收站中还原。",

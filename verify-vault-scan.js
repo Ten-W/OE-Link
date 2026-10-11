@@ -1,7 +1,13 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const Module = require("node:module");
+const originalLoad = Module._load;
+Module._load = function(request, parent, isMain) {
+  return request === "obsidian" ? { TFile: class {} } : originalLoad.call(this, request, parent, isMain);
+};
 const { isInsideEagleLibrary } = require("./lib/asset-utils");
+Module._load = originalLoad;
 
 const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8")
   + fs.readFileSync(path.join(__dirname, "lib", "eagle-assets-view.js"), "utf8");

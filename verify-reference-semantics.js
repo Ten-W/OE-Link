@@ -15,6 +15,8 @@ Module._load = function(request, parent, isMain) {
     addIcon() {},
     requestUrl() {}
   };
+  if (request === "@codemirror/state") return { Prec: { highest: value => value } };
+  if (request === "@codemirror/view") return { WidgetType: class {}, Decoration: {}, ViewPlugin: {} };
   return originalLoad.call(this, request, parent, isMain);
 };
 const {

@@ -16,12 +16,16 @@ assert.strictEqual(embeddedDesktop, desktopSource, "embedded desktop bundle chan
 const forbidden = new Set(["fs", "path", "os", "crypto", "electron"]);
 const originalLoad = Module._load;
 let isMobile = true;
+let allowDesktop = false;
 Module._load = function (request, parent, isMain) {
-  if (forbidden.has(request)) throw new Error(`mobile branch loaded ${request}`);
+  if (!allowDesktop && forbidden.has(request)) throw new Error(`mobile branch loaded ${request}`);
   if (request === "obsidian") {
     return {
       Platform: { get isMobile() { return isMobile; } },
       Plugin: class Plugin {},
+      ItemView: class ItemView {},
+      TFile: class TFile {},
+      Menu: class Menu {},
       PluginSettingTab: class PluginSettingTab {},
       Setting: class Setting {},
       Modal: class Modal {},
@@ -29,6 +33,8 @@ Module._load = function (request, parent, isMain) {
       requestUrl: async () => ({}),
       editorLivePreviewField: {},
       setIcon() {},
+      setTooltip() {},
+      addIcon() {},
     };
   }
   if (request === "@codemirror/state") return { Prec: { highest: value => value } };
@@ -45,6 +51,13 @@ try {
   const DesktopCloudPlugin = require(mainPath);
   assert.strictEqual(DesktopCloudPlugin.name, MobilePlugin.name, "desktop cloud mode should reuse the mobile cloud reader");
   assert.strictEqual(typeof DesktopCloudPlugin._test?.pickWebdavAsset, "function");
+  delete require.cache[require.resolve(mainPath)];
+  delete global.localStorage;
+  allowDesktop = true;
+  const DesktopPlugin = require(mainPath);
+  assert.strictEqual(typeof DesktopPlugin.prototype.importAttachmentLinks, "function");
+  assert.strictEqual(typeof DesktopPlugin.prototype.importCanvasAttachments, "function");
+  assert.strictEqual(typeof DesktopPlugin.prototype.buildCurrentNoteExportPlan, "function");
   console.log("Single-file mobile router check passed.");
 } finally {
   delete global.localStorage;

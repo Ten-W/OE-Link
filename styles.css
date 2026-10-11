@@ -1184,9 +1184,11 @@ audio.eaglebridge-media-embed {
 }
 
 .eaglebridge-note-assets-grid-waterfall {
-  display: block;
-  column-width: var(--eaglebridge-asset-card-size, 120px);
-  column-gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--eaglebridge-asset-card-size, 120px), 1fr));
+  grid-auto-rows: 1px;
+  gap: 8px;
+  align-items: start;
 }
 
 .eaglebridge-asset-load-more-hint {
@@ -1302,11 +1304,9 @@ audio.eaglebridge-media-embed {
 
 .eaglebridge-note-assets-card-waterfall {
   position: relative;
-  display: inline-block;
+  display: block;
   width: 100%;
-  margin: 0 0 8px 0;
-  break-inside: avoid;
-  vertical-align: top;
+  margin: 0;
 }
 
 .eaglebridge-note-assets-card img {

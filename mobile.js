@@ -409,6 +409,9 @@ class EagleBridgeMobilePlugin extends Plugin {
       ? Math.min(16, Math.floor(concurrency)) : 4;
     this.cache = new Map();
     this.pending = new Map();
+    this.cacheGeneration = 0;
+    this.cacheScope = this.getCacheScope();
+    this.unloaded = false;
     this.activeLoads = 0;
     this.loadWaiters = [];
     this.observedImages = new WeakMap();
@@ -447,6 +450,7 @@ class EagleBridgeMobilePlugin extends Plugin {
   }
 
   onunload() {
+    this.unloaded = true;
     this.imageObserver?.disconnect();
     this.domObserver?.disconnect();
     this.clearCache();
@@ -457,6 +461,7 @@ class EagleBridgeMobilePlugin extends Plugin {
   }
 
   async saveMobile() {
+    this.syncCacheScope();
     this.settings = { ...this.settings, mobile: { ...this.mobile } };
     await this.saveData(this.settings);
   }
@@ -489,6 +494,7 @@ class EagleBridgeMobilePlugin extends Plugin {
 
   async setWebdavPassword(password) {
     await this.app.secretStorage?.setSecret(this.webdavSecretKey, password || "");
+    this.clearCache();
   }
 
   async connect() {
@@ -956,15 +962,42 @@ class EagleBridgeMobilePlugin extends Plugin {
     }
   }
 
+  getCacheScope() {
+    const m = this.mobile;
+    return JSON.stringify([m.sourceType, m.webdavUrl, m.webdavUsername, m.webdavLibraryPath,
+      m.driveId, m.libraryItemId, m.previewOriginalMaxMb]);
+  }
+
+  syncCacheScope() {
+    const scope = this.getCacheScope();
+    if (scope !== this.cacheScope) {
+      this.clearCache();
+      this.cacheScope = scope;
+    }
+    return scope;
+  }
+
   async getImage(itemId, original, force) {
-    const key = `${this.mobile.sourceType}:${itemId}:${original ? "original" : "preview"}`;
-    if (force) this.dropCache(key);
+    if (this.unloaded) throw new Error("OE Link is unloaded.");
+    const scope = this.syncCacheScope();
+    const generation = this.cacheGeneration;
+    const key = `${scope}:${itemId}:${original ? "original" : "preview"}`;
+    if (force) {
+      this.dropCache(key);
+      this.pending.delete(key);
+    }
     if (this.cache.has(key)) return this.cache.get(key);
     if (this.pending.has(key)) return this.pending.get(key);
     const promise = this.fetchImage(itemId, original).then(result => {
+      if (this.unloaded || this.cacheGeneration !== generation || this.getCacheScope() !== scope || this.pending.get(key) !== promise) {
+        if (result?.url) URL.revokeObjectURL(result.url);
+        throw new Error("Eagle library or request changed; retry loading the attachment.");
+      }
       this.cache.set(key, result);
       return result;
-    }).finally(() => this.pending.delete(key));
+    }).finally(() => {
+      if (this.pending.get(key) === promise) this.pending.delete(key);
+    });
     this.pending.set(key, promise);
     return promise;
   }
@@ -1094,6 +1127,8 @@ class EagleBridgeMobilePlugin extends Plugin {
   }
 
   clearCache() {
+    this.cacheGeneration = (this.cacheGeneration || 0) + 1;
+    this.pending.clear();
     for (const key of [...this.cache.keys()]) this.dropCache(key);
   }
 }

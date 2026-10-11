@@ -108,6 +108,7 @@ const {
 const TRANSLATIONS = require("./lib/translations");
 const { EagleItemRepository } = require("./lib/eagle-item-repository");
 const { KeyedTaskScheduler } = require("./lib/keyed-task-scheduler");
+const { mergeAttachmentReplacements } = require("./lib/attachment-import");
 const { chooseInObsidianModal } = require("./lib/choice-modal");
 const { EagleBridgeProgressModal } = require("./lib/progress-modal");
 const { chooseExportFormat } = require("./lib/export-package-modal");
@@ -133,6 +134,7 @@ const EagleAssetsView = createEagleAssetsView({ VIEW_TYPE, DEFAULT_SETTINGS });
 
 module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   async onload() {
+    this.unloaded = false;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     this.migrateSettings();
     this.desktopDiagnosticEvents = [];
@@ -338,6 +340,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   }
 
   onunload() {
+    this.unloaded = true;
     this.cancelReferenceViewRefresh();
     this.autoSyncScheduler && this.autoSyncScheduler.clear();
     this.trashScanScheduler && this.trashScanScheduler.clear();
@@ -763,27 +766,19 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     if (!cleanItemId) return;
     const rawBase = String(this.settings.eagleProtocolUrl || "eagle://").trim() || "eagle://";
     const base = /^eagle:\/+$/i.test(rawBase) ? "eagle://" : `${rawBase.replace(/\/+$/, "")}/`;
-    let protocolOpened = false;
-    const openProtocol = () => {
-      if (protocolOpened) return;
-      protocolOpened = true;
-      this.openExternalUrl(`${base}item/${encodeURIComponent(cleanItemId)}`);
-    };
+    const openProtocol = () => this.openExternalUrl(`${base}item/${encodeURIComponent(cleanItemId)}`);
     const open = () => this.requestEagleHelperJson("item/open", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ itemId: cleanItemId })
     });
-    const protocolTimer = window.setTimeout(openProtocol, 250);
     try {
       await open();
-      window.clearTimeout(protocolTimer);
       this.recordDesktopDiagnosticEvent("item-open", {
         itemId: cleanItemId,
-        status: protocolOpened ? "success-after-protocol" : "success"
+        status: "success"
       });
     } catch (firstError) {
-      window.clearTimeout(protocolTimer);
       openProtocol();
       this.eagleHelperBaseUrl = "";
       void sleep(350).then(open).then(() => {
@@ -1313,12 +1308,14 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   }
 
   async runWithReferenceViewRefreshPaused(task, refreshFile = null) {
+    this.referenceViewRefreshScheduler?.cancel("current-reference-view");
     this.referenceViewOperationDepth += 1;
     try {
       return await task();
     } finally {
       this.referenceViewOperationDepth = Math.max(0, this.referenceViewOperationDepth - 1);
       if (this.referenceViewOperationDepth === 0) {
+        this.referenceViewRefreshScheduler?.cancel("current-reference-view");
         await this.refreshReferenceViewsForCurrentNote(refreshFile, { force: true });
       }
     }
@@ -1351,7 +1348,8 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
         for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
           const view = leaf.view;
           if (view && typeof view.loadForCurrentNote === "function") {
-            await view.loadForCurrentNote(false);
+            if (force && typeof view.reloadDisplayedContext === "function") await view.reloadDisplayedContext(false);
+            else await view.loadForCurrentNote(false);
           }
         }
       } while (this.referenceViewRefreshQueued);
@@ -1727,8 +1725,9 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   }
 
   async organizeCurrentContextEagleItemsIntoFolder(context, existingText = null, options = {}) {
-    if (this.settings.folderManagementEnabled === false) return 0;
-    if (!context || !(context.file instanceof TFile)) return 0;
+    const summary = { added: 0, already: 0, failed: 0, total: 0 };
+    if (this.settings.folderManagementEnabled === false) return options.report ? summary : 0;
+    if (!context || !(context.file instanceof TFile)) return options.report ? summary : 0;
 
     const text = existingText !== null ? existingText : await this.app.vault.read(context.file);
     // A plain note or Canvas must not create a dedicated Eagle folder merely
@@ -1737,44 +1736,45 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const directRefIds = new Set(this.extractEagleBridgeItemIds(text)
       .map(id => stripInfoSuffix(id))
       .filter(Boolean));
-    if (!directRefIds.size) return 0;
+    if (!directRefIds.size) return options.report ? summary : 0;
 
     const items = await this.getCurrentContextEagleItems(context, text);
     const directItems = items.filter(item => directRefIds.has(stripInfoSuffix(getEagleItemId(item))));
-    if (!directItems.length) return 0;
+    summary.total = directRefIds.size;
+    summary.failed = directRefIds.size - directItems.length;
+    if (!directItems.length) return options.report ? summary : 0;
 
     const folderId = await this.resolveEagleFolderIdForContext(context, {
       createMissing: options.createMissing !== false
     });
     const rootId = String(this.settings.eagleFolderId || "").trim();
-    if (!folderId || folderId === rootId) return 0;
+    if (!folderId || folderId === rootId) {
+      summary.failed = summary.total;
+      return options.report ? summary : 0;
+    }
 
     let changed = 0;
-    const replacementIds = new Map();
 
     for (const item of directItems) {
       const itemId = getEagleItemId(item);
-      if (!itemId || itemHasEagleFolder(item, folderId)) continue;
+      if (!itemId) continue;
+      if (itemHasEagleFolder(item, folderId)) {
+        summary.already += 1;
+        continue;
+      }
       const ok = await this.updateEagleItemFolder(itemId, folderId);
       if (ok) {
         changed += 1;
         continue;
       }
+      summary.failed += 1;
       if (directRefIds.has(itemId)) {
         console.warn("Eagle helper could not add existing item to folder; skipped reimport to avoid duplicate import:", itemId, folderId);
       }
     }
 
-    if (replacementIds.size) {
-      const latestText = await this.app.vault.read(context.file);
-      const nextText = replaceEagleBridgeIdsInText(latestText, replacementIds);
-      if (nextText !== latestText) {
-        await this.app.vault.modify(context.file, nextText);
-        await this.rememberCurrentFileEagleBridgeIds(context.file);
-      }
-    }
-
-    return changed;
+    summary.added = changed;
+    return options.report ? summary : changed;
   }
 
   async getOriginalPathForEagleItem(item) {
@@ -2035,41 +2035,76 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   }
 
   getRenderedAssetCandidates(view, item) {
-    const root = view && view.containerEl;
+    const selector = view && view.getMode && view.getMode() === "preview"
+      ? ".markdown-preview-view" : ".markdown-source-view";
+    const root = view && view.containerEl && view.containerEl.querySelector(selector);
     if (!root || typeof root.querySelectorAll !== "function") return [];
-    const source = String(item.__assetSource || "");
-    const itemId = source === "eagle" || source === "trash" || item.__fromNoteLink
-      ? stripInfoSuffix(getEagleItemId(item))
-      : "";
-    const internetUrl = source === "internet" ? safeDecode(String(item.url || item.fileURL || "")) : "";
-    const localPath = item.__localFile instanceof TFile
-      ? item.__localFile.path
-      : String(item.__externalLocalPath || item.__localTarget || "");
-    const normalizedLocalPath = safeDecode(localPath).replace(/\\/g, "/").toLowerCase();
-    const localName = normalizedLocalPath.split("/").pop() || "";
-    const displayName = safeDecode(getAssetDisplayName(item)).toLowerCase();
-
-    const candidates = Array.from(root.querySelectorAll(".markdown-source-view img, .markdown-preview-view img"))
+    const candidates = Array.from(root.querySelectorAll("img"))
+      .filter(element => {
+        const rect = element.getBoundingClientRect();
+        return element.isConnected && rect.width > 0 && rect.height > 0;
+      })
       .map(element => {
-        const values = [
-          element.currentSrc,
-          element.getAttribute("src"),
-          element.getAttribute("data-src"),
-          element.getAttribute("alt"),
-          element.getAttribute("title")
-        ].map(value => safeDecode(String(value || "")).replace(/\\/g, "/").toLowerCase());
-        const haystack = values.join("\n");
-        let score = 0;
-        if (itemId && haystack.includes(itemId.toLowerCase())) score += 120;
-        if (internetUrl && values.some(value => value === internetUrl.toLowerCase() || value.includes(internetUrl.toLowerCase()))) score += 120;
-        if (normalizedLocalPath && haystack.includes(normalizedLocalPath)) score += 110;
-        if (localName && haystack.includes(localName)) score += 70;
-        if (displayName && haystack.includes(displayName)) score += 45;
-        return { element, score, exactId: !!(itemId && haystack.includes(itemId.toLowerCase())) };
+        const score = this.getAssetIdentityScore(item, this.getRenderedAttachmentIdentity(element));
+        return { element, score };
       })
       .filter(candidate => candidate.score >= 45)
       .sort((left, right) => right.score - left.score);
-    return itemId ? candidates.filter(candidate => candidate.exactId) : candidates;
+    return candidates;
+  }
+
+  getAssetIdentityScore(item, identity) {
+    const normalize = value => {
+      try { return decodeURIComponent(String(value || "")).replace(/\\/g, "/"); }
+      catch (_) { return String(value || "").replace(/\\/g, "/"); }
+    };
+    const src = normalize(identity.src);
+    const source = item.__assetSource || "eagle";
+    const itemId = source === "eagle" || source === "trash" || item.__fromNoteLink
+      ? stripInfoSuffix(getEagleItemId(item)) : "";
+    const imageId = extractEagleBridgeItemIdFromText(src);
+    if (itemId || imageId) return itemId && itemId === imageId ? 120 : 0;
+    const paths = [item.__localFile?.path, item.__externalLocalPath, item.__localTarget];
+    if (item.__localFile) paths.push(this.getFullPath(item.__localFile));
+    const urls = [item.resourceURL, item.fileURL, item.url].filter(Boolean).map(normalize);
+    if (src && urls.includes(src)) return 120;
+    const normalizedPaths = paths.filter(Boolean).map(normalize);
+    const pathSource = normalize(String(identity.src || "").replace(/[?#].*$/, ""));
+    if (normalizedPaths.some(path => pathSource === path || pathSource.endsWith(`/${path}`))) return 110;
+    // A known but different source must never match just because names agree.
+    if (src && (normalizedPaths.length || urls.length)) return 0;
+    const name = getAssetDisplayName(item);
+    return name && identity.names?.includes(name) ? 45 : 0;
+  }
+
+  async revealReferencedAsset(file, item, preferredLeaf = null) {
+    const references = await this.getSourceAttachmentReferences(file);
+    const source = item.__assetSource || "eagle";
+    const identity = this.getRenderedAttachmentIdentity({
+      getAttribute: name => name === "src"
+        ? (source === "eagle" || source === "trash" ? this.getEagleBridgeUrl(item)
+          : item.resourceURL || item.fileURL || item.url || normalizeFileUrl(item.__externalLocalPath || "")) || "" : "",
+      matches: () => true
+    });
+    const matching = references.filter(candidate => this.getAssetIdentityScore(candidate, identity) >= 100);
+    const target = matching.find(candidate => item.__canvasNodeId && candidate.__canvasNodeId === item.__canvasNodeId)
+      || matching.find(candidate => file.path === preferredLeaf?.view?.file?.path
+      && candidate.__sourceStart === item.__sourceStart
+      && candidate.__sourceEnd === item.__sourceEnd) || matching[0];
+    if (!target) {
+      new Notice("未能确认该素材在目标笔记或白板中的引用位置。");
+      return;
+    }
+    return this.revealAssetInSource(file.path, target, preferredLeaf);
+  }
+
+  async getSourceAttachmentReferences(file) {
+    const text = await this.app.vault.read(file);
+    const items = await this.queryNoteAttachmentItemsForFile(file, text);
+    const eagle = this.extractEagleBridgeItemReferences(text).map(ref => ({
+      id: ref.id, __fromNoteLink: true, __sourceStart: ref.start, __sourceEnd: ref.end
+    }));
+    return eagle.concat(items);
   }
 
   chooseNearestRenderedAsset(candidates) {
@@ -2101,17 +2136,6 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     return false;
   }
 
-  async waitForRenderedAsset(view, item, generation, timeout = 1600) {
-    const started = Date.now();
-    while (Date.now() - started < timeout) {
-      if (generation !== this.sourceRevealGeneration) return null;
-      const renderedAsset = this.chooseNearestRenderedAsset(this.getRenderedAssetCandidates(view, item));
-      if (renderedAsset) return renderedAsset;
-      await new Promise(resolve => window.requestAnimationFrame(resolve));
-    }
-    return null;
-  }
-
   flashRenderedAsset(element, generation) {
     if (!element || generation !== this.sourceRevealGeneration) return false;
     element.classList.remove("eaglebridge-source-target-highlight");
@@ -2121,11 +2145,65 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     return true;
   }
 
-  async scrollRenderedAssetIntoView(element, generation) {
-    if (!element || typeof element.scrollIntoView !== "function") return false;
-    element.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
-    if (!await this.waitForRenderedAssetToSettle(element, generation)) return false;
-    return this.flashRenderedAsset(element, generation);
+  async scrollAssetIntoView(view, item, line, generation) {
+    const mode = view.currentMode;
+    const file = view.file;
+    const scroller = view.containerEl.querySelector(view.getMode() === "preview"
+      ? ".markdown-preview-view" : ".cm-scroller");
+    if (!scroller || !scroller.clientHeight || typeof mode?.getScroll !== "function") return null;
+    const win = scroller.ownerDocument.defaultView;
+    const started = win.performance.now();
+    let previousTime = started;
+    let settledSince = 0;
+    let stalledSince = started;
+    let previousTop = scroller.scrollTop;
+    const cancel = () => { if (generation === this.sourceRevealGeneration) this.sourceRevealGeneration += 1; };
+    scroller.addEventListener("wheel", cancel, { passive: true });
+    scroller.addEventListener("pointerdown", cancel, { passive: true });
+    try {
+      while (win.performance.now() - started < 20000) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        if (generation !== this.sourceRevealGeneration || view.currentMode !== mode || view.file !== file || !scroller.isConnected) return null;
+        const now = win.performance.now();
+        const elapsed = Math.min(40, now - previousTime);
+        previousTime = now;
+        const viewport = scroller.getBoundingClientRect();
+        const element = this.chooseNearestRenderedAsset(this.getRenderedAssetCandidates(view, item));
+        let delta;
+        let inView = false;
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          delta = rect.top + rect.height / 2 - (viewport.top + viewport.height / 2);
+          inView = rect.bottom > viewport.top + 8 && rect.top < viewport.bottom - 8;
+        } else {
+          const currentLine = mode.getScroll();
+          if (!Number.isFinite(currentLine)) return null;
+          delta = Math.sign(line - currentLine) * viewport.height;
+        }
+        const destination = Math.max(0, Math.min(scroller.scrollHeight - scroller.clientHeight, scroller.scrollTop + delta));
+        const remaining = destination - scroller.scrollTop;
+        if (element && inView && Math.abs(remaining) < 2) {
+          if (!settledSince) settledSince = now;
+          if (now - settledSince >= 120) {
+            this.flashRenderedAsset(element, generation);
+            return element;
+          }
+        } else {
+          settledSince = 0;
+          // Virtual rendering can change heights and cancel browser smooth scrolls.
+          // Advance the visible scroller each frame and remeasure the actual image.
+          const step = Math.sign(remaining) * Math.min(Math.abs(remaining), Math.max(1, Math.min(viewport.height * 25, Math.abs(remaining) * 25) * elapsed / 1000));
+          scroller.scrollTo({ top: scroller.scrollTop + step, behavior: "instant" });
+        }
+        if (Math.abs(scroller.scrollTop - previousTop) > 0.1) stalledSince = now;
+        previousTop = scroller.scrollTop;
+        if (!settledSince && now - stalledSince > 2000) return null;
+      }
+      return null;
+    } finally {
+      scroller.removeEventListener("wheel", cancel);
+      scroller.removeEventListener("pointerdown", cancel);
+    }
   }
 
   async revealAssetInSource(filePath, item, preferredLeaf = null) {
@@ -2134,8 +2212,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const file = this.app.vault.getAbstractFileByPath(filePath);
     if (!(file instanceof TFile)) return;
     if (file.extension === "canvas") {
-      await this.revealAssetInCanvas(file, item, preferredLeaf);
-      return;
+      return this.revealAssetInCanvas(file, item, preferredLeaf);
     }
     if (file.extension !== "md") return;
 
@@ -2146,7 +2223,6 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       return;
     }
     const from = indexToLineCh(text, sourceRange.start);
-    const to = indexToLineCh(text, sourceRange.end);
     let targetLeaf = this.findPreferredMarkdownLeaf(file.path, preferredLeaf);
 
     let openedFileInLeaf = false;
@@ -2166,17 +2242,9 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       await this.waitForEditorLayout();
     }
     const view = targetLeaf && targetLeaf.view;
-    const editor = view && view.editor;
-    if (!editor) return;
     await this.waitForEditorLayout();
     if (generation !== this.sourceRevealGeneration) return;
-    const visibleAsset = this.chooseNearestRenderedAsset(this.getRenderedAssetCandidates(view, item));
-    if (visibleAsset && await this.scrollRenderedAssetIntoView(visibleAsset, generation)) return;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      this.smoothScrollEditorToRange(editor, view, { from, to });
-      const renderedAsset = await this.waitForRenderedAsset(view, item, generation, attempt === 0 ? 1600 : 3600);
-      if (renderedAsset && await this.scrollRenderedAssetIntoView(renderedAsset, generation)) return;
-    }
+    return this.scrollAssetIntoView(view, item, from.line, generation);
   }
 
   async revealAssetInCanvas(file, item, preferredLeaf = null) {
@@ -2191,7 +2259,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
         const canvas = JSON.parse(text);
         const nodes = Array.isArray(canvas && canvas.nodes) ? canvas.nodes : [];
         const node = nodes.find(candidate => candidate && (
-          (localPath && candidate.file === item.__localTarget)
+          (localPath && candidate.file === localPath)
           || (internetUrl && cleanExternalAttachmentUrl(candidate.url || "") === internetUrl)
           || (eagleItemId && String(candidate.file || candidate.url || "").includes(eagleItemId))
         ));
@@ -2202,9 +2270,20 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     }
     if (!nodeId) return;
     const leaves = this.app.workspace.getLeavesOfType("canvas");
-    const leaf = preferredLeaf && preferredLeaf.view && preferredLeaf.view.file === file
+    let leaf = preferredLeaf && preferredLeaf.view && preferredLeaf.view.file === file
       ? preferredLeaf
-      : leaves.find(candidate => candidate.view && candidate.view.file && candidate.view.file.path === file.path);
+      : leaves.find(candidate => candidate.view && candidate.view.file && candidate.view.file.path === file.path && this.isWorkspaceLeafVisible(candidate))
+        || leaves.find(candidate => candidate.view && candidate.view.file && candidate.view.file.path === file.path);
+    if (!leaf) {
+      leaf = this.app.workspace.getLeaf("tab");
+      await leaf.openFile(file);
+    }
+    if (generation !== this.sourceRevealGeneration) return;
+    if (!this.isWorkspaceLeafVisible(leaf)) {
+      this.app.workspace.setActiveLeaf(leaf, { focus: false });
+      await this.waitForEditorLayout();
+    }
+    if (generation !== this.sourceRevealGeneration) return;
     const root = leaf && leaf.view && leaf.view.containerEl;
     const element = root && Array.from(root.querySelectorAll("[data-node-id]"))
       .find(candidate => candidate.getAttribute("data-node-id") === nodeId);
@@ -2222,24 +2301,6 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     if (element && await this.waitForRenderedAssetToSettle(element, generation, 1200)) {
       this.flashRenderedAsset(element, generation);
     }
-  }
-
-  smoothScrollEditorToRange(editor, view, range) {
-    if (!editor || typeof editor.scrollIntoView !== "function") return;
-    const scroller = view && view.containerEl && view.containerEl.querySelector
-      ? view.containerEl.querySelector(".cm-scroller")
-      : null;
-    if (!scroller) {
-      editor.scrollIntoView(range, true);
-      return;
-    }
-
-    const previousBehavior = scroller.style.scrollBehavior;
-    scroller.style.scrollBehavior = "smooth";
-    editor.scrollIntoView(range, true);
-    window.setTimeout(() => {
-      if (scroller.isConnected) scroller.style.scrollBehavior = previousBehavior;
-    }, 460);
   }
 
   getTransferFiles(dataTransfer) {
@@ -2427,7 +2488,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   }
 
   async importAttachmentsForContext(context, options = {}) {
-    if (!context) return;
+    if (!context || this.unloaded || (options.shouldContinue && !options.shouldContinue())) return;
     const run = task => options.refresh === false
       ? task()
       : this.runWithReferenceViewRefreshPaused(task, context.file);
@@ -2435,9 +2496,11 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       await run(async () => {
         await this.importCanvasAttachments(context, "", {
           silent: options.silent,
+          shouldContinue: options.shouldContinue,
+          trashImported: options.trashImported,
           scheduleRefresh: options.refresh !== false
         });
-        if (options.organize !== false) {
+        if (options.organize !== false && !this.unloaded && (!options.shouldContinue || options.shouldContinue())) {
           const moved = await this.organizeCurrentContextEagleItemsIntoFolder(context, null, {
             createMissing: this.settings.autoFolderOnImport !== false
           });
@@ -2465,8 +2528,10 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     }
 
     await run(async () => {
-      await this.importAttachmentLinks(context, [...localLinks, ...externalLocalLinks], internetLinks, { silent: options.silent });
-      if (options.organize !== false) {
+      await this.importAttachmentLinks(context, [...localLinks, ...externalLocalLinks], internetLinks, {
+        silent: options.silent, sourceText: text, trashImported: options.trashImported, shouldContinue: options.shouldContinue
+      });
+      if (options.organize !== false && !this.unloaded && (!options.shouldContinue || options.shouldContinue())) {
         const moved = await this.organizeCurrentContextEagleItemsIntoFolder(context, null, {
           createMissing: this.settings.autoFolderOnImport !== false
         });
@@ -2495,6 +2560,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       if (context.kind === "canvas") {
         return this.importCanvasAttachments(context, localFile.path, {
           silent: options.silent,
+          trashImported: options.trashImported,
           importedByPath: options.importedByPath
         });
       }
@@ -2516,6 +2582,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       return this.importAttachmentLinks(context, selectedLinks, [], {
         silent: options.silent,
         importedByPath: options.importedByPath,
+        trashImported: options.trashImported,
         sourceText: text
       });
     }, sourceFile);
@@ -2581,6 +2648,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       if (context.kind === "canvas") {
         return this.importCanvasAttachments(context, localPath, {
           silent: options.silent,
+          trashImported: options.trashImported,
           importedByPath: options.importedByPath
         });
       }
@@ -2595,6 +2663,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
         return this.importAttachmentLinks(context, selectedLinks, [], {
           silent: options.silent,
           importedByPath: options.importedByPath,
+          trashImported: options.trashImported,
           sourceText: text
         });
       }
@@ -2630,6 +2699,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       if (context.kind === "canvas") {
         return this.importCanvasAttachments(context, sourceUrl, {
           silent: options.silent,
+          trashImported: options.trashImported,
           importedByUrl: options.importedByUrl
         });
       }
@@ -2650,6 +2720,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       return this.importAttachmentLinks(context, [], selectedLinks, {
         silent: options.silent,
         importedByUrl: options.importedByUrl,
+        trashImported: options.trashImported,
         sourceText: text
       });
     }, sourceFile);
@@ -2665,6 +2736,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   }
 
   async importCanvasAttachments(context, targetFilePath = "", options = {}) {
+    const shouldContinue = () => !this.unloaded && (!options.shouldContinue || options.shouldContinue());
     const raw = options.sourceText !== undefined
       ? options.sourceText
       : await this.app.vault.read(context.file);
@@ -2685,12 +2757,14 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       ? options.importedByUrl
       : new Map();
     const importedFiles = [];
+    const replacements = new Map();
     let success = 0;
     let failed = 0;
     let reused = 0;
     let changed = false;
 
     for (const node of nodes) {
+      if (!shouldContinue()) break;
       if (!node || typeof node !== "object") continue;
       const rawTarget = typeof node.file === "string" ? node.file : typeof node.url === "string" ? node.url : "";
       if (!rawTarget) continue;
@@ -2766,46 +2840,67 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
           continue;
         }
 
-        const size = normalizeCanvasNodeSize(node, imported.sourceFile.name);
-        node.type = "link";
-        node.url = this.buildCanvasEagleBridgeUrl(bridgeUrl, imported.sourceFile.name);
-        node.width = size.width;
-        node.height = size.height;
-        delete node.file;
-
-        if (isPreviewableImage(imported.sourceFile.name)) {
-          node.eagleBridgeManaged = true;
-          node.eagleBridgeSourceUrl = bridgeUrl;
-          if (size.width > 0 && size.height > 0) {
-            node.eagleBridgeAspect = size.width / size.height;
-            node.eagleBridgeLastWidth = size.width;
-            node.eagleBridgeLastHeight = size.height;
-          }
-        } else {
-          delete node.eagleBridgeManaged;
-          delete node.eagleBridgeSourceUrl;
-          delete node.eagleBridgeAspect;
-          delete node.eagleBridgeLastWidth;
-          delete node.eagleBridgeLastHeight;
-        }
-
-        success += 1;
-        changed = true;
+        replacements.set(node.id, { rawTarget, imported, bridgeUrl });
       } catch (error) {
         console.warn("Failed to import Canvas attachment:", node, error);
         failed += 1;
       }
     }
 
-    if (!success && !failed) {
+    if (!replacements.size && !failed) {
       if (!options.silent) new Notice(this.t("noticeCanvasImportUnsupported"));
       return { success, failed, reused, changed };
     }
 
-    if (changed) {
-      await this.app.vault.modify(context.file, `${JSON.stringify(canvas, null, 2)}\n`);
-      if (options.trashImported !== false) await this.trashImportedFiles(importedFiles);
-      if (options.scheduleRefresh !== false) this.scheduleReferenceViewRefresh(context.file);
+    if (replacements.size && shouldContinue()) {
+      const appliedPaths = new Set();
+      const remainingPaths = new Set();
+      // Import awaits Eagle; merge into the latest file instead of restoring old geometry.
+      await this.app.vault.process(context.file, latestText => {
+        if (!shouldContinue()) return latestText;
+        const latest = JSON.parse(latestText);
+        const latestNodes = Array.isArray(latest.nodes) ? latest.nodes : [];
+        for (const node of latestNodes) {
+          if (!node) continue;
+          const replacement = replacements.get(node.id);
+          const target = typeof node.file === "string" ? node.file : node.url;
+          if (!replacement || target !== replacement.rawTarget) continue;
+          const { imported, bridgeUrl } = replacement;
+          const size = normalizeCanvasNodeSize(node, imported.sourceFile.name);
+          node.type = "link";
+          node.url = this.buildCanvasEagleBridgeUrl(bridgeUrl, imported.sourceFile.name);
+          node.width = size.width;
+          node.height = size.height;
+          delete node.file;
+          if (isPreviewableImage(imported.sourceFile.name)) {
+            node.eagleBridgeManaged = true;
+            node.eagleBridgeSourceUrl = bridgeUrl;
+            node.eagleBridgeAspect = size.width / size.height;
+            node.eagleBridgeLastWidth = size.width;
+            node.eagleBridgeLastHeight = size.height;
+          } else {
+            delete node.eagleBridgeManaged;
+            delete node.eagleBridgeSourceUrl;
+            delete node.eagleBridgeAspect;
+            delete node.eagleBridgeLastWidth;
+            delete node.eagleBridgeLastHeight;
+          }
+          appliedPaths.add(imported.sourceFile.path);
+          success += 1;
+        }
+        for (const node of latestNodes) {
+          if (!node || typeof node.file !== "string") continue;
+          const file = this.app.metadataCache.getFirstLinkpathDest(node.file, context.file.path);
+          if (file instanceof TFile) remainingPaths.add(file.path);
+        }
+        changed = success > 0;
+        return changed ? `${JSON.stringify(latest, null, 2)}\n` : latestText;
+      });
+      if (changed && shouldContinue() && options.trashImported !== false) {
+        await this.trashImportedFiles(importedFiles.filter(imported =>
+          appliedPaths.has(imported.sourceFile.path) && !remainingPaths.has(imported.sourceFile.path)));
+      }
+      if (changed && options.scheduleRefresh !== false) this.scheduleReferenceViewRefresh(context.file);
     }
 
     if (!options.silent) {
@@ -2916,9 +3011,25 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const paths = new Set();
     for (const file of files) {
       const text = await this.app.vault.read(file);
-      const links = file.extension === "canvas"
-        ? this.findCanvasAttachmentLinks(text, file)
-        : this.findLocalAttachmentLinks(text, file);
+      let links;
+      if (file.extension === "canvas") {
+        const canvas = JSON.parse(text);
+        if (!canvas || !Array.isArray(canvas.nodes)) throw new Error(`Invalid Canvas: ${file.path}`);
+        links = this.findCanvasAttachmentLinks(text, file);
+        for (const node of canvas.nodes) {
+          if (node?.type === "text" && typeof node.text === "string") {
+            links.push(...this.findLocalAttachmentLinks(node.text, file));
+          }
+        }
+      } else {
+        links = this.findLocalAttachmentLinks(text, file);
+        // An open editor may contain references not yet saved to disk.
+        for (const leaf of this.app.workspace?.getLeavesOfType("markdown") || []) {
+          if (leaf.view?.file?.path === file.path && leaf.view.editor) {
+            links.push(...this.findLocalAttachmentLinks(leaf.view.editor.getValue(), file));
+          }
+        }
+      }
       for (const link of links) {
         if (link.file instanceof TFile) paths.add(link.file.path);
       }
@@ -3216,15 +3327,14 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const file = this.getRenderedImageSourceFile(image);
     if (!file) return;
     if (file.extension === "canvas") {
-      const items = await this.queryNoteAttachmentItemsForFile(file);
-      const src = safeDecode(String(image.getAttribute("src") || ""));
-      const itemIdMatch = src.match(/\/images\/([^/?#]+)\.info/i);
-      const itemId = itemIdMatch ? stripInfoSuffix(itemIdMatch[1]) : "";
-      const item = items.find(candidate => (
-        (itemId && stripInfoSuffix(getEagleItemId(candidate)) === itemId)
-        || candidate.resourceURL === src
-        || candidate.url === src
-      ));
+      const items = await this.getSourceAttachmentReferences(file);
+      const identity = this.getRenderedAttachmentIdentity(image);
+      const nodeId = image.closest("[data-node-id]")?.getAttribute("data-node-id");
+      const matching = items.filter(candidate => this.getAssetIdentityScore(candidate, identity) >= 100);
+      const item = matching.find(candidate => nodeId && candidate.__canvasNodeId === nodeId)
+        || (matching.length === 1 ? matching[0] : null)
+        || (extractEagleBridgeItemIdFromText(identity.src) ? matching[0] : null);
+      const itemId = extractEagleBridgeItemIdFromText(identity.src);
       if (item) await this.scrollReferenceViewsToAsset(file.path, { assetKey: item.id, itemId });
       return;
     }
@@ -3260,18 +3370,19 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const text = await this.app.vault.read(noteFile);
     const identity = this.getRenderedAttachmentIdentity(image);
     const src = identity.src;
-    const idMatch = src.match(/\/images\/([^/?#]+)\.info/i);
-    const cleanId = idMatch ? stripInfoSuffix(safeDecode(idMatch[1])) : "";
+    const cleanId = extractEagleBridgeItemIdFromText(src);
     const refs = this.extractEagleBridgeItemReferences(text);
 
     if (cleanId) {
-      const byId = refs.find(ref => ref.id === cleanId);
+      const byId = this.chooseRenderedImageReference(noteFile, image, refs.filter(ref => ref.id === cleanId));
       if (byId) return { start: byId.start, end: byId.end, itemId: cleanId };
+      return null;
     }
 
-    for (const name of identity.names) {
+    for (const name of src ? [] : identity.names) {
       const cleanAlt = cleanEagleBridgeLabel(name);
-      const byLabel = cleanAlt && refs.find(ref => cleanEagleBridgeLabel(ref.label) === cleanAlt);
+      const byLabel = cleanAlt && this.chooseRenderedImageReference(noteFile, image,
+        refs.filter(ref => cleanEagleBridgeLabel(ref.label) === cleanAlt));
       if (byLabel) return { start: byLabel.start, end: byLabel.end, itemId: byLabel.id };
     }
 
@@ -3282,6 +3393,9 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       return {
         start: localOrInternet.start,
         end: localOrInternet.end,
+        assetKey: localOrInternet.file ? `local:${localOrInternet.file.path}`
+          : localOrInternet.localPath ? `external-local:${localOrInternet.localPath}`
+          : `internet:${localOrInternet.url}`,
         link: localOrInternet
       };
     }
@@ -3302,34 +3416,31 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const text = await this.app.vault.read(noteFile);
     const { localLinks: links, externalLocalLinks, internetLinks } = this.collectMarkdownAttachmentLinks(text, noteFile);
 
-    const { src, names } = this.getRenderedAttachmentIdentity(image);
-    const srcName = safeDecode(nodePath.basename(src.split("?")[0]));
-    const matchesName = candidates => names.some(name => candidates.includes(name));
+    const identity = this.getRenderedAttachmentIdentity(image);
+    const candidates = [
+      ...links.map(link => ({ link, item: { __assetSource: "local", __localFile: link.file, __localTarget: link.target, name: link.file.name } })),
+      ...externalLocalLinks.map(link => ({ link, item: { __assetSource: "external-local", __externalLocalPath: link.localPath, name: link.name } })),
+      ...internetLinks.map(link => ({ link, item: { __assetSource: "internet", url: link.url, name: link.name } }))
+    ].map(candidate => ({ ...candidate, score: this.getAssetIdentityScore(candidate.item, identity) }));
+    const bestScore = Math.max(0, ...candidates.map(candidate => candidate.score));
+    return bestScore ? this.chooseRenderedImageReference(noteFile, image,
+      candidates.filter(candidate => candidate.score === bestScore).map(candidate => candidate.link)) : null;
+  }
 
-    for (const link of links) {
-      const fullPath = this.getFullPath(link.file).replace(/\\/g, "/");
-      const decodedFullPath = safeDecode(fullPath);
-      if (src && (src.includes(fullPath) || src.includes(decodedFullPath))) return link;
-      if (matchesName([link.file.basename, link.file.name, link.target])) return link;
-      if (srcName && srcName === link.file.name) return link;
-    }
-
-    for (const link of externalLocalLinks) {
-      const normalizedPath = safeDecode(link.localPath).replace(/\\/g, "/");
-      const fileName = nodePath.basename(link.localPath);
-      if (src && (safeDecode(src).replace(/\\/g, "/").includes(normalizedPath) || srcName === fileName)) return link;
-      if (matchesName([link.name, fileName, link.target])) return link;
-    }
-
-    for (const link of internetLinks) {
-      if (src && (src === link.url || src.includes(link.url) || safeDecode(src) === safeDecode(link.url))) return link;
-      if (matchesName([link.name, link.url])) return link;
-      if (srcName && srcName === nodePath.basename(String(link.url).split("?")[0])) return link;
-    }
-
-    const allLocalLinks = links.concat(externalLocalLinks);
-    if (allLocalLinks.length === 1) return allLocalLinks[0];
-    return null;
+  chooseRenderedImageReference(file, image, candidates) {
+    if (candidates.length === 1) return candidates[0];
+    const leaf = this.app.workspace.getLeavesOfType("markdown")
+      .find(candidate => candidate.view.file?.path === file.path && candidate.view.containerEl.contains(image));
+    const cm = leaf?.view.editor?.cm;
+    if (!cm?.dom?.contains(image)) return null;
+    try {
+      const position = cm.posAtDOM(image);
+      const exact = candidates.filter(candidate => candidate.start <= position && candidate.end >= position);
+      if (exact.length === 1) return exact[0];
+      const line = cm.state.doc.lineAt(position);
+      const inLine = candidates.filter(candidate => candidate.start >= line.from && candidate.start <= line.to);
+      return inLine.length === 1 ? inLine[0] : null;
+    } catch (_) { return null; }
   }
 
   getRenderedAttachmentIdentity(element) {
@@ -3337,7 +3448,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       ? element
       : element && element.querySelector && element.querySelector("[src], [href], [data-href]");
     const read = name => String(source && source.getAttribute(name) || element && element.getAttribute && element.getAttribute(name) || "").trim();
-    const src = safeDecode(read("src") || read("href") || read("data-href"));
+    const src = safeDecode(source?.currentSrc || read("src") || read("data-src") || read("href") || read("data-href"));
     const names = [read("alt"), read("aria-label"), read("data-href"), String(element && element.textContent || "").trim(), safeDecode(nodePath.basename(src.split("?")[0]))]
       .filter(Boolean);
     return { src, names: Array.from(new Set(names)) };
@@ -3422,17 +3533,10 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       new Notice(this.t("noticeNoAttachmentAtCursor"));
       return;
     }
-    const { cursor, lineText, link } = match;
-    const imported = await this.importOneAttachment(context, link);
-    if (!imported) return;
-
-    const sizedReplacement = preserveAttachmentDisplaySize(link.original, imported.replacement);
-    const replacement = isProbablyMarkdownTableLine(lineText)
-      ? escapeMarkdownTablePipes(sizedReplacement)
-      : sizedReplacement;
-    editor.replaceRange(replacement, { line: cursor.line, ch: link.start }, { line: cursor.line, ch: link.end });
-    await this.trashImportedFiles([imported]);
-    new Notice(this.t("noticeImportedToEagle", { name: imported.sourceFile.name }));
+    const { cursor, link } = match;
+    const sourceText = editor.getValue();
+    const offset = editor.posToOffset({ line: cursor.line, ch: 0 });
+    await this.importAttachmentLinks(context, [{ ...link, start: offset + link.start, end: offset + link.end }], [], { sourceText });
   }
 
   getImportableAttachmentAtCursor(editor, view) {
@@ -3445,6 +3549,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   }
 
   async importAttachmentLinks(context, links, internetLinks = [], options = {}) {
+    const shouldContinue = () => !this.unloaded && (!options.shouldContinue || options.shouldContinue());
     const replacements = [];
     const importedFiles = [];
     const importedByPath = options.importedByPath instanceof Map
@@ -3456,11 +3561,13 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const sourceText = options.sourceText !== undefined
       ? options.sourceText
       : await this.app.vault.read(context.file);
+    const sourceLinks = Object.values(this.collectMarkdownAttachmentLinks(sourceText, context.file)).flat();
     let success = 0;
     let failed = 0;
     let reused = 0;
 
     for (const link of links) {
+      if (!shouldContinue()) break;
       try {
         const importKey = link.file instanceof TFile ? link.file.path : link.localPath;
         if (!importKey) throw new Error("无法确定本地附件路径。");
@@ -3483,11 +3590,8 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
         }
         const sizedReplacement = preserveAttachmentDisplaySize(link.original, imported.replacement);
         replacements.push({
-          start: link.start,
-          end: link.end,
-          value: makeMarkdownTableSafeReference(sourceText, link.start, sizedReplacement)
+          link, imported, value: sizedReplacement
         });
-        success += 1;
       } catch (error) {
         console.warn("Failed to import attachment:", link, error);
         failed += 1;
@@ -3495,6 +3599,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     }
 
     for (const link of internetLinks) {
+      if (!shouldContinue()) break;
       try {
         const importKey = link.url;
         let imported = importedByUrl.get(importKey);
@@ -3515,31 +3620,37 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
         }
         const sizedReplacement = preserveAttachmentDisplaySize(link.original, imported.replacement);
         replacements.push({
-          start: link.start,
-          end: link.end,
-          value: makeMarkdownTableSafeReference(sourceText, link.start, sizedReplacement)
+          link, imported, value: sizedReplacement
         });
-        success += 1;
       } catch (error) {
         console.warn("Failed to import internet attachment:", link, error);
         failed += 1;
       }
     }
 
-    if (replacements.length) {
-      let text = sourceText;
-      replacements.sort((a, b) => b.start - a.start);
-      for (const replacement of replacements) {
-        text = text.slice(0, replacement.start) + replacement.value + text.slice(replacement.end);
+    if (replacements.length && shouldContinue()) {
+      let applied = [];
+      await this.app.vault.process(context.file, latestText => {
+        if (!shouldContinue()) return latestText;
+        const latestLinks = Object.values(this.collectMarkdownAttachmentLinks(latestText, context.file)).flat();
+        const merged = mergeAttachmentReplacements(sourceText, latestText, replacements, sourceLinks, latestLinks);
+        applied = merged.applied;
+        return merged.text;
+      });
+      success = applied.length;
+      failed += replacements.length - success;
+      if (shouldContinue() && options.trashImported !== false) {
+        const appliedPaths = new Set(applied.map(replacement => replacement.imported.sourceFile.path));
+        await this.trashImportedFiles(importedFiles.filter(imported => appliedPaths.has(imported.sourceFile.path)));
       }
-      const normalizedText = await this.normalizeEagleBridgeReferenceLabels(context, text);
-      await this.app.vault.modify(context.file, normalizedText);
-      if (options.trashImported !== false) await this.trashImportedFiles(importedFiles);
-    } else {
-      // A prior URL import may already be an Eagle link with a stale network
-      // label. "Import attachments" is also the safe manual way to update it.
-      const normalizedText = await this.normalizeEagleBridgeReferenceLabels(context, sourceText);
-      if (normalizedText !== sourceText) await this.app.vault.modify(context.file, normalizedText);
+    }
+    // Metadata lookup awaits Eagle too; never restore a snapshot if editing continued.
+    if (shouldContinue()) {
+      const latestText = await this.app.vault.read(context.file);
+      const normalizedText = await this.normalizeEagleBridgeReferenceLabels(context, latestText);
+      if (normalizedText !== latestText) {
+        await this.app.vault.process(context.file, current => shouldContinue() && current === latestText ? normalizedText : current);
+      }
     }
 
     if (!options.silent) {
@@ -5406,15 +5517,23 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       refs.push({ id: cleanId, label: cleanEagleBridgeLabel(label), start, end });
     };
 
-    const mdRe = /!?\[([^\]]*)\]\((https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info)\)/g;
+    const mdRe = /!?\[([^\]]*)\]\((https?:\/\/[^)\s"'<>]+\/images\/([^)\s"'<>]+)\.info)\)/g;
     let match;
     while ((match = mdRe.exec(source)) !== null) {
+      if (!this.isEagleBridgeAssetUrl(match[2])) continue;
       addRef(match[3], match[1], match.index, match.index + match[0].length);
     }
 
-    const urlRe = /https?:\/\/localhost:\d+\/images\/([^)\s"'<>]+)\.info/g;
-    while ((match = urlRe.exec(source)) !== null) {
-      addRef(match[1], "", match.index, match.index + match[0].length);
+    for (const ref of parseOeLinkReferences(source, url => this.isEagleBridgeAssetUrl(url))) {
+      addRef(ref.id, "", ref.start, ref.end);
+    }
+
+    const canvasUrlRe = /https?:\/\/[^\s"'<>]+\/__eaglebridge__\/canvas-(?:image|resource)\?[^\s"'<>]+/g;
+    while ((match = canvasUrlRe.exec(source)) !== null) {
+      const url = cleanExternalAttachmentUrl(match[0]);
+      if (!this.isEagleBridgeAssetUrl(url)) continue;
+      const idMatch = url.match(/\/images\/([^/?#]+)\.info(?:$|[?#/])/i);
+      if (idMatch) addRef(idMatch[1], "", match.index, match.index + match[0].length);
     }
 
     return refs;
@@ -5449,64 +5568,40 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     }
   }
 
-  async updateEagleItemFolder(itemId, folderId) {
+  async updateEagleItemFolder(itemId, folderId, options = {}) {
     const cleanItemId = String(itemId || "").trim();
     const cleanFolderId = String(folderId || "").trim();
     if (!cleanItemId || !cleanFolderId) return false;
 
-    const helperOk = await this.addEagleItemToFolderViaHelper(cleanItemId, cleanFolderId);
-    if (helperOk) return true;
-
+    const removeIds = new Set((options.removeFolderIds || []).map(String).filter(id => id !== cleanFolderId));
+    const current = await this.queryEagleItemInfo(cleanItemId, { force: true });
+    if (!current) return false;
+    const nextFolders = Array.from(new Set([...getEagleItemFolderIds(current), cleanFolderId]))
+      .filter(id => !removeIds.has(id));
+    const isUpdated = item => itemHasEagleFolder(item, cleanFolderId)
+      && Array.from(removeIds).every(id => !itemHasEagleFolder(item, id));
+    if (isUpdated(current)) return true;
     const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
-    const attempts = [
-      { endpoint: "moveToFolder", payload: { id: cleanItemId, itemId: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
-      { endpoint: "moveTo", payload: { id: cleanItemId, itemId: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
-      { endpoint: "move", payload: { id: cleanItemId, itemId: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
-      { endpoint: "update", payload: { id: cleanItemId, folderId: cleanFolderId, folderID: cleanFolderId } },
-      { endpoint: "update", payload: { id: cleanItemId, itemId: cleanItemId, folders: [cleanFolderId] } },
-      { endpoint: "update", payload: { id: cleanItemId, itemId: cleanItemId, folderIds: [cleanFolderId] } },
-      { endpoint: "update", payload: { id: cleanItemId, itemId: cleanItemId, folderIDs: [cleanFolderId] } }
-    ];
-
-    for (const attempt of attempts) {
-      try {
-        const response = await requestUrl({
-          url: `${base}/api/item/${attempt.endpoint}`,
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(attempt.payload)
-        });
-        const body = response.json;
-        if (body && body.status && body.status !== "success") continue;
-        this.invalidateEagleItemInfo(cleanItemId);
-        const updated = await this.queryEagleItemInfo(cleanItemId, { force: true });
-        if (itemHasEagleFolder(updated, cleanFolderId)) return true;
-      } catch (error) {
-        console.warn("Failed to update Eagle item folder:", error);
-      }
+    try {
+      await this.requestEagleApiJson({
+        url: `${base}/api/v2/item/update`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: cleanItemId, folders: nextFolders })
+      });
+      this.invalidateEagleItemInfo(cleanItemId);
+      if (isUpdated(await this.queryEagleItemInfo(cleanItemId, { force: true }))) return true;
+    } catch (error) {
+      console.warn("Eagle V2 folder update unavailable; trying helper:", error);
     }
-
-    const queryAttempts = [
-      `moveToFolder?id=${encodeURIComponent(cleanItemId)}&folderId=${encodeURIComponent(cleanFolderId)}`,
-      `moveToFolder?itemId=${encodeURIComponent(cleanItemId)}&folderId=${encodeURIComponent(cleanFolderId)}`,
-      `move?id=${encodeURIComponent(cleanItemId)}&folderId=${encodeURIComponent(cleanFolderId)}`
-    ];
-    for (const path of queryAttempts) {
-      try {
-        const response = await requestUrl({
-          url: `${base}/api/item/${path}`,
-          method: "POST"
-        });
-        const body = response.json;
-        if (body && body.status && body.status !== "success") continue;
-        this.invalidateEagleItemInfo(cleanItemId);
-        const updated = await this.queryEagleItemInfo(cleanItemId, { force: true });
-        if (itemHasEagleFolder(updated, cleanFolderId)) return true;
-      } catch (error) {
-        console.warn("Failed to update Eagle item folder with query endpoint:", error);
-      }
+    const helperOk = await this.addEagleItemToFolderViaHelper(cleanItemId, cleanFolderId);
+    if (!helperOk) return false;
+    try {
+      if (removeIds.size) await this.removeEagleItemFoldersViaHelper(cleanItemId, Array.from(removeIds));
+      return isUpdated(await this.queryEagleItemInfo(cleanItemId, { force: true }));
+    } catch (error) {
+      console.warn("Failed to remove Eagle root folder assignment:", error);
     }
-
     return false;
   }
 
@@ -5661,10 +5756,25 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
   async trashImportedFiles(importedItems) {
     if (!this.settings.trashAfterImport) return;
     const seen = new Set();
+    const verified = [];
     for (const imported of importedItems) {
       const file = imported && imported.sourceFile;
-      if (!file || seen.has(file.path)) continue;
+      if (!(file instanceof TFile) || seen.has(file.path) || isInsideEagleLibrary(file.path)) continue;
       seen.add(file.path);
+      if (await this.isVerifiedLocalCopyOfEagleItem(file, imported.item)) verified.push(file);
+    }
+    if (!verified.length) return;
+    let protectedPaths;
+    try {
+      protectedPaths = await this.getVaultReferencedLocalAttachmentPaths();
+    } catch (error) {
+      console.warn("Cannot verify vault references; retaining imported attachments:", error);
+      new Notice(this.t("noticeImportedTrashFailed", { name: verified.map(file => file.name).join(", ") }));
+      return;
+    }
+    for (const file of verified) {
+      if (this.unloaded) return;
+      if (protectedPaths.has(file.path)) continue;
       try {
         await this.trashLocalFile(file);
       } catch (error) {
@@ -5855,7 +5965,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       entry.refs.push(ref);
     };
 
-    const oeRefs = parseOeLinkReferences(text);
+    const oeRefs = parseOeLinkReferences(text, url => this.isEagleBridgeAssetUrl(url));
     const { localLinks: localRefs, externalLocalLinks: externalRefs } = this.collectMarkdownAttachmentLinks(text, file, {
       includeMissing: true,
       includeInternet: false
