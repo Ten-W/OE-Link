@@ -4,23 +4,32 @@ const path = require("path");
 const read = (name) => fs.readFileSync(path.join(__dirname, name), "utf8");
 const mobile = read("mobile.js");
 const desktop = read("desktop.js");
+const controller = read("lib/connection-controller.js");
 
 const output = `const { Platform } = require("obsidian");
 
-const useCloudMode = Platform.isMobile
-  || globalThis.localStorage?.getItem("oe-link-connection-mode") === "cloud";
-
-if (useCloudMode) {
+function loadMode(mode) {
+if (mode === "cloud") {
   const mobileModule = { exports: {} };
   ((module, require) => {
 ${mobile}
   })(mobileModule, require);
-  module.exports = mobileModule.exports;
+  return mobileModule.exports;
 } else {
+  const desktopModule = { exports: {} };
+  ((module, require) => {
 // DESKTOP_BUNDLE_START
 ${desktop}
 // DESKTOP_BUNDLE_END
+  })(desktopModule, require);
+  return desktopModule.exports;
 }
+}
+const controllerModule = { exports: {} };
+((module, require) => {
+${controller}
+})(controllerModule, require);
+module.exports = controllerModule.exports.createConnectionController(loadMode);
 `;
 
 fs.writeFileSync(path.join(__dirname, "main.js"), output);

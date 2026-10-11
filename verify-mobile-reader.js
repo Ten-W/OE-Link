@@ -67,6 +67,12 @@ try {
   assert.match(source, /requestUrl\(\{ url, method: "GET", throw: false \}\)/);
 
   const MobilePlugin = require("./mobile.js");
+  let restoredCloudDom = false;
+  const stoppedReader = { cloudDomRestorations: new Map([[{}, () => { restoredCloudDom = true; }]]) };
+  MobilePlugin.prototype.onunload.call(stoppedReader);
+  assert.strictEqual(restoredCloudDom, true);
+  assert.strictEqual(stoppedReader.unloaded, true);
+  assert.strictEqual(stoppedReader.cloudDomRestorations.size, 0);
   const {
     extractItemId, getCloudAttachmentKind, parseCloudLinks, parseCloudAttachmentLinks, pickAssetFile, pickWebdavAsset, shouldUseOriginalPreview, joinUrl,
   } = MobilePlugin._test;

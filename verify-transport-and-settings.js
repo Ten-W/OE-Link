@@ -47,7 +47,7 @@ const externalImportIndex = settings.indexOf('const externalLocalImportSetting =
 const rulesIndex = settings.indexOf('const rules = containerEl.createDiv');
 assert.ok(bridgeSettingIndex >= 0 && bridgeSettingIndex < externalImportIndex && externalImportIndex < rulesIndex);
 assert.match(mobile, /addField\("WebDAV 地址", "WebDAV 地址，例如：https:\/\/example\.com\/dav\/files\/user", mobile\.webdavUrl, "text"/);
-assert.match(source, /enablePlugin\(pluginId\);[\s\S]{0,80}openTabById\(pluginId\)/);
+assert.doesNotMatch(source + mobile, /disablePlugin|enablePlugin/);
 assert.doesNotMatch(settings, /markRequired|required:\s*true/);
 assert.match(settings, /settingAutoDetect/);
 assert.doesNotMatch(settings, /onDetect: \(\) => this\.plugin\.detectAndFillEagleApiUrl/);

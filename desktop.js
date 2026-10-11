@@ -14,7 +14,6 @@
     const { getDefaultEaglePluginsDir, normalizeEagleFolderId } = require("./lib/asset-utils");
 
     const VIEW_TYPE = "eaglebridge-note-assets-view";
-    const CONNECTION_MODE_KEY = "oe-link-connection-mode";
     const EAGLE_HELPER_PLUGIN_ID = "oe-link-helper";
     const EAGLE_HELPER_PLUGIN_VERSION = "0.2.13";
     const EAGLE_HELPER_PORTS = Array.from({ length: 10 }, (_, index) => 41596 + index);
@@ -144,6 +143,7 @@
       async onload() {
         this.unloaded = false;
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        if (this.unloaded) return;
         this.migrateSettings();
         this.desktopDiagnosticEvents = [];
         this.registerDomEvent(document, "error", event => {
@@ -151,11 +151,12 @@
           const src = target && target.tagName === "IMG" ? String(target.currentSrc || target.src || "") : "";
           if (/\/images\/[^/?#]+\.info/i.test(src)) this.recordDesktopDiagnosticEvent("image-error", { src });
         }, true);
-        setTimeout(() => {
+        const mediaServiceTimer = setTimeout(() => {
           this.syncCompanionMediaService().catch(error => {
             console.warn("OE Link media service is not ready:", error);
           });
         }, 800);
+        this.register(() => clearTimeout(mediaServiceTimer));
         this.eagleItems = new EagleItemRepository({
           request: request => this.requestEagleApiJson(request),
           getBaseUrl: () => this.settings.eagleApiBaseUrl,
@@ -360,16 +361,6 @@
 
       async saveSettings() {
         await this.saveData(this.settings);
-      }
-
-      switchConnectionMode(mode) {
-        globalThis.localStorage?.setItem(CONNECTION_MODE_KEY, mode);
-        const pluginId = this.manifest.id;
-        setTimeout(async () => {
-          await this.app.plugins.disablePlugin(pluginId);
-          await this.app.plugins.enablePlugin(pluginId);
-          this.app.setting?.openTabById(pluginId);
-        }, 0);
       }
 
       getCompanionMediaUrl() {

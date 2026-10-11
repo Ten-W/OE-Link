@@ -6,7 +6,6 @@ const GRAPH = "https://graph.microsoft.com/v1.0";
 const LOGIN = "https://login.microsoftonline.com/consumers/oauth2/v2.0";
 const READ_SCOPE = "offline_access Files.Read User.Read";
 const CLIENT_ID = "d112d645-97e6-4b00-a74e-7d4b4eabab79";
-const CONNECTION_MODE_KEY = "oe-link-connection-mode";
 const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "heic", "heif", "jfif", "jpeg", "jpg", "png", "svg", "webp"]);
 const AUDIO_EXTENSIONS = new Set(["3gp", "aac", "flac", "m4a", "mp3", "ogg", "opus", "wav", "wma"]);
 const VIDEO_EXTENSIONS = new Set(["avi", "flv", "m4v", "mkv", "mov", "mp4", "ogv", "webm", "wmv"]);
@@ -400,7 +399,9 @@ class MobileSettingTab extends PluginSettingTab {
 
 class EagleBridgeMobilePlugin extends Plugin {
   async onload() {
+    this.unloaded = false;
     this.settings = (await this.loadData()) || {};
+    if (this.unloaded) return;
     this.mobile = { ...DEFAULT_MOBILE, ...(this.settings.mobile || {}) };
     const previewLimit = Number(this.mobile.previewOriginalMaxMb);
     this.mobile.previewOriginalMaxMb = Number.isFinite(previewLimit) && previewLimit >= 0 ? previewLimit : 2;
@@ -416,6 +417,7 @@ class EagleBridgeMobilePlugin extends Plugin {
     this.loadWaiters = [];
     this.observedImages = new WeakMap();
     this.imageSpinners = new WeakMap();
+    this.cloudDomRestorations = new Map();
     this.imageObserver = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(entries => {
       const center = window.innerHeight / 2;
       for (const entry of entries) {
@@ -434,6 +436,7 @@ class EagleBridgeMobilePlugin extends Plugin {
     }, { rootMargin: "600px 0px", threshold: 0.01 });
     this.accessToken = "";
     this.connected = Boolean(await this.getRefreshToken());
+    if (this.unloaded) return;
     this.addSettingTab(new MobileSettingTab(this.app, this));
     this.registerEditorExtension(createCloudLivePreviewExtension(this));
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => this.addEditorAttachmentMenuItems(menu, editor)));
@@ -453,7 +456,9 @@ class EagleBridgeMobilePlugin extends Plugin {
     this.unloaded = true;
     this.imageObserver?.disconnect();
     this.domObserver?.disconnect();
-    this.clearCache();
+    for (const restore of this.cloudDomRestorations?.values() || []) restore();
+    this.cloudDomRestorations?.clear();
+    if (this.pending && this.cache) this.clearCache();
   }
 
   get secretKey() {
@@ -464,16 +469,6 @@ class EagleBridgeMobilePlugin extends Plugin {
     this.syncCacheScope();
     this.settings = { ...this.settings, mobile: { ...this.mobile } };
     await this.saveData(this.settings);
-  }
-
-  switchConnectionMode(mode) {
-    globalThis.localStorage?.setItem(CONNECTION_MODE_KEY, mode);
-    const pluginId = this.manifest.id;
-    setTimeout(async () => {
-      await this.app.plugins.disablePlugin(pluginId);
-      await this.app.plugins.enablePlugin(pluginId);
-      this.app.setting?.openTabById(pluginId);
-    }, 0);
   }
 
   async getRefreshToken() {
@@ -656,6 +651,7 @@ class EagleBridgeMobilePlugin extends Plugin {
   }
 
   async processAssets(root, force = false) {
+    if (this.unloaded) return;
     const images = this.findElements(root, "img[src]").filter(img => extractItemId(img.dataset.eaglebridgeOriginalSrc || img.getAttribute("src")));
     if (!this.imageObserver) {
       await Promise.all(images.map(img => this.loadImage(img, force)));
@@ -686,6 +682,18 @@ class EagleBridgeMobilePlugin extends Plugin {
     if (link.dataset.oeLinkDownloadReady || link.querySelector("img")) return;
     const itemId = extractItemId(link.getAttribute("href"));
     if (!itemId) return;
+    const originalLink = link.cloneNode(true);
+    const originalClick = link.onclick;
+    const restoration = { element: link };
+    this.cloudDomRestorations.set(link, () => {
+      for (const attribute of [...link.attributes]) link.removeAttribute(attribute.name);
+      for (const attribute of originalLink.attributes) link.setAttribute(attribute.name, attribute.value);
+      link.replaceChildren(...originalLink.childNodes);
+      link.onclick = originalClick;
+      delete link.oeLinkRestoration;
+      if (restoration.element !== link) restoration.element.replaceWith(link);
+    });
+    link.oeLinkRestoration = restoration;
     link.dataset.oeLinkDownloadReady = "true";
     const name = String(link.textContent || `${itemId}.bin`).replace(/\|\d+$/, "").trim();
     const kind = getCloudAttachmentKind(name);
@@ -732,6 +740,7 @@ class EagleBridgeMobilePlugin extends Plugin {
     link.classList.add("eaglebridge-mobile-attachment-loading");
     try {
       const asset = await this.getImage(itemId, true, false);
+      if (this.unloaded) return;
       const media = document.createElement(kind === "pdf" ? "iframe" : kind);
       media.src = asset.url;
       media.className = kind === "pdf" ? "eaglebridge-pdf-embed" : "eaglebridge-media-embed";
@@ -744,7 +753,9 @@ class EagleBridgeMobilePlugin extends Plugin {
         media.preload = "metadata";
       }
       link.replaceWith(media);
+      if (link.oeLinkRestoration) link.oeLinkRestoration.element = media;
     } catch (error) {
+      if (this.unloaded) return;
       link.classList.remove("eaglebridge-mobile-attachment-loading");
       link.title = `附件预览失败：${error.message}`;
       this.renderFileAttachment(link, itemId, name);
@@ -923,6 +934,19 @@ class EagleBridgeMobilePlugin extends Plugin {
     const original = img.dataset.eaglebridgeOriginalSrc || img.getAttribute("src");
     const itemId = extractItemId(original);
     if (!itemId || !this.hasLibrary()) return;
+    if (!this.cloudDomRestorations.has(img)) {
+      const title = img.title;
+      const onclick = img.onclick;
+      this.cloudDomRestorations.set(img, () => {
+        img.src = original;
+        img.title = title;
+        img.onclick = onclick;
+        delete img.dataset.eaglebridgeOriginalSrc;
+        delete img.dataset.eaglebridgeOriginalLoaded;
+        img.classList.remove("eaglebridge-mobile-loading", "eaglebridge-mobile-error");
+        this.setImageLoading(img, false);
+      });
+    }
     const state = this.observedImages.get(img) || { force, leftViewport: false };
     if (state.loading) return;
     state.loading = true;
@@ -933,6 +957,7 @@ class EagleBridgeMobilePlugin extends Plugin {
     this.setImageLoading(img, true);
     try {
       const preview = await this.getImage(itemId, false, force);
+      if (this.unloaded) return;
       img.src = preview.url;
       img.onclick = null;
       img.classList.remove("eaglebridge-mobile-loading", "eaglebridge-mobile-error");
@@ -947,6 +972,7 @@ class EagleBridgeMobilePlugin extends Plugin {
       img.dataset.eaglebridgeOriginalLoaded = "false";
       img.title = "右键或长按可加载 Eagle 原图";
     } catch (error) {
+      if (this.unloaded) return;
       img.classList.remove("eaglebridge-mobile-loading");
       img.classList.add("eaglebridge-mobile-error");
       state.failed = true;

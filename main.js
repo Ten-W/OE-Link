@@ -1,9 +1,7 @@
 const { Platform } = require("obsidian");
 
-const useCloudMode = Platform.isMobile
-  || globalThis.localStorage?.getItem("oe-link-connection-mode") === "cloud";
-
-if (useCloudMode) {
+function loadMode(mode) {
+if (mode === "cloud") {
   const mobileModule = { exports: {} };
   ((module, require) => {
 const { editorLivePreviewField, Menu, Modal, Notice, Platform, Plugin, PluginSettingTab, Setting, requestUrl, setIcon } = require("obsidian");
@@ -14,7 +12,6 @@ const GRAPH = "https://graph.microsoft.com/v1.0";
 const LOGIN = "https://login.microsoftonline.com/consumers/oauth2/v2.0";
 const READ_SCOPE = "offline_access Files.Read User.Read";
 const CLIENT_ID = "d112d645-97e6-4b00-a74e-7d4b4eabab79";
-const CONNECTION_MODE_KEY = "oe-link-connection-mode";
 const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "heic", "heif", "jfif", "jpeg", "jpg", "png", "svg", "webp"]);
 const AUDIO_EXTENSIONS = new Set(["3gp", "aac", "flac", "m4a", "mp3", "ogg", "opus", "wav", "wma"]);
 const VIDEO_EXTENSIONS = new Set(["avi", "flv", "m4v", "mkv", "mov", "mp4", "ogv", "webm", "wmv"]);
@@ -408,7 +405,9 @@ class MobileSettingTab extends PluginSettingTab {
 
 class EagleBridgeMobilePlugin extends Plugin {
   async onload() {
+    this.unloaded = false;
     this.settings = (await this.loadData()) || {};
+    if (this.unloaded) return;
     this.mobile = { ...DEFAULT_MOBILE, ...(this.settings.mobile || {}) };
     const previewLimit = Number(this.mobile.previewOriginalMaxMb);
     this.mobile.previewOriginalMaxMb = Number.isFinite(previewLimit) && previewLimit >= 0 ? previewLimit : 2;
@@ -424,6 +423,7 @@ class EagleBridgeMobilePlugin extends Plugin {
     this.loadWaiters = [];
     this.observedImages = new WeakMap();
     this.imageSpinners = new WeakMap();
+    this.cloudDomRestorations = new Map();
     this.imageObserver = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(entries => {
       const center = window.innerHeight / 2;
       for (const entry of entries) {
@@ -442,6 +442,7 @@ class EagleBridgeMobilePlugin extends Plugin {
     }, { rootMargin: "600px 0px", threshold: 0.01 });
     this.accessToken = "";
     this.connected = Boolean(await this.getRefreshToken());
+    if (this.unloaded) return;
     this.addSettingTab(new MobileSettingTab(this.app, this));
     this.registerEditorExtension(createCloudLivePreviewExtension(this));
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => this.addEditorAttachmentMenuItems(menu, editor)));
@@ -461,7 +462,9 @@ class EagleBridgeMobilePlugin extends Plugin {
     this.unloaded = true;
     this.imageObserver?.disconnect();
     this.domObserver?.disconnect();
-    this.clearCache();
+    for (const restore of this.cloudDomRestorations?.values() || []) restore();
+    this.cloudDomRestorations?.clear();
+    if (this.pending && this.cache) this.clearCache();
   }
 
   get secretKey() {
@@ -472,16 +475,6 @@ class EagleBridgeMobilePlugin extends Plugin {
     this.syncCacheScope();
     this.settings = { ...this.settings, mobile: { ...this.mobile } };
     await this.saveData(this.settings);
-  }
-
-  switchConnectionMode(mode) {
-    globalThis.localStorage?.setItem(CONNECTION_MODE_KEY, mode);
-    const pluginId = this.manifest.id;
-    setTimeout(async () => {
-      await this.app.plugins.disablePlugin(pluginId);
-      await this.app.plugins.enablePlugin(pluginId);
-      this.app.setting?.openTabById(pluginId);
-    }, 0);
   }
 
   async getRefreshToken() {
@@ -664,6 +657,7 @@ class EagleBridgeMobilePlugin extends Plugin {
   }
 
   async processAssets(root, force = false) {
+    if (this.unloaded) return;
     const images = this.findElements(root, "img[src]").filter(img => extractItemId(img.dataset.eaglebridgeOriginalSrc || img.getAttribute("src")));
     if (!this.imageObserver) {
       await Promise.all(images.map(img => this.loadImage(img, force)));
@@ -694,6 +688,18 @@ class EagleBridgeMobilePlugin extends Plugin {
     if (link.dataset.oeLinkDownloadReady || link.querySelector("img")) return;
     const itemId = extractItemId(link.getAttribute("href"));
     if (!itemId) return;
+    const originalLink = link.cloneNode(true);
+    const originalClick = link.onclick;
+    const restoration = { element: link };
+    this.cloudDomRestorations.set(link, () => {
+      for (const attribute of [...link.attributes]) link.removeAttribute(attribute.name);
+      for (const attribute of originalLink.attributes) link.setAttribute(attribute.name, attribute.value);
+      link.replaceChildren(...originalLink.childNodes);
+      link.onclick = originalClick;
+      delete link.oeLinkRestoration;
+      if (restoration.element !== link) restoration.element.replaceWith(link);
+    });
+    link.oeLinkRestoration = restoration;
     link.dataset.oeLinkDownloadReady = "true";
     const name = String(link.textContent || `${itemId}.bin`).replace(/\|\d+$/, "").trim();
     const kind = getCloudAttachmentKind(name);
@@ -740,6 +746,7 @@ class EagleBridgeMobilePlugin extends Plugin {
     link.classList.add("eaglebridge-mobile-attachment-loading");
     try {
       const asset = await this.getImage(itemId, true, false);
+      if (this.unloaded) return;
       const media = document.createElement(kind === "pdf" ? "iframe" : kind);
       media.src = asset.url;
       media.className = kind === "pdf" ? "eaglebridge-pdf-embed" : "eaglebridge-media-embed";
@@ -752,7 +759,9 @@ class EagleBridgeMobilePlugin extends Plugin {
         media.preload = "metadata";
       }
       link.replaceWith(media);
+      if (link.oeLinkRestoration) link.oeLinkRestoration.element = media;
     } catch (error) {
+      if (this.unloaded) return;
       link.classList.remove("eaglebridge-mobile-attachment-loading");
       link.title = `附件预览失败：${error.message}`;
       this.renderFileAttachment(link, itemId, name);
@@ -931,6 +940,19 @@ class EagleBridgeMobilePlugin extends Plugin {
     const original = img.dataset.eaglebridgeOriginalSrc || img.getAttribute("src");
     const itemId = extractItemId(original);
     if (!itemId || !this.hasLibrary()) return;
+    if (!this.cloudDomRestorations.has(img)) {
+      const title = img.title;
+      const onclick = img.onclick;
+      this.cloudDomRestorations.set(img, () => {
+        img.src = original;
+        img.title = title;
+        img.onclick = onclick;
+        delete img.dataset.eaglebridgeOriginalSrc;
+        delete img.dataset.eaglebridgeOriginalLoaded;
+        img.classList.remove("eaglebridge-mobile-loading", "eaglebridge-mobile-error");
+        this.setImageLoading(img, false);
+      });
+    }
     const state = this.observedImages.get(img) || { force, leftViewport: false };
     if (state.loading) return;
     state.loading = true;
@@ -941,6 +963,7 @@ class EagleBridgeMobilePlugin extends Plugin {
     this.setImageLoading(img, true);
     try {
       const preview = await this.getImage(itemId, false, force);
+      if (this.unloaded) return;
       img.src = preview.url;
       img.onclick = null;
       img.classList.remove("eaglebridge-mobile-loading", "eaglebridge-mobile-error");
@@ -955,6 +978,7 @@ class EagleBridgeMobilePlugin extends Plugin {
       img.dataset.eaglebridgeOriginalLoaded = "false";
       img.title = "右键或长按可加载 Eagle 原图";
     } catch (error) {
+      if (this.unloaded) return;
       img.classList.remove("eaglebridge-mobile-loading");
       img.classList.add("eaglebridge-mobile-error");
       state.failed = true;
@@ -1147,8 +1171,10 @@ EagleBridgeMobilePlugin._test = {
 module.exports = EagleBridgeMobilePlugin;
 
   })(mobileModule, require);
-  module.exports = mobileModule.exports;
+  return mobileModule.exports;
 } else {
+  const desktopModule = { exports: {} };
+  ((module, require) => {
 // DESKTOP_BUNDLE_START
 // OE Link desktop bundle.
 // Generated from main.source.js and lib/*.js by scripts/build-desktop.js.
@@ -1166,7 +1192,6 @@ module.exports = EagleBridgeMobilePlugin;
     const { getDefaultEaglePluginsDir, normalizeEagleFolderId } = require("./lib/asset-utils");
 
     const VIEW_TYPE = "eaglebridge-note-assets-view";
-    const CONNECTION_MODE_KEY = "oe-link-connection-mode";
     const EAGLE_HELPER_PLUGIN_ID = "oe-link-helper";
     const EAGLE_HELPER_PLUGIN_VERSION = "0.2.13";
     const EAGLE_HELPER_PORTS = Array.from({ length: 10 }, (_, index) => 41596 + index);
@@ -1296,6 +1321,7 @@ module.exports = EagleBridgeMobilePlugin;
       async onload() {
         this.unloaded = false;
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        if (this.unloaded) return;
         this.migrateSettings();
         this.desktopDiagnosticEvents = [];
         this.registerDomEvent(document, "error", event => {
@@ -1303,11 +1329,12 @@ module.exports = EagleBridgeMobilePlugin;
           const src = target && target.tagName === "IMG" ? String(target.currentSrc || target.src || "") : "";
           if (/\/images\/[^/?#]+\.info/i.test(src)) this.recordDesktopDiagnosticEvent("image-error", { src });
         }, true);
-        setTimeout(() => {
+        const mediaServiceTimer = setTimeout(() => {
           this.syncCompanionMediaService().catch(error => {
             console.warn("OE Link media service is not ready:", error);
           });
         }, 800);
+        this.register(() => clearTimeout(mediaServiceTimer));
         this.eagleItems = new EagleItemRepository({
           request: request => this.requestEagleApiJson(request),
           getBaseUrl: () => this.settings.eagleApiBaseUrl,
@@ -1512,16 +1539,6 @@ module.exports = EagleBridgeMobilePlugin;
 
       async saveSettings() {
         await this.saveData(this.settings);
-      }
-
-      switchConnectionMode(mode) {
-        globalThis.localStorage?.setItem(CONNECTION_MODE_KEY, mode);
-        const pluginId = this.manifest.id;
-        setTimeout(async () => {
-          await this.app.plugins.disablePlugin(pluginId);
-          await this.app.plugins.enablePlugin(pluginId);
-          this.app.setting?.openTabById(pluginId);
-        }, 0);
       }
 
       getCompanionMediaUrl() {
@@ -12607,4 +12624,94 @@ module.exports = EagleBridgeMobilePlugin;
 })(require, module);
 
 // DESKTOP_BUNDLE_END
+  })(desktopModule, require);
+  return desktopModule.exports;
 }
+}
+const controllerModule = { exports: {} };
+((module, require) => {
+const { Plugin, Notice, Platform } = require("obsidian");
+
+function createConnectionController(loadMode) {
+  return class OEConnectionController extends Plugin {
+    async onload() {
+      this.stopped = false;
+      this.switching = true;
+      this.mode = Platform.isMobile || globalThis.localStorage?.getItem("oe-link-connection-mode") === "cloud" ? "cloud" : "local";
+      try { await this.startMode(this.mode); }
+      finally { this.switching = false; }
+    }
+
+    async startMode(mode) {
+      const Runtime = loadMode(mode);
+      const runtime = new Runtime(this.app, this.manifest);
+      runtime.switchConnectionMode = next => this.switchConnectionMode(next);
+      runtime.activeOperations = 0;
+      // Track in-flight work so a mode change cannot interrupt an import or write.
+      for (const name of Object.getOwnPropertyNames(Runtime.prototype)) {
+        const method = Object.getOwnPropertyDescriptor(Runtime.prototype, name).value;
+        if (name === "onload" || name === "switchConnectionMode" || method?.constructor?.name !== "AsyncFunction") continue;
+        runtime[name] = async (...args) => {
+          runtime.activeOperations += 1;
+          try { return await method.apply(runtime, args); }
+          finally { runtime.activeOperations -= 1; }
+        };
+      }
+      runtime.onload = () => { runtime.ready = Runtime.prototype.onload.call(runtime); };
+      this.runtime = runtime;
+      this.addChild(runtime);
+      try { await runtime.ready; }
+      catch (error) { this.removeChild(runtime); this.runtime = null; throw error; }
+      if (this.stopped) throw new Error("OE Link was unloaded during mode initialization.");
+    }
+
+    async switchConnectionMode(next) {
+      if (this.stopped || this.switching || next === this.mode) return;
+      if (!["local", "cloud"].includes(next) || (Platform.isMobile && next !== "cloud")) return;
+      if (this.runtime?.activeOperations) {
+        new Notice("OE Link 正在处理任务，请完成后再切换连接模式。");
+        return;
+      }
+      this.switching = true;
+      const previous = this.mode;
+      if (previous === "local") this.restoreSidebar = this.app.workspace.getLeavesOfType("eaglebridge-note-assets-view").length > 0;
+      try {
+        this.removeChild(this.runtime);
+        this.runtime = null;
+        await this.startMode(next);
+        globalThis.localStorage?.setItem("oe-link-connection-mode", next);
+        this.mode = next;
+        this.refreshRenderedNotes();
+        if (next === "local" && this.restoreSidebar) await this.runtime.openReferenceView();
+        this.app.setting?.openTabById(this.manifest.id);
+      } catch (error) {
+        if (!this.stopped) {
+          try {
+            if (this.runtime) this.removeChild(this.runtime);
+            this.runtime = null;
+            await this.startMode(previous);
+            this.mode = previous;
+            globalThis.localStorage?.setItem("oe-link-connection-mode", previous);
+            this.refreshRenderedNotes();
+            if (previous === "local" && this.restoreSidebar) await this.runtime.openReferenceView();
+          }
+          catch (restoreError) { console.error("OE Link mode recovery failed", restoreError); }
+          new Notice(`连接模式切换失败：${error.message}`);
+        }
+      } finally { this.switching = false; }
+    }
+
+    refreshRenderedNotes() {
+      for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+        leaf.view.previewMode?.rerender(true);
+      }
+    }
+
+    onunload() { this.stopped = true; }
+  };
+}
+
+module.exports = { createConnectionController };
+
+})(controllerModule, require);
+module.exports = controllerModule.exports.createConnectionController(loadMode);

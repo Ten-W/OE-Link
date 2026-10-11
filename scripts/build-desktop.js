@@ -18,7 +18,7 @@ if (!fs.existsSync(libDir)) {
 }
 
 const moduleFiles = fs.readdirSync(libDir)
-  .filter(name => name.endsWith(".js"))
+  .filter(name => name.endsWith(".js") && name !== "connection-controller.js")
   .sort()
   .map(name => ({
     id: `./lib/${name.slice(0, -3)}`,

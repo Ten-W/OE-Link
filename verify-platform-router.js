@@ -2,6 +2,7 @@ const assert = require("assert");
 const fs = require("fs");
 const Module = require("module");
 const path = require("path");
+const vm = require("vm");
 
 const root = __dirname;
 const mainPath = path.join(root, "main.js");
@@ -43,18 +44,23 @@ Module._load = function (request, parent, isMain) {
 };
 
 try {
-  const MobilePlugin = require(mainPath);
+  const loadRuntime = mode => {
+    const context = { module: { exports: {} }, require, console, process };
+    vm.runInNewContext(mainSource + '\nmodule.exports = loadMode("' + mode + '");', context);
+    return context.module.exports;
+  };
+  const MobilePlugin = loadRuntime("cloud");
   assert.strictEqual(typeof MobilePlugin, "function");
   delete require.cache[require.resolve(mainPath)];
   isMobile = false;
   global.localStorage = { getItem: key => key === "oe-link-connection-mode" ? "cloud" : null };
-  const DesktopCloudPlugin = require(mainPath);
+  const DesktopCloudPlugin = loadRuntime("cloud");
   assert.strictEqual(DesktopCloudPlugin.name, MobilePlugin.name, "desktop cloud mode should reuse the mobile cloud reader");
   assert.strictEqual(typeof DesktopCloudPlugin._test?.pickWebdavAsset, "function");
   delete require.cache[require.resolve(mainPath)];
   delete global.localStorage;
   allowDesktop = true;
-  const DesktopPlugin = require(mainPath);
+  const DesktopPlugin = loadRuntime("local");
   assert.strictEqual(typeof DesktopPlugin.prototype.importAttachmentLinks, "function");
   assert.strictEqual(typeof DesktopPlugin.prototype.importCanvasAttachments, "function");
   assert.strictEqual(typeof DesktopPlugin.prototype.buildCurrentNoteExportPlan, "function");
