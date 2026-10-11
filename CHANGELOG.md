@@ -1,5 +1,9 @@
 # Changelog
 
+0.5.96 - Also retains verified Canvas imports through refresh cancellation, reports changed/deleted Canvas targets as skipped failures, uses canonical filenames for remote Canvas images, and adds per-note folders when sharing imported attachments.
+
+0.5.95 - Honors the automatic tagging switch during attachment imports, verifies existing Eagle content without a running helper, stops unsafe network imports, and retains verified link replacements when sidebar refreshes cancel remaining work.
+
 0.5.92 - Makes the complete English guide the default README and preserves the complete Chinese guide with language-switch links; no runtime changes from 0.5.91.
 
 0.5.91 - Replaces forced CSS overrides with scoped specificity, removes relational selectors and redundant text indentation resets, adds an English README summary and a dependency-free build lockfile.

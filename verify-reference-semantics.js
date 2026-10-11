@@ -58,6 +58,8 @@ plugin.isEagleBridgeAssetUrl = () => true;
 plugin.settings = { replacementTemplate: "![{filename}]({bridgeUrl})", tagManagementEnabled: true, autoTagOnRefresh: false };
 assert.strictEqual(plugin.buildReplacement({ name: "dog.png" }, { bridgeUrl: image }), `![dog.png](${image})`);
 assert.strictEqual(plugin.buildReplacement({ name: "contract.doc" }, { bridgeUrl: image }), `[contract.doc](${image})`);
+assert.deepStrictEqual(plugin.getImportContextTags({ tags: ["Obsidian-dog-20260122"] }), []);
+plugin.settings.autoTagOnRefresh = true;
 assert.deepStrictEqual(plugin.getImportContextTags({ tags: ["Obsidian-dog-20260122"] }), ["Obsidian-dog-20260122"]);
 plugin.settings.tagManagementEnabled = false;
 assert.deepStrictEqual(plugin.getImportContextTags({ tags: ["Obsidian-dog-20260122"] }), []);

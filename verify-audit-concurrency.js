@@ -33,6 +33,7 @@ async function markdownScenario(initial, edit, { normalizeEdit = false, cancel =
   let latest = initial, trashed = [], imports = 0;
   const plugin = {
     settings: {},
+    t: key => key,
     app: {
       vault: {
         read: async () => latest,
@@ -52,6 +53,7 @@ async function markdownScenario(initial, edit, { normalizeEdit = false, cancel =
       return { sourceFile: file, item: { id: "TEST" }, replacement: "![image.png](http://localhost:6060/images/TEST.info)" };
     },
     ensureImportedEagleItemTags: async (_context, item) => item,
+    ensureContextEagleFolder: async (_context, item) => item,
     trashImportedFiles: async items => { trashed = items; },
     normalizeEagleBridgeReferenceLabels: async (_context, text) => {
       if (normalizeEdit) { latest += "\nEDIT DURING METADATA LOOKUP"; return text.replace("image.png]", "renamed.png]"); }
@@ -91,7 +93,8 @@ async function checkMarkdown() {
   const metadata = await markdownScenario(original, text => text, { normalizeEdit: true });
   assert.match(metadata.latest, /EDIT DURING METADATA LOOKUP$/);
   const cancelled = await markdownScenario(original, text => text + "\nUSER EDIT", { cancel: true });
-  assert.doesNotMatch(cancelled.latest, /TEST\.info/);
+  assert.match(cancelled.latest, /TEST\.info/, "Refresh cancellation must still commit an already verified import");
+  assert.match(cancelled.latest, /USER EDIT/);
   assert.equal(cancelled.trashed.length, 0);
   const internet = await markdownScenario("![web](https://example.test/photo.jpg)", text => `INTRO\n${text}\nOUTRO`);
   assert.equal(internet.result.success, 1);
@@ -146,6 +149,7 @@ async function checkLibraryImport() {
   const texts = new Map(notes.map(note => [note.path, note.extension === "canvas"
     ? JSON.stringify({ nodes: [{ id: "n", type: "file", file: attachment.path }] }) : "![[image.png]]"]));
   let imports = 0, cleanups = 0;
+  const reusedFolders = [];
   const plugin = Object.fromEntries(["importAttachmentItemFromLibraryReferences", "importLocalAttachmentItemFromPanel",
     "importAttachmentLinks", "collectMarkdownAttachmentLinks", "findLocalAttachmentLinks", "findExternalLocalAttachmentLinks",
     "findInternetAttachmentLinks"].map(name => [name, method(name)]));
@@ -167,6 +171,7 @@ async function checkLibraryImport() {
       return { sourceFile: attachment, item: { id: "TEST" }, replacement: "![image](http://localhost:6060/images/TEST.info)" };
     },
     ensureImportedEagleItemTags: async (_context, item) => item,
+    ensureContextEagleFolder: async (context, item) => { reusedFolders.push(context.file.path); return item; },
     normalizeEagleBridgeReferenceLabels: async (_context, text) => text,
     importCanvasAttachments: async (context, _target, options) => {
       assert.equal(options.trashImported, false);
@@ -186,6 +191,7 @@ async function checkLibraryImport() {
     (path, item, options) => plugin.importLocalAttachmentItemFromPanel(path, item, options));
   assert.equal(result.success, 3);
   assert.equal(imports, 1);
+  assert.deepEqual(reusedFolders, ["second.md"], "A reused attachment must also join the second note's managed folder");
   assert.equal(cleanups, 1);
 }
 

@@ -33,7 +33,7 @@ assert.equal(signature({ nodes }), signature({ nodes: nodes.slice().reverse().ma
 assert.notEqual(signature({ nodes }), signature({ nodes: [nodes[1]] }));
 assert.notEqual(signature({ nodes }), signature({ nodes: [{ ...nodes[0], file: "other.png" }, nodes[1]] }));
 
-async function scenario(edit, { bridgeOnly = false, malformed = false } = {}) {
+async function scenario(edit, { bridgeOnly = false, malformed = false, cancel = false } = {}) {
   const sourceFile = Object.assign(new TFile(), { path: "image.png", name: "image.png" });
   const context = { file: { path: "test.canvas" } };
   const initial = { nodes: bridgeOnly ? [nodes[1]] : structuredClone(nodes), edges: [] };
@@ -41,6 +41,7 @@ async function scenario(edit, { bridgeOnly = false, malformed = false } = {}) {
   let imports = 0, writes = 0, refreshes = 0, trashed = [];
   const plugin = {
     settings: {},
+    t: key => key,
     app: {
       vault: {
         read: async () => latest,
@@ -73,7 +74,7 @@ async function scenario(edit, { bridgeOnly = false, malformed = false } = {}) {
     assert.equal(trashed.length, 0);
     return;
   }
-  const result = await importCanvas.call(plugin, context, "", { silent: true });
+  const result = await importCanvas.call(plugin, context, "", { silent: true, shouldContinue: () => !cancel || imports === 0 });
   return { result, data: JSON.parse(latest), imports, writes, refreshes, trashed };
 }
 
@@ -97,15 +98,21 @@ async function scenario(edit, { bridgeOnly = false, malformed = false } = {}) {
   const removed = await scenario(data => { data.nodes.shift(); });
   assert.equal(removed.writes, 0);
   assert.equal(removed.result.changed, false);
+  assert.equal(removed.result.failed, 1);
   assert.equal(removed.trashed.length, 0);
   const retargeted = await scenario(data => { data.nodes[0].file = "replacement.png"; });
   assert.equal(retargeted.writes, 0);
+  assert.equal(retargeted.result.failed, 1);
   assert.equal(retargeted.data.nodes[0].file, "replacement.png");
   assert.equal(retargeted.trashed.length, 0);
   const duplicate = await scenario(data => { data.nodes.push({ ...data.nodes[0], id: "new" }); });
   assert.equal(duplicate.result.success, 1);
   assert.equal(duplicate.data.nodes.at(-1).file, "image.png");
   assert.equal(duplicate.trashed.length, 0, "A newly added local reference must retain its attachment");
+  const cancelled = await scenario(data => { data.nodes[0].x = 321; }, { cancel: true });
+  assert.equal(cancelled.result.success, 1, "Refresh cancellation must retain an already verified Canvas import");
+  assert.equal(cancelled.data.nodes[0].x, 321);
+  assert.equal(cancelled.trashed.length, 0);
   await scenario(() => {}, { malformed: true });
   console.log("Canvas import concurrency and reference ordering checks passed.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

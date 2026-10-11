@@ -1719,7 +1719,7 @@
       }
 
       getImportContextTags(context) {
-        if (this.settings.tagManagementEnabled === false) return [];
+        if (this.settings.tagManagementEnabled === false || this.settings.autoTagOnRefresh === false) return [];
         return Array.isArray(context && context.tags) ? context.tags : [];
       }
 
@@ -2815,7 +2815,8 @@
             let imported = importedItems.get(importKey);
             if (imported) {
               reused += 1;
-              const item = await this.ensureImportedEagleItemTags(context, imported.item);
+              let item = await this.ensureImportedEagleItemTags(context, imported.item);
+              item = await this.ensureContextEagleFolder(context, item);
               imported = { ...imported, item };
               importedItems.set(importKey, imported);
             } else {
@@ -2843,6 +2844,10 @@
           } catch (error) {
             console.warn("Failed to import Canvas attachment:", node, error);
             failed += 1;
+            if (internetUrl) {
+              new Notice(`白板网络附件导入已停止：${importLink.name || internetUrl}\n${error.message || error}`);
+              break;
+            }
           }
         }
 
@@ -2851,12 +2856,12 @@
           return { success, failed, reused, changed };
         }
 
-        if (replacements.size && shouldContinue()) {
+        if (replacements.size && !this.unloaded) {
           const appliedPaths = new Set();
           const remainingPaths = new Set();
           // Import awaits Eagle; merge into the latest file instead of restoring old geometry.
           await this.app.vault.process(context.file, latestText => {
-            if (!shouldContinue()) return latestText;
+            if (this.unloaded) return latestText;
             const latest = JSON.parse(latestText);
             const latestNodes = Array.isArray(latest.nodes) ? latest.nodes : [];
             for (const node of latestNodes) {
@@ -2884,7 +2889,7 @@
                 delete node.eagleBridgeLastWidth;
                 delete node.eagleBridgeLastHeight;
               }
-              appliedPaths.add(imported.sourceFile.path);
+              if (imported.sourceFile instanceof TFile) appliedPaths.add(imported.sourceFile.path);
               success += 1;
             }
             for (const node of latestNodes) {
@@ -2895,6 +2900,7 @@
             changed = success > 0;
             return changed ? `${JSON.stringify(latest, null, 2)}\n` : latestText;
           });
+          failed += replacements.size - success;
           if (changed && shouldContinue() && options.trashImported !== false) {
             await this.trashImportedFiles(importedFiles.filter(imported =>
               appliedPaths.has(imported.sourceFile.path) && !remainingPaths.has(imported.sourceFile.path)));
@@ -2902,7 +2908,7 @@
           if (changed && options.scheduleRefresh !== false) this.scheduleReferenceViewRefresh(context.file);
         }
 
-        if (!options.silent) {
+        if (!options.silent || failed) {
           new Notice(this.t("noticeProcessedAttachments", { success, reused, failed }));
         }
         return { success, failed, reused, changed };
@@ -3573,7 +3579,8 @@
             let imported = importedByPath.get(importKey);
             if (imported) {
               reused += 1;
-              const item = await this.ensureImportedEagleItemTags(context, imported.item);
+              let item = await this.ensureImportedEagleItemTags(context, imported.item);
+              item = await this.ensureContextEagleFolder(context, item);
               imported = { ...imported, item };
               importedByPath.set(importKey, imported);
             } else {
@@ -3604,7 +3611,8 @@
             let imported = importedByUrl.get(importKey);
             if (imported) {
               reused += 1;
-              const item = await this.ensureImportedEagleItemTags(context, imported.item);
+              let item = await this.ensureImportedEagleItemTags(context, imported.item);
+              item = await this.ensureContextEagleFolder(context, item);
               imported = { ...imported, item };
               importedByUrl.set(importKey, imported);
             } else {
@@ -3624,13 +3632,16 @@
           } catch (error) {
             console.warn("Failed to import internet attachment:", link, error);
             failed += 1;
+            new Notice(`网络附件导入已停止：${link.name || link.url}\n${error.message || error}`);
+            break;
           }
         }
 
-        if (replacements.length && shouldContinue()) {
+        // Finish verified imports even when a sidebar refresh cancels the next one.
+        if (replacements.length && !this.unloaded) {
           let applied = [];
           await this.app.vault.process(context.file, latestText => {
-            if (!shouldContinue()) return latestText;
+            if (this.unloaded) return latestText;
             const latestLinks = Object.values(this.collectMarkdownAttachmentLinks(latestText, context.file)).flat();
             const merged = mergeAttachmentReplacements(sourceText, latestText, replacements, sourceLinks, latestLinks);
             applied = merged.applied;
@@ -3639,7 +3650,8 @@
           success = applied.length;
           failed += replacements.length - success;
           if (shouldContinue() && options.trashImported !== false) {
-            const appliedPaths = new Set(applied.map(replacement => replacement.imported.sourceFile.path));
+            const appliedPaths = new Set(applied.filter(replacement => replacement.imported.sourceFile instanceof TFile)
+              .map(replacement => replacement.imported.sourceFile.path));
             await this.trashImportedFiles(importedFiles.filter(imported => appliedPaths.has(imported.sourceFile.path)));
           }
         }
@@ -3652,7 +3664,7 @@
           }
         }
 
-        if (!options.silent) {
+        if (!options.silent || failed) {
           new Notice(this.t("noticeProcessedAttachments", { success, reused, failed }));
         }
         return { success, reused, failed };
@@ -3777,17 +3789,38 @@
       async findEagleItemsByContentSignature({ hash, size, extension }) {
         if (!hash || !size) return [];
 
-        await this.syncCompanionMediaService();
-        const payload = await this.requestEagleHelperJson("item/find-by-content-hash", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            hash,
-            size,
-            extension,
-            algorithm: "sha256"
-          })
-        });
+        let payload;
+        try {
+          payload = await this.requestEagleHelperJson("item/find-by-content-hash", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              hash,
+              size,
+              extension,
+              algorithm: "sha256"
+            })
+          });
+        } catch (error) {
+          // The desktop can verify original bytes through Eagle's ordinary API
+          // even when the optional helper service has not started.
+          const matches = [];
+          const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
+          for (let offset = 0; ; offset += 200) {
+            const body = await this.requestEagleApiJson({
+              url: `${base}/api/item/list?limit=200&offset=${offset}&orderBy=CREATEDATE`, method: "GET"
+            });
+            if (!Array.isArray(body.data)) throw new Error("Eagle 未返回可验证的素材列表，已停止导入。");
+            for (const item of body.data) {
+              if (isEagleItemTrashed(item) || Number(item.size) !== size) continue;
+              const path = await this.getOriginalPathForEagleItem(item);
+              if (!path) throw new Error("无法读取 Eagle 素材原文件以确认是否已导入，已停止导入。");
+              if (await this.getLocalFileContentHash(path) === hash) matches.push(item);
+            }
+            if (body.data.length < 200) break;
+          }
+          return uniqueItemsById(matches).sort((a, b) => getItemTime(a) - getItemTime(b));
+        }
 
         const helperItems = payload.data && Array.isArray(payload.data.items)
           ? payload.data.items
@@ -3888,16 +3921,10 @@
         // Resolve byte-identical remote assets before calling Eagle so a duplicate never
         // enters that ambiguous state and the note can only receive a verified ID.
         let item = null;
-        let contentSignature = null;
-        try {
-          contentSignature = await this.getInternetContentSignature(link.url, extension);
-          if (contentSignature) {
-            const matches = await this.findEagleItemsByContentSignature(contentSignature);
-            if (matches.length) item = matches[0];
-          }
-        } catch (error) {
-          console.warn("Network attachment content lookup failed; Eagle will import normally:", error);
-        }
+        const contentSignature = await this.getInternetContentSignature(link.url, extension);
+        if (!contentSignature) throw new Error("无法确认网络附件的内容，已停止导入并保留原链接。");
+        const matches = await this.findEagleItemsByContentSignature(contentSignature);
+        if (matches.length) item = matches[0];
 
         if (!item) {
           const addResult = await this.addUrlToEagle(await this.withContextEagleFolder({
@@ -3908,8 +3935,7 @@
           }, context));
           item = await this.resolveInternetItemAfterAdd(addResult, contentSignature);
           if (!item) {
-            new Notice("Eagle 未返回可验证的网络素材 ID。为避免误替换，已保留原网络链接。");
-            return null;
+            throw new Error("Eagle 已接收导入，但未能确认素材 ID。已保留原链接并停止本轮导入；下次将先检查已有素材，不直接重复下载。");
           }
         }
 
@@ -3917,6 +3943,7 @@
         // addFromURL frequently returns an id/url stub instead of the final item
         // filename. Always fetch the stored Eagle record before creating Markdown.
         item = await this.getAuthoritativeEagleItem(item);
+        item = await this.ensureContextEagleFolder(context, item);
         const itemId = getEagleItemId(item);
         const bridgeUrl = this.getEagleBridgeUrl(item);
         const url = await this.getEagleItemEmbedUrl(item);
@@ -3927,7 +3954,7 @@
 
         return {
           item,
-          sourceFile: { name: fileName },
+          sourceFile: { name: this.getCanonicalEagleFileName(item, fileName) },
           replacement: this.buildReplacement({ basename: name, name: link.name || name }, {
             displayName: this.getCanonicalEagleFileName(item, fileName || link.name || name),
             itemId,
@@ -4326,24 +4353,10 @@
 
       async addUrlToEagle(data) {
         const base = this.settings.eagleApiBaseUrl.replace(/\/+$/, "");
-        const requestBody = JSON.stringify(data);
-        let lastError = null;
-        for (const endpoint of ["addFromURL", "addFromPath"]) {
-          try {
-            const response = await requestUrl({
-              url: `${base}/api/item/${endpoint}`,
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: requestBody
-            });
-            const body = response.json;
-            if (body && body.status === "success") return body;
-            lastError = new Error((body && body.message) || `${endpoint} failed.`);
-          } catch (error) {
-            lastError = error;
-          }
-        }
-        throw lastError || new Error("Eagle URL import failed.");
+        return this.requestEagleApiJson({
+          url: `${base}/api/item/addFromURL`, method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
+        });
       }
 
       async findImportedEagleItem(sourceFile, tags, addResult) {
@@ -4375,7 +4388,7 @@
         // Eagle's addFromURL can acknowledge the request before it exposes an item
         // object. Only match by the exact downloaded bytes afterwards: a generic tag
         // lookup could accidentally select a different asset from the same note.
-        for (let attempt = 0; attempt < 8; attempt += 1) {
+        for (let attempt = 0; attempt < 40; attempt += 1) {
           if (contentSignature) {
             try {
               const matches = await this.findEagleItemsByContentSignature(contentSignature);
