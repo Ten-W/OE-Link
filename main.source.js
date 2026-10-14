@@ -2136,6 +2136,31 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     return true;
   }
 
+  async expandAssetSourceFolds(view, line, generation) {
+    if (generation !== this.sourceRevealGeneration) return false;
+    const mode = view.currentMode;
+    if (typeof mode?.getFoldInfo !== "function" || typeof mode.applyFoldInfo !== "function") return true;
+    const info = mode.getFoldInfo();
+    if (!Array.isArray(info?.folds)) return true;
+    const headings = this.app.metadataCache.getFileCache(view.file)?.headings || [];
+    const containsTarget = fold => {
+      let end = fold.to;
+      // Reading view reports only the heading section, not its hidden descendants.
+      const heading = headings.find(candidate => candidate.position.start.line === fold.from);
+      if (heading) {
+        const next = headings.find(candidate => candidate.position.start.line > fold.from && candidate.level <= heading.level);
+        end = Math.max(end, next ? next.position.start.line - 1 : info.lines - 1);
+      }
+      return fold.from < line && line <= end;
+    };
+    const folds = info.folds.filter(fold => !containsTarget(fold));
+    if (folds.length === info.folds.length) return true;
+    // Remove every enclosing fold, including nested headings, not unrelated folds.
+    mode.applyFoldInfo({ ...info, folds });
+    await this.waitForEditorLayout();
+    return generation === this.sourceRevealGeneration && view.currentMode === mode;
+  }
+
   async scrollAssetIntoView(view, item, line, generation) {
     const mode = view.currentMode;
     const file = view.file;
@@ -2235,6 +2260,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const view = targetLeaf && targetLeaf.view;
     await this.waitForEditorLayout();
     if (generation !== this.sourceRevealGeneration) return;
+    if (!await this.expandAssetSourceFolds(view, from.line, generation)) return;
     return this.scrollAssetIntoView(view, item, from.line, generation);
   }
 

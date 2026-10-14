@@ -1,5 +1,7 @@
 # Changelog
 
+0.5.97 - Expands enclosing folded headings before sidebar attachment navigation and image previews, including nested headings in editing and reading views, while preserving unrelated folds.
+
 0.5.96 - Also retains verified Canvas imports through refresh cancellation, reports changed/deleted Canvas targets as skipped failures, uses canonical filenames for remote Canvas images, and adds per-note folders when sharing imported attachments.
 
 0.5.95 - Honors the automatic tagging switch during attachment imports, verifies existing Eagle content without a running helper, stops unsafe network imports, and retains verified link replacements when sidebar refreshes cancel remaining work.

@@ -5,6 +5,37 @@ const source = fs.readFileSync(path.join(__dirname, "main.source.js"), "utf8");
 const start = source.indexOf("  async scrollAssetIntoView(");
 const end = source.indexOf("\n  async revealAssetInSource", start);
 const scroll = Function(`return ({${source.slice(start, end)}}).scrollAssetIntoView`)();
+const unfoldStart = source.indexOf("  async expandAssetSourceFolds(");
+const unfold = Function(`return ({${source.slice(unfoldStart, start)}}).expandAssetSourceFolds`)();
+
+async function foldedScenario() {
+  for (const type of ["source", "preview"]) {
+    const unrelated = { from: 80, to: 95 };
+    const info = { folds: [{ from: 2, to: type === "preview" ? 3 : 70 }, { from: 10, to: type === "preview" ? 11 : 50 }, unrelated], lines: 100 };
+    let applied, layouts = 0;
+    const mode = { type, getFoldInfo: () => info, applyFoldInfo: value => { applied = value; } };
+    const view = { currentMode: mode };
+    const headings = [[2, 1], [10, 2], [51, 2], [71, 1], [80, 2], [96, 1]]
+      .map(([line, level]) => ({ position: { start: { line } }, level }));
+    const plugin = {
+      sourceRevealGeneration: 1,
+      app: { metadataCache: { getFileCache: () => ({ headings }) } },
+      waitForEditorLayout: async () => { layouts++; }
+    };
+    assert.equal(await unfold.call(plugin, view, 30, 1), true);
+    assert.deepEqual(applied, { folds: [unrelated], lines: 100 }, `${type}: expand all parents but preserve unrelated folds`);
+    assert.equal(layouts, 1, "Wait for the expanded layout before scrolling");
+    applied = null;
+    assert.equal(await unfold.call(plugin, view, 99, 1), true);
+    assert.equal(applied, null, "Unfolded targets must not reset fold state");
+    assert.equal(await unfold.call(plugin, view, 30, 0), false, "Cancelled navigation must not continue scrolling");
+    plugin.waitForEditorLayout = async () => { view.currentMode = {}; };
+    assert.equal(await unfold.call(plugin, view, 30, 1), false, "Mode changes must cancel navigation");
+  }
+  const reveal = source.slice(end, source.indexOf("\n  async revealAssetInCanvas", end));
+  assert.ok(reveal.indexOf("await this.expandAssetSourceFolds") < reveal.indexOf("return this.scrollAssetIntoView"),
+    "Every Markdown reveal must expand its target before starting the scroll loop");
+}
 
 async function scenario({ initial = 0, target = 3500, missing = false, cancel = false, reflow = false } = {}) {
   let now = 0, flashes = 0, changed = false;
@@ -48,6 +79,7 @@ async function scenario({ initial = 0, target = 3500, missing = false, cancel = 
 }
 
 (async () => {
+  await foldedScenario();
   await scenario({ reflow: true });
   await scenario({ initial: 5000, target: 700 });
   await scenario({ missing: true });
