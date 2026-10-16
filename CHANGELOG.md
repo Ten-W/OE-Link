@@ -1,5 +1,7 @@
 # Changelog
 
+0.5.98 - Updates OE Link Helper to 0.2.14, fixes control-port startup during DOM loading and completes HEAD image responses. Embeds helper installation files so community/BRAT updates can install the current helper without an adjacent helper folder. Adds startup, port fallback, cross-device installation directory fallback, and HTTP media regression checks. Existing attachment links and note contents are unchanged. Update the Eagle helper in OE Link settings and restart Eagle after upgrading.
+
 0.5.97 - Expands enclosing folded headings before sidebar attachment navigation and image previews, including nested headings in editing and reading views, while preserving unrelated folds.
 
 0.5.96 - Also retains verified Canvas imports through refresh cancellation, reports changed/deleted Canvas targets as skipped failures, uses canonical filenames for remote Canvas images, and adds per-note folders when sharing imported attachments.

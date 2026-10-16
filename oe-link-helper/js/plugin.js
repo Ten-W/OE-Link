@@ -1,5 +1,5 @@
 (function () {
-  const HELPER_VERSION = "0.2.13";
+  const HELPER_VERSION = "0.2.14";
   const HOST = "127.0.0.1";
   const PORTS = Array.from({ length: 10 }, (_, index) => 41596 + index);
   let server = null;
@@ -188,6 +188,7 @@
     };
     if (req.method === "HEAD") {
       writeMediaHeaders(res, 200, baseHeaders);
+      res.end();
       return;
     }
     const match = range.match(/^bytes=(\d*)-(\d*)$/i);
@@ -678,7 +679,7 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", startServer, { once: true });
+    document.addEventListener("DOMContentLoaded", () => startServer(), { once: true });
   } else {
     startServer();
   }

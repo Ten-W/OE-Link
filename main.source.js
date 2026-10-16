@@ -7,7 +7,7 @@ const { getDefaultEaglePluginsDir, normalizeEagleFolderId } = require("./lib/ass
 
 const VIEW_TYPE = "eaglebridge-note-assets-view";
 const EAGLE_HELPER_PLUGIN_ID = "oe-link-helper";
-const EAGLE_HELPER_PLUGIN_VERSION = "0.2.13";
+const EAGLE_HELPER_PLUGIN_VERSION = "0.2.14";
 const EAGLE_HELPER_PORTS = Array.from({ length: 10 }, (_, index) => 41596 + index);
 
 function getRequestServiceName(request) {
@@ -97,7 +97,7 @@ const {
   findMarkdownAttachmentReferences, getAttachmentReferenceSignature, preserveAttachmentDisplaySize,
   getItemTime, getEagleItemId, extractEagleBridgeItemIdFromText, isEagleItemTrashed,
   itemHasEagleFolder, getEagleItemFolderIds, findOriginalFileInEagleInfoDir, replaceEagleBridgeIdsInText,
-  readJsonFile, copyDirectory, compareVersions,
+  readJsonFile, compareVersions,
   getTrashBadgeAnchor, removeTrashBadgesForImage,
   stripInfoSuffix, sleep, normalizeFileUrl, fileUrlToLocalPath, externalLocalPathFromTarget,
   eagleLocalPathToFsPath, safeDecode, escapeRegExp,
@@ -800,19 +800,6 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     return isPreviewableImage(name);
   }
 
-  getPluginInstallRootPath() {
-    const adapter = this.app && this.app.vault && this.app.vault.adapter;
-    if (adapter && typeof adapter.getFullPath === "function" && this.manifest && this.manifest.dir) {
-      return adapter.getFullPath(this.manifest.dir);
-    }
-    return "";
-  }
-
-  getBundledEagleHelperPath() {
-    const root = this.getPluginInstallRootPath();
-    return root ? nodePath.join(root, "oe-link-helper") : "";
-  }
-
   getEagleHelperInstallPath() {
     const pluginsDir = String(this.settings.eagleHelperPluginsDir || DEFAULT_SETTINGS.eagleHelperPluginsDir || "").trim();
     return pluginsDir ? nodePath.join(pluginsDir, EAGLE_HELPER_PLUGIN_ID) : "";
@@ -836,17 +823,14 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
 
   async installOrUpdateEagleHelperPlugin() {
     try {
-      const sourceDir = this.getBundledEagleHelperPath();
+      const helperFiles = require("./lib/eagle-helper-files");
       const pluginsDir = this.resolveEagleHelperPluginsDir();
       const targetDir = nodePath.join(pluginsDir, EAGLE_HELPER_PLUGIN_ID);
-      if (!sourceDir || !nodeFs.existsSync(sourceDir)) {
-        throw new Error("Bundled Eagle helper plugin is missing.");
-      }
       if (this.settings.eagleHelperPluginsDir !== pluginsDir) {
         this.settings.eagleHelperPluginsDir = pluginsDir;
         await this.saveSettings();
       }
-      const sourceManifest = readJsonFile(nodePath.join(sourceDir, "manifest.json")) || {};
+      const sourceManifest = JSON.parse(helperFiles["manifest.json"]);
       const targetManifest = readJsonFile(nodePath.join(targetDir, "manifest.json")) || {};
       const sourceVersion = String(sourceManifest.version || EAGLE_HELPER_PLUGIN_VERSION);
       const targetVersion = String(targetManifest.version || "");
@@ -857,7 +841,11 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       if (nodeFs.existsSync(targetDir)) {
         nodeFs.rmSync(targetDir, { recursive: true, force: true });
       }
-      copyDirectory(sourceDir, targetDir);
+      for (const [name, contents] of Object.entries(helperFiles)) {
+        const filePath = nodePath.join(targetDir, name);
+        nodeFs.mkdirSync(nodePath.dirname(filePath), { recursive: true });
+        nodeFs.writeFileSync(filePath, contents, "utf8");
+      }
       new Notice(this.t("noticeHelperInstalled"));
       return true;
     } catch (error) {
