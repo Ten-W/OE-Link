@@ -7,8 +7,8 @@ const { getDefaultEaglePluginsDir, normalizeEagleFolderId } = require("./lib/ass
 
 const VIEW_TYPE = "eaglebridge-note-assets-view";
 const EAGLE_HELPER_PLUGIN_ID = "oe-link-helper";
-const EAGLE_HELPER_PLUGIN_VERSION = "0.2.14";
-const EAGLE_HELPER_PORTS = Array.from({ length: 10 }, (_, index) => 41596 + index);
+const EAGLE_HELPER_PLUGIN_VERSION = "0.2.16";
+const EAGLE_HELPER_PORTS = Array.from({ length: 8 }, (_, index) => 41598 + index);
 
 function getRequestServiceName(request) {
   const url = String(request && request.url || "");
@@ -462,7 +462,8 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       try {
         const response = await nativeRequestUrl({ url: `${base}/health`, method: "GET", timeout: 350 });
         const body = response && response.json ? response.json : {};
-        return body.status === "success" && compareVersions(String(body.version || "0.0.0"), EAGLE_HELPER_PLUGIN_VERSION) >= 0
+        return body.status === "success" && body.service === "oe-link-helper"
+          && compareVersions(String(body.version || "0.0.0"), EAGLE_HELPER_PLUGIN_VERSION) >= 0
           ? base
           : "";
       } catch (_) {
@@ -552,11 +553,17 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
     const startedAt = Date.now();
     try {
       const response = await nativeRequestUrl({ url, method });
+      const isHealthProbe = method === "GET" && new URL(url).pathname === "/health";
+      let health = null;
+      if (isHealthProbe) {
+        try { health = response.json; } catch (_) { /* A reachable foreign service may return non-JSON. */ }
+      }
       return {
         url,
         method,
         status: Number(response && response.status) || 0,
         contentType: String(response && response.headers && (response.headers["content-type"] || response.headers["Content-Type"]) || ""),
+        ...(isHealthProbe ? { service: ["oe-link-helper", "media"].includes(health?.service) ? health.service : "other-or-unidentified" } : {}),
         elapsedMs: Date.now() - startedAt
       };
     } catch (error) {
@@ -613,6 +620,7 @@ module.exports = class EagleBridgeNoteAssetsPlugin extends Plugin {
       helperStatus = {
         status: "ok",
         helperVersion: String(data.helperVersion || ""),
+        controlPort: Number(data.controlPort) || 0,
         mediaHost: String(data.mediaHost || ""),
         mediaPort: Number(data.mediaPort) || 0,
         mediaListening: !!data.mediaListening,

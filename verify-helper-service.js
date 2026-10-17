@@ -12,25 +12,6 @@ const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "oe-link-helper
 assert.equal(helper.match(/const HELPER_VERSION = "([^"]+)"/)[1], manifest.version);
 assert.equal(source.match(/const EAGLE_HELPER_PLUGIN_VERSION = "([^"]+)"/)[1], manifest.version);
 
-for (const readyState of ["loading", "complete"]) {
-  let listener, onError;
-  const ports = [];
-  vm.runInNewContext(helper, {
-    document: { readyState, addEventListener: (name, callback) => { listener = callback; } },
-    require: name => name === "http" ? {
-      createServer: () => ({
-        once: (name, callback) => { onError = callback; },
-        listen: port => ports.push(port)
-      })
-    } : require(name),
-    console
-  });
-  if (listener) listener({ type: "DOMContentLoaded" });
-  assert.equal(ports[0], 41596, `${readyState}: start with the first control port, not the DOM event`);
-  onError({ code: "EADDRINUSE" });
-  assert.equal(ports[1], 41597, "An occupied control port must still fall back to the next port");
-}
-
 const resolveStart = source.indexOf("  resolveEagleHelperPluginsDir() {");
 const resolveEnd = source.indexOf("\n  async installOrUpdateEagleHelperPlugin", resolveStart);
 const resolve = Function("nodeFs", "DEFAULT_SETTINGS", `return ({${source.slice(resolveStart, resolveEnd)}}).resolveEagleHelperPluginsDir;`)(

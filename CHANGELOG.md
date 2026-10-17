@@ -1,5 +1,9 @@
 # Changelog
 
+0.5.100 - Adds Helper 0.2.16 authenticated same-library lifecycle handoff: reuses healthy compatible instances, replaces older or unhealthy idle instances without terminating processes, and skips foreign/unverifiable listeners. Serializes media startup/configuration and releases owned services on unload. Legacy helpers without lifecycle credentials require one manual Eagle restart. Retains the reserved-port fix and existing attachment links.
+
+0.5.99 - Moves Helper 0.2.15 control listeners to 41598-41605, avoiding Eagle MCP/AI ports 41596/41597 even when all candidates are busy. Requires an explicit helper service identity during discovery and includes service identity/control port in diagnostics. Keeps media port 6060 and existing note links unchanged. Adds real loopback bind-conflict, exhaustion and foreign-service discovery tests. Update the helper and restart Eagle after upgrading.
+
 0.5.98 - Updates OE Link Helper to 0.2.14, fixes control-port startup during DOM loading and completes HEAD image responses. Embeds helper installation files so community/BRAT updates can install the current helper without an adjacent helper folder. Adds startup, port fallback, cross-device installation directory fallback, and HTTP media regression checks. Existing attachment links and note contents are unchanged. Update the Eagle helper in OE Link settings and restart Eagle after upgrading.
 
 0.5.97 - Expands enclosing folded headings before sidebar attachment navigation and image previews, including nested headings in editing and reading views, while preserving unrelated folds.

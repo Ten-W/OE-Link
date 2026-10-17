@@ -1,10 +1,20 @@
 (function () {
-  const HELPER_VERSION = "0.2.14";
+  const HELPER_VERSION = "0.2.16";
   const HOST = "127.0.0.1";
-  const PORTS = Array.from({ length: 10 }, (_, index) => 41596 + index);
+  // Eagle MCP/AI services use 41596/41597 and may terminate an earlier listener.
+  const PORTS = Array.from({ length: 8 }, (_, index) => 41598 + index);
   let server = null;
   let serverPort = 0;
   let mediaServer = null;
+  let mediaStartTask = null;
+  let mediaConfigurationTask = Promise.resolve();
+  let starting = false;
+  let stopping = false;
+  let deferredStartTimer = null;
+  let activeRequests = 0;
+  const startedAt = Date.now();
+  const instanceId = require("crypto").randomBytes(16).toString("hex");
+  let ownerToken = "";
   let mediaConfig = {
     port: 6060,
     libraryPaths: []
@@ -12,6 +22,110 @@
   // The cache is deliberately process-local. It keeps repeated imports quick
   // without persisting library paths or stale hashes to disk.
   const contentHashCache = new Map();
+
+  function getOwnerToken() {
+    if (ownerToken) return ownerToken;
+    const fs = require("fs");
+    const tokenPath = require("path").join(require("os").tmpdir(), "oe-link-helper-owner-v1");
+    try {
+      if (!fs.existsSync(tokenPath)) {
+        try { fs.writeFileSync(tokenPath, require("crypto").randomBytes(32).toString("hex"), { flag: "wx", mode: 0o600 }); }
+        catch (error) { if (error.code !== "EEXIST") throw error; }
+      }
+      const value = fs.readFileSync(tokenPath, "utf8").trim();
+      if (/^[a-f0-9]{64}$/.test(value)) ownerToken = value;
+    } catch (_) {
+      // Without a local credential, do not take over another listener.
+    }
+    return ownerToken;
+  }
+
+  function libraryKey() {
+    const value = typeof window !== "undefined" && window.eagle && window.eagle.library && window.eagle.library.path;
+    if (!value) return "";
+    let normalized = require("path").resolve(String(value)).replace(/\\/g, "/");
+    if (require("os").platform() === "win32") normalized = normalized.toLowerCase();
+    return require("crypto").createHash("sha256").update(normalized).digest("hex");
+  }
+
+  function sameSecret(left, right) {
+    const { Buffer } = require("buffer");
+    return /^[a-f0-9]{64}$/.test(String(left || "")) && /^[a-f0-9]{64}$/.test(String(right || ""))
+      && require("crypto").timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
+  }
+
+  function ownershipProof(id, key, port, challenge) {
+    return key && getOwnerToken()
+      ? require("crypto").createHmac("sha256", ownerToken).update(`${id}:${key}:${port}:${challenge}`).digest("hex") : "";
+  }
+
+  function isOwnedPeer(peer, port, challenge) {
+    const key = libraryKey();
+    return !!key && peer && peer.service === "oe-link-helper" && peer.lifecycleProtocol === 1
+      && /^[a-f0-9]{32}$/.test(String(peer.instanceId || "")) && peer.libraryKey === key
+      && peer.port === port && peer.challenge === challenge
+      && sameSecret(peer.ownershipProof, ownershipProof(peer.instanceId, key, port, challenge));
+  }
+
+  function peerRequest(port, method, route, data) {
+    return new Promise((resolve, reject) => {
+      const req = require("http").request({ host: HOST, port, method, path: route, headers: {
+        "Content-Type": "application/json", "Connection": "close",
+        ...(method === "POST" ? { "X-OE-Link-Owner": getOwnerToken() } : {})
+      } }, res => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", chunk => {
+          text += chunk;
+          if (text.length > 16384) req.destroy(new Error("Helper identity response is too large."));
+        });
+        res.on("error", reject);
+        res.on("end", () => {
+          try {
+            if (res.statusCode !== 200) throw new Error(`Helper lifecycle returned ${res.statusCode}.`);
+            resolve(JSON.parse(text));
+          } catch (error) { reject(error); }
+        });
+      });
+      const timer = setTimeout(() => req.destroy(new Error("Helper lifecycle request timed out.")), 3000);
+      req.on("close", () => clearTimeout(timer));
+      req.on("error", reject);
+      req.end(data ? JSON.stringify(data) : undefined);
+    });
+  }
+
+  async function inspectOccupiedPort(port) {
+    let owned = false;
+    try {
+      let challenge = require("crypto").randomBytes(16).toString("hex");
+      let peer = await peerRequest(port, "GET", `/health?challenge=${challenge}`);
+      if (!isOwnedPeer(peer, port, challenge)) return "skip";
+      owned = true;
+      // Give another instance time to finish its initial media bind.
+      const deadline = Date.now() + 2000;
+      while (!peer.mediaListening && !peer.stopping && Date.now() < deadline && Date.now() - peer.startedAt < 2000) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        challenge = require("crypto").randomBytes(16).toString("hex");
+        peer = await peerRequest(port, "GET", `/health?challenge=${challenge}`);
+        if (!isOwnedPeer(peer, port, challenge)) return "skip";
+      }
+      if (!/^\d+\.\d+\.\d+$/.test(String(peer.version || ""))) return "skip";
+      const versionOrder = peer.version.localeCompare(HELPER_VERSION, "en", { numeric: true });
+      if (!peer.stopping && peer.mediaListening && versionOrder >= 0) {
+        console.log(`[OE Link Helper] reusing healthy instance on ${port}.`);
+        return "reuse";
+      }
+      if (versionOrder > 0) return "reuse";
+      if (peer.stopping || peer.activeRequests !== 0) return "defer";
+      const result = await peerRequest(port, "POST", "/lifecycle/shutdown", { instanceId: peer.instanceId, libraryKey: peer.libraryKey });
+      if (result.status !== "success") return "skip";
+      mediaConfig = { port: normalizeMediaPort(result.data.port), libraryPaths: normalizeLibraryPaths(result.data.libraryPaths) };
+      return "retry";
+    } catch (error) {
+      if (owned) return "defer";
+      return error.code === "ECONNREFUSED" || error.code === "ECONNRESET" ? "retry" : "skip";
+    }
+  }
 
   function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, {
@@ -237,21 +351,26 @@
       if (!mediaServer) return resolve();
       const closing = mediaServer;
       mediaServer = null;
-      closing.close(() => resolve());
+      const timer = setTimeout(() => closing.closeAllConnections && closing.closeAllConnections(), 2000);
+      closing.close(() => { clearTimeout(timer); resolve(); });
+      if (closing.closeIdleConnections) closing.closeIdleConnections();
     });
   }
 
   async function startMediaServer() {
     const http = require("http");
+    if (stopping) throw new Error("Helper is stopping.");
     if (mediaServer && mediaServer.listening) return;
+    if (mediaStartTask) return mediaStartTask;
     const activeServer = http.createServer((req, res) => {
       handleMediaRequest(req, res).catch(error => {
         writeMediaHeaders(res, 500, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ status: "error", message: error && error.message ? error.message : String(error) }));
       });
     });
+    activeServer.on("error", error => console.error("[OE Link Helper] media service error:", error));
     mediaServer = activeServer;
-    await new Promise((resolve, reject) => {
+    mediaStartTask = new Promise((resolve, reject) => {
       const fail = error => {
         activeServer.removeListener("listening", ready);
         if (mediaServer === activeServer) mediaServer = null;
@@ -265,17 +384,23 @@
       activeServer.once("error", fail);
       activeServer.once("listening", ready);
       activeServer.listen(mediaConfig.port, HOST);
-    });
+    }).finally(() => { mediaStartTask = null; });
+    return mediaStartTask;
   }
 
-  async function configureMediaService(data) {
-    const nextPort = normalizeMediaPort(data && data.port);
-    const nextLibraryPaths = normalizeLibraryPaths(data && data.libraryPaths);
-    const portChanged = nextPort !== mediaConfig.port;
-    mediaConfig = { port: nextPort, libraryPaths: nextLibraryPaths };
-    if (portChanged) await stopMediaServer();
-    await startMediaServer();
-    return { port: mediaConfig.port, libraryPaths: mediaConfig.libraryPaths, version: HELPER_VERSION };
+  function configureMediaService(data) {
+    const task = mediaConfigurationTask.catch(() => {}).then(async () => {
+      if (stopping) throw new Error("Helper is stopping.");
+      if (mediaStartTask) await mediaStartTask.catch(() => {});
+      const nextPort = normalizeMediaPort(data && data.port);
+      const nextLibraryPaths = normalizeLibraryPaths(data && data.libraryPaths);
+      if (nextPort !== mediaConfig.port) await stopMediaServer();
+      mediaConfig = { port: nextPort, libraryPaths: nextLibraryPaths };
+      await startMediaServer();
+      return { port: mediaConfig.port, libraryPaths: mediaConfig.libraryPaths, version: HELPER_VERSION };
+    });
+    mediaConfigurationTask = task;
+    return task;
   }
 
   async function addItemToFolder(itemId, folderId) {
@@ -538,8 +663,37 @@
 
   async function handleRequest(req, res) {
     if (req.method === "OPTIONS") return sendJson(res, 200, { status: "success" });
-    if (req.method === "GET" && req.url === "/health") {
-      return sendJson(res, 200, { status: "success", version: HELPER_VERSION, port: serverPort });
+    if (req.method === "GET" && /^\/health(?:\?|$)/.test(req.url)) {
+      const key = libraryKey();
+      const challenge = new URL(req.url, `http://${HOST}`).searchParams.get("challenge") || "";
+      if (challenge && !/^[a-f0-9]{32}$/.test(challenge)) return sendJson(res, 400, { status: "error", message: "Invalid ownership challenge." });
+      return sendJson(res, 200, {
+        status: "success", service: "oe-link-helper", version: HELPER_VERSION, port: serverPort,
+        lifecycleProtocol: 1, instanceId, libraryKey: key, challenge, ownershipProof: ownershipProof(instanceId, key, serverPort, challenge),
+        startedAt, activeRequests, stopping, mediaListening: !!(mediaServer && mediaServer.listening)
+      });
+    }
+    if (req.method === "POST" && req.url === "/lifecycle/shutdown") {
+      if (req.headers.origin || !sameSecret(req.headers["x-oe-link-owner"], getOwnerToken())) {
+        return sendJson(res, 403, { status: "error", message: "Helper ownership not confirmed." });
+      }
+      const data = JSON.parse(await readBody(req) || "{}");
+      if (data.instanceId !== instanceId || !libraryKey() || data.libraryKey !== libraryKey()) {
+        return sendJson(res, 409, { status: "error", message: "Helper instance or library changed." });
+      }
+      if (stopping || activeRequests > 0) return sendJson(res, 409, { status: "error", message: "Helper is busy." });
+      stopping = true;
+      const closing = server;
+      server = null;
+      serverPort = 0;
+      if (closing) {
+        closing.close();
+        if (closing.closeIdleConnections) closing.closeIdleConnections();
+      }
+      if (mediaStartTask) await mediaStartTask.catch(() => {});
+      await stopMediaServer();
+      res.setHeader("Connection", "close");
+      return sendJson(res, 200, { status: "success", data: mediaConfig });
     }
     if (req.method === "GET" && req.url === "/library/current") {
       const libraryPath = window.eagle && eagle.library ? String(eagle.library.path || "").trim() : "";
@@ -553,6 +707,7 @@
         status: "success",
         data: {
           helperVersion: HELPER_VERSION,
+          controlPort: serverPort,
           mediaHost: HOST,
           mediaPort: mediaConfig.port,
           mediaListening: !!(mediaServer && mediaServer.listening),
@@ -644,39 +799,63 @@
     sendJson(res, 404, { status: "error", message: "Not found." });
   }
 
-  function startServer(portIndex = 0) {
+  async function startServer() {
+    if (server || starting || stopping) return;
+    starting = true;
     try {
       const http = require("http");
-      if (server) return;
-      if (portIndex >= PORTS.length) {
-        console.error("[OE Link Helper] no available control port.");
-        return;
-      }
-      const port = PORTS[portIndex];
-      server = http.createServer((req, res) => {
-        handleRequest(req, res).catch(error => {
-          sendJson(res, 500, { status: "error", message: error && error.message ? error.message : String(error) });
-        });
-      });
-      server.once("error", error => {
-        server = null;
-        if (error && error.code === "EADDRINUSE") {
-          startServer(portIndex + 1);
-          return;
+      for (const port of PORTS) {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const activeServer = http.createServer((req, res) => {
+            const tracked = !/^\/health(?:\?|$)/.test(req.url) && req.url !== "/lifecycle/shutdown";
+            if (stopping && tracked) return sendJson(res, 503, { status: "error", message: "Helper is stopping." });
+            if (tracked) activeRequests += 1;
+            handleRequest(req, res).catch(error => {
+              sendJson(res, 500, { status: "error", message: error && error.message ? error.message : String(error) });
+            }).finally(() => { if (tracked) activeRequests -= 1; });
+          });
+          activeServer.on("error", error => {
+            if (activeServer.listening) console.error("[OE Link Helper] control service error:", error);
+          });
+          try {
+            await new Promise((resolve, reject) => {
+              activeServer.once("error", reject);
+              activeServer.listen(port, HOST, () => { activeServer.removeListener("error", reject); resolve(); });
+            });
+            if (stopping) { activeServer.close(); return; }
+            server = activeServer;
+            serverPort = port;
+            console.log(`[OE Link Helper] listening on http://${HOST}:${port}`);
+            await startMediaServer().catch(error => console.error("[OE Link Helper] failed to start media service:", error));
+            return;
+          } catch (error) {
+            if (error.code !== "EADDRINUSE") { console.error("[OE Link Helper] cannot bind control port:", error); break; }
+            const action = await inspectOccupiedPort(port);
+            if (action === "reuse") return;
+            if (action === "defer") {
+              if (!deferredStartTimer && !stopping) deferredStartTimer = setTimeout(() => {
+                deferredStartTimer = null;
+                void startServer();
+              }, 1000);
+              return;
+            }
+            if (action !== "retry" || attempt > 0) break;
+          }
         }
-        console.error("[OE Link Helper] server error:", error);
-      });
-      server.listen(port, HOST, () => {
-        serverPort = port;
-        console.log(`[OE Link Helper] listening on http://${HOST}:${port}`);
-        startMediaServer().catch(error => {
-          console.error("[OE Link Helper] failed to start media service:", error);
-        });
-      });
+      }
+      console.error("[OE Link Helper] no available control port.");
     } catch (error) {
       console.error("[OE Link Helper] failed to start:", error);
-    }
+    } finally { starting = false; }
   }
+
+  if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("beforeunload", () => {
+    stopping = true;
+    clearTimeout(deferredStartTimer);
+    for (const owned of [server, mediaServer]) {
+      if (owned) { owned.close(); if (owned.closeAllConnections) owned.closeAllConnections(); }
+    }
+  }, { once: true });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => startServer(), { once: true });

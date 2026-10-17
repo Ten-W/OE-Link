@@ -64,7 +64,7 @@ assert.doesNotMatch(helper, /item\/open-file/);
 assert.match(source, /queryEagleItemInfo\(itemId, \{ force: true \}\)/);
 assert.match(source, /shell\.openPath\(fullPath\)/);
 assert.match(helper, /req\.url === "\/diagnostic\/status"/);
-assert.match(helper, /error\.code === "EADDRINUSE"/);
+assert.match(helper, /error\.code !== "EADDRINUSE"/);
 assert.match(helper, /expectedSize > 0 && itemSize === expectedSize/);
 assert.match(settings, /settingDesktopDiagnosticButton/);
 assert.equal(getStableIdentityDate({ stat: { ctime: new Date(2026, 0, 22).getTime() } }, "20260123"), "20260123");
